@@ -19,18 +19,20 @@ const dummyData: Array<Pick<NewVocabularyItem, 'text' | 'language'>> = [
   { text: 'Cherry', language: 'en-US' },
 ];
 
+let initializePromise: Promise<void> | null = null;
+
 const getDb = () => {
   const client = new ManualSqliteClient();
   return client.getDb();
 };
 
-export const initializeVocabularyDatabase = async () => {
+const initializeVocabularyDatabase = async () => {
   const db = getDb();
   if (!db) return;
 
   const tableExists = await db.introspection
     .getTables()
-    .then(tables => tables.some(table => table.name === 'vocabulary'));
+    .then((tables: { name: string }[]) => tables.some((table: { name: string }) => table.name === 'vocabulary'));
 
   if (!tableExists) {
     await db.schema
@@ -46,22 +48,42 @@ export const initializeVocabularyDatabase = async () => {
   }
 };
 
-export const getVocabulary = async (page: number, limit: number): Promise<VocabularyItem[]> => {
+export const ensureDatabaseInitialized = () => {
+  if (!initializePromise) {
+    initializePromise = initializeVocabularyDatabase();
+  }
+  return initializePromise;
+};
+
+export const getVocabulary = async (
+  page: number,
+  limit: number,
+  language?: string | null,
+): Promise<VocabularyItem[]> => {
   const db = getDb();
   if (!db) return [];
-  return await db
-    .selectFrom('vocabulary')
-    .selectAll()
-    .orderBy('created_at', 'desc')
+  let query = db.selectFrom('vocabulary').selectAll().orderBy('created_at', 'desc');
+
+  if (language) {
+    query = query.where('language', '=', language);
+  }
+
+  return await query
     .offset((page - 1) * limit)
     .limit(limit)
     .execute();
 };
 
-export const getVocabularyCount = async (): Promise<number> => {
+export const getVocabularyCount = async (language?: string | null): Promise<number> => {
   const db = getDb();
   if (!db) return 0;
-  const result = await db.selectFrom('vocabulary').select(db.fn.count('id').as('count')).executeTakeFirst();
+  let query = db.selectFrom('vocabulary').select(db.fn.count('id').as('count'));
+
+  if (language) {
+    query = query.where('language', '=', language);
+  }
+
+  const result = await query.executeTakeFirst();
   return (result?.count as number) || 0;
 };
 

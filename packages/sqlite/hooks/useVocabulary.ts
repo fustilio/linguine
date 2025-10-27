@@ -3,75 +3,100 @@ import {
   clearAllVocabulary as dbClearAllVocabulary,
   deleteVocabularyItem as dbDeleteVocabularyItem,
   deleteVocabularyItems as dbDeleteVocabularyItems,
+  ensureDatabaseInitialized,
   getVocabulary,
   getVocabularyCount,
-  initializeVocabularyDatabase,
   populateDummyVocabulary as dbPopulateDummyVocabulary,
   updateVocabularyItemKnowledgeLevel as dbUpdateVocabularyItemKnowledgeLevel,
   updateVocabularyItemKnowledgeLevels as dbUpdateVocabularyItemKnowledgeLevels,
 } from '../lib/vocabulary.js';
-import type { NewVocabularyItem, VocabularyItem } from '../lib/types.js';
-import { useCallback, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
+import type { NewVocabularyItem } from '../lib/types.js';
 
 const PAGE_SIZE = 10;
 
 export const useVocabulary = () => {
-  const [items, setItems] = useState<VocabularyItem[]>([]);
-  const [totalItems, setTotalItems] = useState(0);
+  const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  const [languageFilter, setLanguageFilter] = useState<string | null>(null);
 
-  const loadVocabulary = useCallback(async (page: number) => {
-    const [vocab, count] = await Promise.all([getVocabulary(page, PAGE_SIZE), getVocabularyCount()]);
-    setItems(vocab);
-    setTotalItems(count);
-    setCurrentPage(page);
-  }, []);
+  const queryKey = ['vocabulary', currentPage, languageFilter];
 
-  useEffect(() => {
-    initializeVocabularyDatabase().then(() => {
-      loadVocabulary(1);
-    });
-  }, [loadVocabulary]);
-
-  const addVocabularyItem = useCallback(
-    async (item: Pick<NewVocabularyItem, 'text' | 'language'>) => {
-      await dbAddVocabularyItem(item);
-      loadVocabulary(1);
+  const { data: vocabularyData } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      await ensureDatabaseInitialized();
+      const [items, totalItems] = await Promise.all([
+        getVocabulary(currentPage, PAGE_SIZE, languageFilter),
+        getVocabularyCount(languageFilter),
+      ]);
+      return { items, totalItems };
     },
-    [loadVocabulary],
-  );
+  });
 
-  const updateVocabularyItemKnowledgeLevel = useCallback(
-    async (id: number, level: number) => {
-      const newLevel = Math.max(1, Math.min(5, level)); // clamp between 1 and 5
-      await dbUpdateVocabularyItemKnowledgeLevel(id, newLevel);
-      loadVocabulary(currentPage);
+  const { items = [], totalItems = 0 } = vocabularyData || {};
+
+  const mutationOptions = {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vocabulary'] });
+      setSelectedItems(new Set());
     },
-    [loadVocabulary, currentPage],
-  );
+  };
 
-  const deleteVocabularyItem = useCallback(
-    async (id: number) => {
-      await dbDeleteVocabularyItem(id);
-      loadVocabulary(currentPage);
+  const addVocabularyItem = useMutation({
+    mutationFn: (item: Pick<NewVocabularyItem, 'text' | 'language'>) => dbAddVocabularyItem(item),
+    ...mutationOptions,
+    onSuccess: () => {
+      setCurrentPage(1);
+      queryClient.invalidateQueries({ queryKey: ['vocabulary'] });
     },
-    [loadVocabulary, currentPage],
-  );
+  });
 
-  const populateDummyVocabulary = useCallback(async () => {
-    await dbPopulateDummyVocabulary();
-    loadVocabulary(1);
-  }, [loadVocabulary]);
+  const updateVocabularyItemKnowledgeLevel = useMutation({
+    mutationFn: ({ id, level }: { id: number; level: number }) =>
+      dbUpdateVocabularyItemKnowledgeLevel(id, Math.max(1, Math.min(5, level))),
+    ...mutationOptions,
+  });
 
-  const goToPage = useCallback(
-    (page: number) => {
-      const totalPages = Math.ceil(totalItems / PAGE_SIZE);
-      const newPage = Math.max(1, Math.min(page, totalPages));
-      loadVocabulary(newPage);
+  const deleteVocabularyItem = useMutation({
+    mutationFn: (id: number) => dbDeleteVocabularyItem(id),
+    ...mutationOptions,
+  });
+
+  const populateDummyVocabulary = useMutation({
+    mutationFn: dbPopulateDummyVocabulary,
+    ...mutationOptions,
+    onSuccess: () => {
+      setCurrentPage(1);
+      queryClient.invalidateQueries({ queryKey: ['vocabulary'] });
     },
-    [loadVocabulary, totalItems],
-  );
+  });
+
+  const bulkDelete = useMutation({
+    mutationFn: () => dbDeleteVocabularyItems(Array.from(selectedItems)),
+    ...mutationOptions,
+  });
+
+  const bulkUpdateLevel = useMutation({
+    mutationFn: (levelChange: 1 | -1) => dbUpdateVocabularyItemKnowledgeLevels(Array.from(selectedItems), levelChange),
+    ...mutationOptions,
+  });
+
+  const clearAllVocabulary = useMutation({
+    mutationFn: dbClearAllVocabulary,
+    ...mutationOptions,
+    onSuccess: () => {
+      setCurrentPage(1);
+      queryClient.invalidateQueries({ queryKey: ['vocabulary'] });
+    },
+  });
+
+  const goToPage = (page: number) => {
+    const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
 
   const toggleItemSelected = useCallback((id: number) => {
     setSelectedItems(prev => {
@@ -94,40 +119,21 @@ export const useVocabulary = () => {
     });
   }, [items]);
 
-  const bulkDelete = useCallback(async () => {
-    await dbDeleteVocabularyItems(Array.from(selectedItems));
-    setSelectedItems(new Set());
-    loadVocabulary(currentPage);
-  }, [selectedItems, loadVocabulary, currentPage]);
-
-  const bulkUpdateLevel = useCallback(
-    async (levelChange: 1 | -1) => {
-      await dbUpdateVocabularyItemKnowledgeLevels(Array.from(selectedItems), levelChange);
-      setSelectedItems(new Set());
-      loadVocabulary(currentPage);
-    },
-    [selectedItems, loadVocabulary, currentPage],
-  );
-
-  const clearAllVocabulary = useCallback(async () => {
-    await dbClearAllVocabulary();
-    setSelectedItems(new Set());
-    loadVocabulary(1);
-  }, [loadVocabulary]);
-
   return {
     items,
-    addVocabularyItem,
-    updateVocabularyItemKnowledgeLevel,
-    deleteVocabularyItem,
-    populateDummyVocabulary,
-    currentPage,
     totalItems,
+    currentPage,
     pageSize: PAGE_SIZE,
     goToPage,
     selectedItems,
     toggleItemSelected,
     toggleSelectAll,
+    languageFilter,
+    setLanguageFilter,
+    addVocabularyItem,
+    updateVocabularyItemKnowledgeLevel,
+    deleteVocabularyItem,
+    populateDummyVocabulary,
     bulkDelete,
     bulkUpdateLevel,
     clearAllVocabulary,

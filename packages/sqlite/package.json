@@ -22,6 +22,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.5",
     "@extension/shared": "workspace:*",
     "kysely": "^0.28.8",
     "sqlocal": "^0.15.2"

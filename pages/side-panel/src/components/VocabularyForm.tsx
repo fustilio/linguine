@@ -1,14 +1,6 @@
+import { LANGUAGES } from '@extension/shared/const';
 import { cn } from '@extension/ui';
 import { useState } from 'react';
-
-const languages = [
-  { value: 'en-US', label: 'English (US)' },
-  { value: 'ja-JP', label: 'Japanese' },
-  { value: 'es-ES', label: 'Spanish' },
-  { value: 'fr-FR', label: 'French' },
-  { value: 'de-DE', label: 'German' },
-  { value: 'ko-KR', label: 'Korean' },
-];
 
 interface VocabularyFormProps {
   onAddItem: (item: { text: string; language: string }) => void;
@@ -47,7 +39,7 @@ export const VocabularyForm = ({ onAddItem, isLight }: VocabularyFormProps) => {
         )}
         value={newItemLanguage}
         onChange={e => setNewItemLanguage(e.target.value)}>
-        {languages.map(lang => (
+        {LANGUAGES.map(lang => (
           <option key={lang.value} value={lang.value}>
             {lang.label}
           </option>

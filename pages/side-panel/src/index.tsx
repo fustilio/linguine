@@ -1,5 +1,6 @@
 import '@src/index.css';
 import SidePanel from '@src/SidePanel';
+import { QueryClient, QueryClientProvider } from '@extension/sqlite';
 import { createRoot } from 'react-dom/client';
 
 const init = () => {
@@ -7,8 +8,15 @@ const init = () => {
   if (!appContainer) {
     throw new Error('Can not find #app-container');
   }
+
+  const queryClient = new QueryClient();
+
   const root = createRoot(appContainer);
-  root.render(<SidePanel />);
+  root.render(
+    <QueryClientProvider client={queryClient}>
+      <SidePanel />
+    </QueryClientProvider>,
+  );
 };
 
 init();

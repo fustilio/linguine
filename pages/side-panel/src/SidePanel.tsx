@@ -9,24 +9,27 @@ import { Header } from './components/Header';
 import { Pagination } from './components/Pagination';
 import { VocabularyForm } from './components/VocabularyForm';
 import { VocabularyList } from './components/VocabularyList';
+import { VocabularyToolbar } from './components/VocabularyToolbar';
 
 const SidePanel = () => {
   const {
     items,
-    addVocabularyItem,
-    updateVocabularyItemKnowledgeLevel,
-    deleteVocabularyItem,
-    populateDummyVocabulary,
-    clearAllVocabulary,
-    currentPage,
     totalItems,
+    currentPage,
     pageSize,
     goToPage,
     selectedItems,
     toggleItemSelected,
     toggleSelectAll,
+    languageFilter,
+    setLanguageFilter,
+    addVocabularyItem,
+    updateVocabularyItemKnowledgeLevel,
+    deleteVocabularyItem,
+    populateDummyVocabulary,
     bulkDelete,
     bulkUpdateLevel,
+    clearAllVocabulary,
   } = useVocabulary();
 
   const { isLight } = useStorage(exampleThemeStorage);
@@ -42,14 +45,19 @@ const SidePanel = () => {
             Vocabulary Tracker
           </h2>
 
-          <VocabularyForm onAddItem={addVocabularyItem} isLight={isLight} />
+          <VocabularyForm onAddItem={item => addVocabularyItem.mutate(item)} isLight={isLight} />
+          <VocabularyToolbar
+            languageFilter={languageFilter}
+            onLanguageChange={setLanguageFilter}
+            isLight={isLight}
+          />
 
           {selectedItems.size > 0 && (
             <BulkActionsBar
               selectedItemsCount={selectedItems.size}
-              onLevelUp={() => bulkUpdateLevel(1)}
-              onLevelDown={() => bulkUpdateLevel(-1)}
-              onDelete={bulkDelete}
+              onLevelUp={() => bulkUpdateLevel.mutate(1)}
+              onLevelDown={() => bulkUpdateLevel.mutate(-1)}
+              onDelete={() => bulkDelete.mutate()}
             />
           )}
 
@@ -59,8 +67,8 @@ const SidePanel = () => {
             isLight={isLight}
             onToggleSelectAll={toggleSelectAll}
             onToggleItemSelected={toggleItemSelected}
-            onUpdateLevel={updateVocabularyItemKnowledgeLevel}
-            onDeleteItem={deleteVocabularyItem}
+            onUpdateLevel={(id, level) => updateVocabularyItemKnowledgeLevel.mutate({ id, level })}
+            onDeleteItem={id => deleteVocabularyItem.mutate(id)}
           />
 
           <Pagination
@@ -73,8 +81,8 @@ const SidePanel = () => {
         </div>
 
         <DebugActions
-          populateDummyVocabulary={populateDummyVocabulary}
-          clearAllVocabulary={clearAllVocabulary}
+          populateDummyVocabulary={() => populateDummyVocabulary.mutate()}
+          clearAllVocabulary={() => clearAllVocabulary.mutate()}
           isLight={isLight}
         />
       </div>
@@ -83,3 +91,4 @@ const SidePanel = () => {
 };
 
 export default withErrorBoundary(withSuspense(SidePanel, <LoadingSpinner />), ErrorDisplay);
+
