@@ -2,7 +2,49 @@
 // This script runs on every webpage and handles both word replacement and selection
 // Users can select text to add replacements and see replacements applied in real-time
 
+declare global {
+  interface Window {
+    Rewriter: {
+      availability(): Promise<'available' | 'downloadable' | 'unavailable'>;
+      create(options: RewriterOptions): Promise<Rewriter>;
+    };
+  }
+}
+
+type RewriterOptions = {
+  sharedContext?: string;
+  expectedInputLanguages?: string[];
+  expectedContextLanguages?: string[];
+  tone?: string;
+  format?: string;
+  length?: string;
+  monitor?: (monitor: DownloadMonitor) => void;
+};
+
+type DownloadMonitor = {
+  addEventListener(type: 'downloadprogress', listener: (event: ProgressEvent) => void): void;
+};
+
+type Rewriter = {
+  rewrite(text: string, options?: { context?: string }): Promise<string>;
+  ready: Promise<void>;
+};
+
 export class WordReplacer {
+  private replacements: Map<string, string>;
+  private isActive: boolean;
+  private highlightColor: string;
+  private observer: MutationObserver | null;
+  private selectedWords: Set<string>;
+  private currentHighlight: HTMLElement | null;
+  private rewriter: Rewriter | null; // Type from Chrome's experimental AI API (not in TS types)
+  private isRewriterReady: boolean;
+  private rewriterOptions: RewriterOptions;
+  private downloadProgress: number;
+  private isDownloading: boolean;
+  private replaceTimeout?: ReturnType<typeof setTimeout>;
+  private handleSelection?: ((event: MouseEvent) => void) | null;
+
   constructor() {
     this.replacements = new Map();
     this.isActive = false;
@@ -97,7 +139,11 @@ export class WordReplacer {
     }
   }
 
-  handleMessage(message, sender, sendResponse) {
+  handleMessage(
+    message: { action: string; [key: string]: unknown },
+    sender: chrome.runtime.MessageSender,
+    sendResponse: (response: unknown) => void,
+  ): boolean | void {
     switch (message.action) {
       case 'toggleActive':
         this.isActive = !this.isActive;
@@ -249,7 +295,7 @@ export class WordReplacer {
     this.removeSelectionMode();
 
     // Create and store the handler
-    this.handleSelection = event => {
+    this.handleSelection = () => {
       // Double-check isActive before proceeding
       if (!this.isActive) {
         return;
@@ -273,7 +319,7 @@ export class WordReplacer {
     }
   }
 
-  expandSelectionToWordBoundaries(range) {
+  expandSelectionToWordBoundaries(range: Range): Range {
     // Clone the range to avoid modifying the original
     const expandedRange = range.cloneRange();
 
@@ -284,6 +330,9 @@ export class WordReplacer {
     // Expand start boundary
     if (startContainer.nodeType === Node.TEXT_NODE) {
       const text = startContainer.textContent;
+      if (!text) {
+        return expandedRange;
+      }
       let startOffset = expandedRange.startOffset;
 
       // Move backwards to find word boundary
@@ -296,6 +345,9 @@ export class WordReplacer {
     // Expand end boundary
     if (endContainer.nodeType === Node.TEXT_NODE) {
       const text = endContainer.textContent;
+      if (!text) {
+        return expandedRange;
+      }
       let endOffset = expandedRange.endOffset;
 
       // Move forwards to find word boundary
@@ -308,8 +360,8 @@ export class WordReplacer {
     return expandedRange;
   }
 
-  async highlightSelectedWord(word, selection) {
-    if (!this.isActive) {
+  async highlightSelectedWord(word: string, selection: Selection | null): Promise<void> {
+    if (!this.isActive || !selection) {
       return;
     }
 
@@ -347,7 +399,7 @@ export class WordReplacer {
     try {
       range.surroundContents(span);
       selection.removeAllRanges();
-    } catch (error) {
+    } catch {
       // If surroundContents fails, try extractContents and appendChild
       try {
         const contents = range.extractContents();
@@ -364,7 +416,7 @@ export class WordReplacer {
   /**
    * Rewrite highlighted text using AI and create interactive UI
    */
-  async rewriteHighlightedText(originalText, highlightSpan, range) {
+  async rewriteHighlightedText(originalText: string, highlightSpan: HTMLElement): Promise<void> {
     if (!this.isActive) {
       console.log('⚠️ Extension is not active, rewriting disabled');
       return;
@@ -548,7 +600,7 @@ export class WordReplacer {
         // Update current highlight reference
         this.currentHighlight = wrapper;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ Error rewriting highlighted text:', error);
 
       // Reset highlight on error
@@ -614,6 +666,9 @@ export class WordReplacer {
     // Process each text node
     textNodes.forEach(textNode => {
       let text = textNode.textContent;
+      if (!text) {
+        return;
+      }
       let modified = false;
 
       // Apply all replacements
@@ -630,12 +685,14 @@ export class WordReplacer {
       if (modified) {
         textNode.textContent = text;
         // Mark parent as processed to avoid re-processing
-        textNode.parentElement.classList.add('word-replacer-processed');
+        if (textNode.parentElement) {
+          textNode.parentElement.classList.add('word-replacer-processed');
+        }
       }
     });
   }
 
-  escapeRegex(string) {
+  escapeRegex(string: string): string {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
@@ -647,8 +704,10 @@ export class WordReplacer {
     const highlights = document.querySelectorAll('.word-replacer-highlight');
     highlights.forEach(highlight => {
       const parent = highlight.parentNode;
-      parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
-      parent.normalize();
+      if (parent) {
+        parent.replaceChild(document.createTextNode(highlight.textContent || ''), highlight);
+        parent.normalize();
+      }
     });
 
     // Remove processed markers
@@ -670,7 +729,8 @@ export class WordReplacer {
         };
       }
 
-      const availability = await Rewriter.availability();
+      // @ts-expect-error - Rewriter API is experimental and not in TypeScript types
+      const availability = await self.Rewriter.availability();
       return {
         available: true,
         status: availability,
@@ -699,7 +759,7 @@ export class WordReplacer {
         throw new Error('Rewriter API not available');
       }
 
-      const availability = await Rewriter.availability();
+      const availability = await window.Rewriter.availability();
       console.log('📊 Rewriter availability:', availability);
 
       if (availability === 'unavailable') {
@@ -723,7 +783,7 @@ export class WordReplacer {
         },
       };
 
-      this.rewriter = await Rewriter.create(options);
+      this.rewriter = await window.Rewriter.create(options);
       await this.rewriter.ready;
       this.isRewriterReady = true;
       console.log('✅ Rewriter ready!');
