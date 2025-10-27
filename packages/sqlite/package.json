@@ -1,0 +1,33 @@
+{
+  "name": "@extension/sqlite",
+  "version": "0.5.0",
+  "description": "chrome extension - sqlite opfs integration",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "files": [
+    "dist/**"
+  ],
+  "types": "index.mts",
+  "main": "dist/index.mjs",
+  "scripts": {
+    "clean:bundle": "rimraf dist",
+    "clean:node_modules": "pnpx rimraf node_modules",
+    "clean:turbo": "rimraf .turbo",
+    "clean": "pnpm clean:bundle && pnpm clean:node_modules && pnpm clean:turbo",
+    "ready": "tsc -b && tsc-alias -p tsconfig.json",
+    "lint": "eslint .",
+    "lint:fix": "pnpm lint --fix",
+    "format": "prettier . --write --ignore-path ../../.prettierignore",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@extension/shared": "workspace:*",
+    "kysely": "^0.28.8",
+    "sqlocal": "^0.15.2"
+  },
+  "devDependencies": {
+    "@extension/tsconfig": "workspace:*",
+    "tsc-alias": "^1.8.16"
+  }
+}

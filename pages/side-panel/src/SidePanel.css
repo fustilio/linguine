@@ -1,21 +1,13 @@
-.App {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  text-align: center;
-  height: 100%;
-  padding: 1rem;
+a {
+  color: #58a6ff;
 }
 
 .App-logo {
-  height: 50vmin;
+  height: 15vmin;
   margin-bottom: 1rem;
 }
 
 .App-header {
-  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;

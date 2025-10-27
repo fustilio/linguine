@@ -1,0 +1,1 @@
+export * from './useVocabulary.js';
