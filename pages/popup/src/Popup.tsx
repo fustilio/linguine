@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 
 const notificationOptions = {
   type: 'basic',
-  iconUrl: chrome.runtime.getURL('icon-34.png'),
+  iconUrl: chrome.runtime.getURL('pasta-illustration-2.png'),
   title: 'Injecting content script error',
   message: 'You cannot inject script here!',
 } as const;
@@ -20,7 +20,7 @@ interface RewriterOptions {
 
 const Popup = () => {
   const { isLight } = useStorage(exampleThemeStorage);
-  const logo = isLight ? 'popup/pasta-illustration-2.svg' : 'popup/logo_vertical_dark.svg';
+  const logo = 'popup/pasta-illustration-2.svg';
 
   // State management
   const [isActive, setIsActive] = useState(false);
@@ -28,7 +28,8 @@ const Popup = () => {
   const [currentTab, setCurrentTab] = useState<chrome.tabs.Tab | null>(null);
   const [saveStatus, setSaveStatus] = useState('');
   const [rewriterOptions, setRewriterOptions] = useState<RewriterOptions>({
-    sharedContext: 'I am learning English. Use simpler vocabulary so I can understand this text.',
+    sharedContext:
+      'I am learning this language. Use simpler vocabulary in its original language so I can understand this text.',
     tone: 'as-is',
     format: 'as-is',
     length: 'shorter',
@@ -187,29 +188,29 @@ const Popup = () => {
       )}>
       {/* Header with Logo and Title */}
       <div className="bg-gradient-to-br from-[#667eea] to-[#764ba2] p-4 text-white">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <button onClick={goGithubSite} className="flex-shrink-0 cursor-pointer border-none bg-transparent p-0">
-              <img
-                src={chrome.runtime.getURL(logo)}
-                className="h-10 w-10 rounded-lg transition-transform hover:scale-110"
-                alt="Plainly logo"
-              />
-            </button>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-bold">Plainly</h1>
-              <p className="text-[10px] leading-tight opacity-90">
-                Rephrase highlighted text into simpler, more understandable language.
-              </p>
-            </div>
-          </div>
-          <div className="flex-shrink-0">
-            <ToggleButton>{t('toggleTheme')}</ToggleButton>
+        <div className="flex items-center gap-2">
+          <button onClick={goGithubSite} className="flex-shrink-0 cursor-pointer border-none bg-transparent p-0">
+            <img
+              src={chrome.runtime.getURL(logo)}
+              className="h-10 w-10 rounded-lg transition-transform hover:scale-110"
+              alt="Linguine logo"
+            />
+          </button>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-bold">Linguine</h1>
+            <p className="text-[10px] leading-tight opacity-90">
+              Rephrase highlighted text into simpler, more understandable language.
+            </p>
           </div>
         </div>
       </div>
 
       <div className="p-4">
+        {/* Theme Toggle */}
+        <div className="mb-4 flex justify-center">
+          <ToggleButton>{t('toggleTheme')}</ToggleButton>
+        </div>
+
         {/* Status Section */}
         <div className="mb-5">
           <div
@@ -223,7 +224,7 @@ const Popup = () => {
           </div>
 
           <div className="mb-3 flex items-center justify-between rounded-lg bg-[#f8f9fa] p-3">
-            <span>Enable Extension</span>
+            <span className="text-black">Enable Extension</span>
             <button
               onClick={toggleActive}
               onKeyDown={e => {
@@ -254,8 +255,8 @@ const Popup = () => {
 
         {/* Instructions Section */}
         <div className="mb-5">
-          <h3 className="mb-2 text-sm font-semibold text-[#444]">How to Use</h3>
-          <div className="mt-2 text-[13px] leading-relaxed text-[#555]">
+          <h3 className={cn('mb-2 text-sm font-semibold', isLight ? 'text-[#444]' : 'text-gray-200')}>How to Use</h3>
+          <div className={cn('mt-2 text-[13px] leading-relaxed', isLight ? 'text-[#555]' : 'text-gray-300')}>
             <strong>1. Enable the extension</strong> using the toggle above
             <br />
             <strong>2. Select text</strong> on any webpage
@@ -273,7 +274,7 @@ const Popup = () => {
             <br />
             <br />
             <span className="text-[10px] opacity-70">
-              Doesn't work? Plainly requires chrome://flags/#rewriter-api-for-gemini-nano to be enabled.
+              Doesn't work? Linguine requires chrome://flags/#rewriter-api-for-gemini-nano to be enabled.
             </span>
           </div>
         </div>
@@ -318,7 +319,7 @@ const Popup = () => {
                       }))
                     }
                     className="min-h-[60px] w-full resize-y rounded border border-[#d1d5db] p-2 text-xs"
-                    placeholder="e.g., I am learning English. Use simpler vocabulary so I can understand this text."
+                    placeholder="e.g., I am learning this language. Use simpler vocabulary in its original language so I can understand this text."
                   />
                 </div>
 
