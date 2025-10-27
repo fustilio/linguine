@@ -7,3 +7,12 @@ body {
   padding: 0;
   overflow: hidden;
 }
+
+/* Collapsible settings - expanded state */
+#settingsContent.expanded {
+  max-height: 600px !important;
+}
+
+.arrow.expanded {
+  transform: rotate(90deg);
+}

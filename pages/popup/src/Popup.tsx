@@ -126,10 +126,12 @@ const Popup = () => {
           <div className="mt-3 rounded-lg bg-[#f8f9fa] p-3">
             <div className="flex cursor-pointer items-center justify-between py-2 hover:opacity-80" id="settingsHeader">
               <h3 className="m-0 text-sm font-semibold text-[#444]">AI Rewriter Settings</h3>
-              <span className="transition-transform duration-300">▶</span>
+              <span className="arrow transition-transform duration-300">▶</span>
             </div>
 
-            <div className="max-h-0 overflow-hidden transition-[max-height] duration-300 ease-in-out">
+            <div
+              className="max-h-0 overflow-hidden transition-[max-height] duration-300 ease-in-out"
+              id="settingsContent">
               <div className="mt-3">
                 {/* Shared Context */}
                 <div className="mb-3">
