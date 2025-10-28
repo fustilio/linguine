@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { addSentenceRewrite } from '@extension/sqlite';
+import { addSentenceRewrite } from '@extension/api';
 import { themeVariants, button, input, select, cn } from '@extension/ui';
 
 export const SentenceRewritesDemo = () => {

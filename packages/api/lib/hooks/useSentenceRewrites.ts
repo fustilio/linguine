@@ -1,15 +1,15 @@
-import {
-  addSentenceRewrite as dbAddSentenceRewrite,
-  clearAllSentenceRewrites as dbClearAllSentenceRewrites,
-  deleteSentenceRewrite as dbDeleteSentenceRewrite,
-  deleteSentenceRewrites as dbDeleteSentenceRewrites,
-  ensureDatabaseInitialized,
-  getSentenceRewrites,
-  getSentenceRewriteCount,
-} from '@extension/sqlite';
+import { 
+  addSentenceRewrite as apiAddSentenceRewrite,
+  clearAllSentenceRewrites as apiClearAllSentenceRewrites,
+  deleteSentenceRewrite as apiDeleteSentenceRewrite,
+  deleteSentenceRewrites as apiDeleteSentenceRewrites,
+  ensureDatabaseInitialized as apiEnsureDatabaseInitialized,
+  getSentenceRewrites as apiGetSentenceRewrites,
+  getSentenceRewriteCount as apiGetSentenceRewriteCount,
+} from '../sentence-rewrites-api.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import type { NewSentenceRewrite } from '@extension/sqlite';
+import type { SentenceRewriteData } from '../sentence-rewrites-api.js';
 
 const PAGE_SIZE = 10;
 
@@ -29,10 +29,10 @@ export const useSentenceRewrites = (filters?: {
   const { data: sentenceRewritesData } = useQuery({
     queryKey,
     queryFn: async () => {
-      await ensureDatabaseInitialized();
+      await apiEnsureDatabaseInitialized();
       const [items, totalItems] = await Promise.all([
-        getSentenceRewrites(currentPage, PAGE_SIZE, filters),
-        getSentenceRewriteCount(filters),
+        apiGetSentenceRewrites(currentPage, PAGE_SIZE, filters),
+        apiGetSentenceRewriteCount(filters),
       ]);
       return { items, totalItems };
     },
@@ -48,8 +48,8 @@ export const useSentenceRewrites = (filters?: {
   };
 
   const addSentenceRewrite = useMutation({
-    mutationFn: (rewrite: Omit<NewSentenceRewrite, 'id' | 'original_readability_score' | 'rewritten_readability_score' | 'created_at'>) => 
-      dbAddSentenceRewrite(rewrite),
+    mutationFn: (rewrite: Omit<SentenceRewriteData, 'id' | 'original_readability_score' | 'rewritten_readability_score' | 'created_at'>) => 
+      apiAddSentenceRewrite(rewrite),
     ...mutationOptions,
     onSuccess: () => {
       setCurrentPage(1);
@@ -58,17 +58,17 @@ export const useSentenceRewrites = (filters?: {
   });
 
   const deleteSentenceRewrite = useMutation({
-    mutationFn: (id: number) => dbDeleteSentenceRewrite(id),
+    mutationFn: (id: number) => apiDeleteSentenceRewrite(id),
     ...mutationOptions,
   });
 
   const bulkDelete = useMutation({
-    mutationFn: () => dbDeleteSentenceRewrites(Array.from(selectedItems)),
+    mutationFn: () => apiDeleteSentenceRewrites(Array.from(selectedItems)),
     ...mutationOptions,
   });
 
   const clearAllSentenceRewrites = useMutation({
-    mutationFn: dbClearAllSentenceRewrites,
+    mutationFn: apiClearAllSentenceRewrites,
     ...mutationOptions,
     onSuccess: () => {
       setCurrentPage(1);

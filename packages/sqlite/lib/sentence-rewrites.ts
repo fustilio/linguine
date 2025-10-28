@@ -455,8 +455,11 @@ const getSentenceRewritesByReadability = async (
 const addSentenceRewrite = async (
   rewrite: Omit<NewSentenceRewrite, 'id' | 'original_readability_score' | 'rewritten_readability_score' | 'created_at'>,
 ) => {
+    console.log("add sentence rewrite")
   // Ensure database is initialized before attempting to insert
   await ensureSentenceRewritesDatabaseInitialized();
+
+  console.log("db is initilized")
   
   const db = getDb();
   if (!db) {

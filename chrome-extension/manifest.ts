@@ -31,7 +31,7 @@ const manifest = {
   version: packageJson.version,
   description: '__MSG_extensionDescription__',
   host_permissions: ['<all_urls>'],
-  permissions: ['storage', 'scripting', 'tabs', 'notifications', 'sidePanel', 'unlimitedStorage'],
+  permissions: ['storage', 'scripting', 'tabs', 'notifications', 'sidePanel', 'unlimitedStorage', 'offscreen'],
   options_page: 'options/index.html',
   background: {
     service_worker: 'background.js',
@@ -80,6 +80,8 @@ const manifest = {
         'pasta-icon.webp',
         'icon-128.png',
         'icon-34.png',
+        'offscreen.html',
+        'offscreen.js',
         // '*.wasm', '*.wasm.js'
       ],
       matches: ['*://*/*'],

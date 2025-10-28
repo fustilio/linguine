@@ -13,7 +13,7 @@ import type {
   AIResponse,
   VocabularyFilterSpec,
 } from './types.js';
-import type { VocabularyItem } from '@extension/sqlite';
+import type { VocabularyItem } from './vocabulary-api.js';
 
 /**
  * Analyze a chunk of text against known vocabulary

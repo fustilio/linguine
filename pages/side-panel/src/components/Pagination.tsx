@@ -4,11 +4,10 @@ interface PaginationProps {
   currentPage: number;
   totalItems: number;
   pageSize: number;
-  isLight: boolean;
   onPageChange: (page: number) => void;
 }
 
-export const Pagination = ({ currentPage, totalItems, pageSize, isLight, onPageChange }: PaginationProps) => {
+export const Pagination = ({ currentPage, totalItems, pageSize, onPageChange }: PaginationProps) => {
   const totalPages = Math.ceil(totalItems / pageSize);
 
   if (totalPages <= 1) {
@@ -23,7 +22,7 @@ export const Pagination = ({ currentPage, totalItems, pageSize, isLight, onPageC
         className="rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600 disabled:opacity-50">
         Previous
       </button>
-      <span className={cn(isLight ? 'text-gray-700' : 'text-gray-300')}>
+      <span className={cn('text-gray-700 dark:text-gray-300')}>
         Page {currentPage} of {totalPages}
       </span>
       <button

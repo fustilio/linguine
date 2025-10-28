@@ -184,9 +184,6 @@ importers:
       '@extension/shared':
         specifier: workspace:*
         version: link:../shared
-      '@extension/sqlite':
-        specifier: workspace:*
-        version: link:../sqlite
       '@tanstack/react-query':
         specifier: ^5.90.5
         version: 5.90.5(react@19.1.1)

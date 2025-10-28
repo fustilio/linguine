@@ -23,7 +23,6 @@
   },
   "dependencies": {
     "@extension/shared": "workspace:*",
-    "@extension/sqlite": "workspace:*",
     "@tanstack/react-query": "^5.90.5",
     "zod": "^4.1.12"
   },

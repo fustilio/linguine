@@ -102,14 +102,14 @@ export const SentenceRewritesAdmin = () => {
       <SentenceRewritesDemo />
 
       {/* Filters */}
-      <Card isLight={isLight}>
-        <CardHeader isLight={isLight}>
-          <CardTitle isLight={isLight}>Filters</CardTitle>
+      <Card>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
         </CardHeader>
-        <CardContent isLight={isLight}>
+        <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className={themeVariants.muted({ theme }) + ' block text-sm font-medium mb-1'}>Language</label>
+              <label className={cn(themeVariants.muted(), 'block text-sm font-medium mb-1')}>Language</label>
               <select
                 value={languageFilter}
                 onChange={(e) => setLanguageFilter(e.target.value)}
@@ -126,7 +126,7 @@ export const SentenceRewritesAdmin = () => {
             </div>
 
             <div>
-              <label className={themeVariants.muted({ theme }) + ' block text-sm font-medium mb-1'}>Readability Range</label>
+              <label className={cn(themeVariants.muted(), 'block text-sm font-medium mb-1')}>Readability Range</label>
               <div className="flex gap-2">
                 <input
                   type="number"
@@ -137,7 +137,7 @@ export const SentenceRewritesAdmin = () => {
                   className={input() + ' w-20'}
                   placeholder="Min"
                 />
-                <span className={themeVariants.muted({ theme })}>-</span>
+                <span className={cn(themeVariants.muted())}>-</span>
                 <input
                   type="number"
                   min="0"
@@ -151,7 +151,7 @@ export const SentenceRewritesAdmin = () => {
             </div>
 
             <div>
-              <label className={themeVariants.muted({ theme }) + ' block text-sm font-medium mb-1'}>Recent Days</label>
+              <label className={cn(themeVariants.muted(), 'block text-sm font-medium mb-1')}>Recent Days</label>
               <select
                 value={recentDays || ''}
                 onChange={(e) => setRecentDays(e.target.value ? parseInt(e.target.value) : undefined)}
@@ -168,8 +168,8 @@ export const SentenceRewritesAdmin = () => {
       </Card>
 
       {/* Bulk Actions */}
-      <Card isLight={isLight}>
-        <CardContent isLight={isLight}>
+      <Card>
+        <CardContent>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
@@ -180,7 +180,7 @@ export const SentenceRewritesAdmin = () => {
               </button>
               
               {selectedItems.size > 0 && (
-                <span className={themeVariants.muted({ theme }) + ' text-sm'}>
+                <span className={cn(themeVariants.muted(), 'text-sm')}>
                   {selectedItems.size} selected
                 </span>
               )}
@@ -214,31 +214,27 @@ export const SentenceRewritesAdmin = () => {
         <StatsCard
           title="Total Rewrites"
           value={totalItems}
-          isLight={isLight}
         />
         <StatsCard
           title="Easy Reads"
           value={rewrites.filter(r => r.rewritten_readability_score >= 60).length}
-          isLight={isLight}
         />
         <StatsCard
           title="Moderate"
           value={rewrites.filter(r => r.rewritten_readability_score >= 30 && r.rewritten_readability_score < 60).length}
-          isLight={isLight}
         />
         <StatsCard
           title="Difficult"
           value={rewrites.filter(r => r.rewritten_readability_score < 30).length}
-          isLight={isLight}
         />
       </StatsGrid>
 
       {/* Table */}
-      <Card isLight={isLight} className="overflow-hidden">
-        <Table isLight={isLight}>
-          <TableHeader isLight={isLight}>
+      <Card className="overflow-hidden">
+        <Table>
+          <TableHeader>
             <tr>
-              <TableHeaderCell isLight={isLight}>
+              <TableHeaderCell>
                 <input
                   type="checkbox"
                   checked={selectedItems.size === rewrites.length && rewrites.length > 0}
@@ -246,23 +242,23 @@ export const SentenceRewritesAdmin = () => {
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:focus:ring-blue-400"
                 />
               </TableHeaderCell>
-              <TableHeaderCell isLight={isLight}>Original Text</TableHeaderCell>
-              <TableHeaderCell isLight={isLight}>Rewritten Text</TableHeaderCell>
-              <TableHeaderCell isLight={isLight}>Language</TableHeaderCell>
-              <TableHeaderCell isLight={isLight}>Original Score</TableHeaderCell>
-              <TableHeaderCell isLight={isLight}>Rewritten Score</TableHeaderCell>
-              <TableHeaderCell isLight={isLight}>Source</TableHeaderCell>
-              <TableHeaderCell isLight={isLight}>Created</TableHeaderCell>
-              <TableHeaderCell isLight={isLight}>Actions</TableHeaderCell>
+              <TableHeaderCell>Original Text</TableHeaderCell>
+              <TableHeaderCell>Rewritten Text</TableHeaderCell>
+              <TableHeaderCell>Language</TableHeaderCell>
+              <TableHeaderCell>Original Score</TableHeaderCell>
+              <TableHeaderCell>Rewritten Score</TableHeaderCell>
+              <TableHeaderCell>Source</TableHeaderCell>
+              <TableHeaderCell>Created</TableHeaderCell>
+              <TableHeaderCell>Actions</TableHeaderCell>
             </tr>
           </TableHeader>
-          <TableBody isLight={isLight}>
+          <TableBody>
             {rewrites.map((rewrite) => {
               const isSelected = selectedItems.has(rewrite.id);
               
               return (
-                <TableRow key={rewrite.id} isLight={isLight} isSelected={isSelected}>
-                  <TableCell isLight={isLight}>
+                <TableRow key={rewrite.id} isSelected={isSelected}>
+                  <TableCell>
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -271,47 +267,47 @@ export const SentenceRewritesAdmin = () => {
                     />
                   </TableCell>
                   
-                  <TableCell isLight={isLight}>
+                  <TableCell>
                     <div className="max-w-xs">
-                      <p className={themeVariants.body({ theme }) + ' text-sm truncate'} title={rewrite.original_text}>
+                      <p className={cn(themeVariants.body(), 'text-sm truncate')} title={rewrite.original_text}>
                         {rewrite.original_text}
                       </p>
                     </div>
                   </TableCell>
                   
-                  <TableCell isLight={isLight}>
+                  <TableCell>
                     <div className="max-w-xs">
-                      <p className={themeVariants.body({ theme }) + ' text-sm truncate'} title={rewrite.rewritten_text}>
+                      <p className={cn(themeVariants.body(), 'text-sm truncate')} title={rewrite.rewritten_text}>
                         {rewrite.rewritten_text}
                       </p>
                     </div>
                   </TableCell>
                   
-                  <TableCell isLight={isLight} className="whitespace-nowrap">
+                  <TableCell className="whitespace-nowrap">
                     <Badge variant="primary">
                       {getLanguageDisplayName(rewrite.language)}
                     </Badge>
                   </TableCell>
                   
-                  <TableCell isLight={isLight} className="whitespace-nowrap">
+                  <TableCell className="whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className={themeVariants.body({ theme }) + ' text-sm font-medium mr-2'}>
+                      <div className={cn(themeVariants.body(), 'text-sm font-medium mr-2')}>
                         {rewrite.original_readability_score.toFixed(1)}
                       </div>
-                      <ReadabilityBadge score={rewrite.original_readability_score} isLight={isLight} />
+                      <ReadabilityBadge score={rewrite.original_readability_score} />
                     </div>
                   </TableCell>
                   
-                  <TableCell isLight={isLight} className="whitespace-nowrap">
+                  <TableCell className="whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className={themeVariants.body({ theme }) + ' text-sm font-medium mr-2'}>
+                      <div className={cn(themeVariants.body(), 'text-sm font-medium mr-2')}>
                         {rewrite.rewritten_readability_score.toFixed(1)}
                       </div>
-                      <ReadabilityBadge score={rewrite.rewritten_readability_score} isLight={isLight} />
+                      <ReadabilityBadge score={rewrite.rewritten_readability_score} />
                     </div>
                   </TableCell>
                   
-                  <TableCell isLight={isLight} className="whitespace-nowrap">
+                  <TableCell className="whitespace-nowrap">
                     <a
                       href={rewrite.source_url + (rewrite.url_fragment || '')}
                       target="_blank"
@@ -323,13 +319,13 @@ export const SentenceRewritesAdmin = () => {
                     </a>
                   </TableCell>
                   
-                  <TableCell isLight={isLight} className="whitespace-nowrap text-sm">
-                    <span className={themeVariants.muted({ theme })}>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    <span className={cn(themeVariants.muted())}>
                       {new Date(rewrite.created_at).toLocaleDateString()}
                     </span>
                   </TableCell>
                   
-                  <TableCell isLight={isLight} className="whitespace-nowrap text-sm font-medium">
+                  <TableCell className="whitespace-nowrap text-sm font-medium">
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleViewDetails(rewrite)}
@@ -357,18 +353,17 @@ export const SentenceRewritesAdmin = () => {
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={goToPage}
-          isLight={isLight}
           totalItems={totalItems}
           pageSize={pageSize}
         />
       </Card>
 
       {rewrites.length === 0 && (
-        <Card isLight={isLight}>
-          <CardContent isLight={isLight}>
+        <Card>
+          <CardContent>
             <div className="text-center py-12">
-              <div className={themeVariants.muted({ theme }) + ' text-lg mb-2'}>No sentence rewrites found</div>
-              <div className={themeVariants.muted({ theme }) + ' text-sm'}>
+              <div className={cn(themeVariants.muted(), 'text-lg mb-2')}>No sentence rewrites found</div>
+              <div className={cn(themeVariants.muted(), 'text-sm')}>
                 Start highlighting and rewriting text on web pages to see your rewrites here.
               </div>
             </div>

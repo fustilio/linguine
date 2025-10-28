@@ -2,7 +2,7 @@
 // This script runs on every webpage and handles both word replacement and selection
 // Users can select text to add replacements and see replacements applied in real-time
 
-import { addSentenceRewrite } from '@extension/sqlite';
+import { addSentenceRewrite } from './sentence-rewrites-api.js';
 
 declare global {
   interface Window {
@@ -156,7 +156,8 @@ export class WordReplacer {
     sender: chrome.runtime.MessageSender,
     sendResponse: (response: unknown) => void,
   ): boolean | void {
-    switch (message.action) {
+    const handleAsyncMessage = async () => {
+      switch (message.action) {
       case 'updateState': {
         // Single handler for all state updates
         const state = message.state as {
@@ -236,30 +237,26 @@ export class WordReplacer {
           break;
         }
 
-        this.rewriteSelectedText()
-          .then(result => {
+          try {
+            const result = await this.rewriteSelectedText();
             sendResponse({ success: true, ...result });
-          })
-          .catch(error => {
+          } catch (error) {
             sendResponse({
               success: false,
-              error: error.message,
+              error: error instanceof Error ? error.message : 'Unknown error',
             });
-          });
-        return true; // Keep message channel open for async response
+          }
 
       case 'checkRewriterAvailability':
-        this.checkRewriterAvailability()
-          .then(result => {
+          try {
+            const result = await this.checkRewriterAvailability();
             sendResponse({ success: true, ...result });
-          })
-          .catch(error => {
+          } catch (error) {
             sendResponse({
               success: false,
-              error: error.message,
+              error: error instanceof Error ? error.message : 'Unknown error',
             });
-          });
-        return true;
+          }
 
       case 'updateRewriterOptions':
         this.rewriterOptions = {
@@ -280,9 +277,23 @@ export class WordReplacer {
         });
         break;
 
+      case 'ping':
+        sendResponse({ success: true, pong: true });
+        break;
+
       default:
-        sendResponse({ success: false, error: 'Unknown action' });
-    }
+          sendResponse({ success: false, error: 'Unknown action' });
+      }
+      return; // Explicit return for async function
+    };
+
+    // Execute async handler
+    handleAsyncMessage().catch(error => {
+      console.error('Error in message handler:', error);
+      sendResponse({ success: false, error: 'Internal error' });
+    });
+
+    return true; // Keep the message channel open for async operations
   }
 
   setupMutationObserver() {
@@ -1329,7 +1340,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
       console.log("rewriting text: ", originalText);
 
-      // Save to database
+      // Save to database via background script
       try {
         const rewriterSettings = JSON.stringify({
           sharedContext: 'Make this text easier to understand for language learners.',
@@ -1341,7 +1352,9 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         // Generate URL fragment for text anchor
         const urlFragment = this.generateTextFragment(originalText);
         console.log('💾 trying to write', originalText, rewrittenText);
-        await addSentenceRewrite({
+        
+        // Save rewrite via background script
+        const success = await addSentenceRewrite({
           original_text: originalText,
           rewritten_text: rewrittenText,
           language: navigator.language || 'en-US',
@@ -1350,7 +1363,11 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
           url_fragment: urlFragment,
         });
 
-        console.log('💾 Sentence rewrite saved to database');
+        if (success) {
+          console.log('💾 Sentence rewrite saved to database');
+        } else {
+          console.warn('⚠️ Failed to save rewrite to database');
+        }
       } catch (dbError) {
         console.warn('⚠️ Failed to save rewrite to database:', dbError);
         // Don't throw - the rewrite still succeeded

@@ -4,7 +4,6 @@ import type { VocabularyItem } from '@extension/sqlite';
 
 interface VocabularyFilterViewProps {
   items: VocabularyItem[];
-  isLight: boolean;
   title?: string;
   emptyMessage?: string;
 }
@@ -20,7 +19,7 @@ const levelBadge = cva({
   },
 });
 
-export const VocabularyFilterView = ({ items, isLight, title, emptyMessage }: VocabularyFilterViewProps) => {
+export const VocabularyFilterView = ({ items, title, emptyMessage }: VocabularyFilterViewProps) => {
   const getLevelLabel = (level: number) => {
     if (level <= 2) return 'struggling';
     if (level === 3) return 'learning';
@@ -32,9 +31,9 @@ export const VocabularyFilterView = ({ items, isLight, title, emptyMessage }: Vo
       <div
         className={cn(
           'rounded-lg border p-8 text-center',
-          isLight ? 'border-gray-200 bg-white' : 'border-gray-700 bg-gray-800',
+          'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800',
         )}>
-        <p className={cn('text-sm', isLight ? 'text-gray-500' : 'text-gray-400')}>
+        <p className={cn('text-sm text-gray-500 dark:text-gray-400')}>
           {emptyMessage || 'No vocabulary found matching your criteria'}
         </p>
       </div>
@@ -43,19 +42,19 @@ export const VocabularyFilterView = ({ items, isLight, title, emptyMessage }: Vo
 
   return (
     <div className="space-y-2">
-      {title && <h4 className={cn('text-sm font-semibold', isLight ? 'text-gray-700' : 'text-gray-300')}>{title}</h4>}
+      {title && <h4 className={cn('text-sm font-semibold text-gray-700 dark:text-gray-300')}>{title}</h4>}
       {items.map(item => (
         <div
           key={item.id}
           className={cn(
             'flex items-center gap-3 rounded border p-3',
-            isLight ? 'border-gray-200 bg-white' : 'border-gray-700 bg-gray-800',
+            'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800',
           )}>
           <span className={levelBadge({ level: getLevelLabel(item.knowledge_level) })}>
             {getLevelLabel(item.knowledge_level).charAt(0).toUpperCase() + getLevelLabel(item.knowledge_level).slice(1)}
           </span>
-          <span className={cn('flex-1 font-medium', isLight ? 'text-gray-900' : 'text-gray-100')}>{item.text}</span>
-          <span className={cn('text-sm', isLight ? 'text-gray-500' : 'text-gray-400')}>{item.language}</span>
+          <span className={cn('flex-1 font-medium text-gray-900 dark:text-gray-100')}>{item.text}</span>
+          <span className={cn('text-sm text-gray-500 dark:text-gray-400')}>{item.language}</span>
         </div>
       ))}
     </div>

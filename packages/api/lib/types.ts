@@ -1,5 +1,3 @@
-import type { VocabularyItem } from '@extension/sqlite';
-
 export interface VocabularyAnalysisResult {
   text: string;
   knowledgeLevel: number;

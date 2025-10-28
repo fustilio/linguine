@@ -1,18 +1,18 @@
 import {
-  addVocabularyItem as dbAddVocabularyItem,
-  resetVocabularyDatabase as dbClearAllVocabulary,
-  deleteVocabularyItem as dbDeleteVocabularyItem,
-  deleteVocabularyItems as dbDeleteVocabularyItems,
-  ensureDatabaseInitialized,
-  getVocabulary,
-  getVocabularyCount,
-  populateDummyVocabulary as dbPopulateDummyVocabulary,
-  updateVocabularyItemKnowledgeLevel as dbUpdateVocabularyItemKnowledgeLevel,
-  updateVocabularyItemKnowledgeLevels as dbUpdateVocabularyItemKnowledgeLevels,
-} from '@extension/sqlite';
+  addVocabularyItem as apiAddVocabularyItem,
+  resetVocabularyDatabase as apiResetVocabularyDatabase,
+  deleteVocabularyItem as apiDeleteVocabularyItem,
+  deleteVocabularyItems as apiDeleteVocabularyItems,
+  ensureVocabularyDatabaseInitialized as apiEnsureDatabaseInitialized,
+  getVocabulary as apiGetVocabulary,
+  getVocabularyCount as apiGetVocabularyCount,
+  populateDummyVocabulary as apiPopulateDummyVocabulary,
+  updateVocabularyItemKnowledgeLevel as apiUpdateVocabularyItemKnowledgeLevel,
+  updateVocabularyItemKnowledgeLevels as apiUpdateVocabularyItemKnowledgeLevels,
+} from '../vocabulary-api.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import type { NewVocabularyItem } from '@extension/sqlite';
+import type { NewVocabularyItem } from '../vocabulary-api.js';
 
 const PAGE_SIZE = 10;
 
@@ -27,10 +27,10 @@ export const useVocabulary = () => {
   const { data: vocabularyData } = useQuery({
     queryKey,
     queryFn: async () => {
-      await ensureDatabaseInitialized();
+      await apiEnsureDatabaseInitialized();
       const [items, totalItems] = await Promise.all([
-        getVocabulary(currentPage, PAGE_SIZE, languageFilter),
-        getVocabularyCount(languageFilter),
+        apiGetVocabulary(currentPage, PAGE_SIZE, languageFilter),
+        apiGetVocabularyCount(languageFilter),
       ]);
       return { items, totalItems };
     },
@@ -46,7 +46,7 @@ export const useVocabulary = () => {
   };
 
   const addVocabularyItem = useMutation({
-    mutationFn: (item: Pick<NewVocabularyItem, 'text' | 'language'>) => dbAddVocabularyItem(item),
+    mutationFn: (item: Pick<NewVocabularyItem, 'text' | 'language'>) => apiAddVocabularyItem(item),
     ...mutationOptions,
     onSuccess: () => {
       setCurrentPage(1);
@@ -56,17 +56,17 @@ export const useVocabulary = () => {
 
   const updateVocabularyItemKnowledgeLevel = useMutation({
     mutationFn: ({ id, level }: { id: number; level: number }) =>
-      dbUpdateVocabularyItemKnowledgeLevel(id, Math.max(1, Math.min(5, level))),
+      apiUpdateVocabularyItemKnowledgeLevel(id, Math.max(1, Math.min(5, level))),
     ...mutationOptions,
   });
 
   const deleteVocabularyItem = useMutation({
-    mutationFn: (id: number) => dbDeleteVocabularyItem(id),
+    mutationFn: (id: number) => apiDeleteVocabularyItem(id),
     ...mutationOptions,
   });
 
   const populateDummyVocabulary = useMutation({
-    mutationFn: dbPopulateDummyVocabulary,
+    mutationFn: apiPopulateDummyVocabulary,
     ...mutationOptions,
     onSuccess: () => {
       setCurrentPage(1);
@@ -75,17 +75,17 @@ export const useVocabulary = () => {
   });
 
   const bulkDelete = useMutation({
-    mutationFn: () => dbDeleteVocabularyItems(Array.from(selectedItems)),
+    mutationFn: () => apiDeleteVocabularyItems(Array.from(selectedItems)),
     ...mutationOptions,
   });
 
   const bulkUpdateLevel = useMutation({
-    mutationFn: (levelChange: 1 | -1) => dbUpdateVocabularyItemKnowledgeLevels(Array.from(selectedItems), levelChange),
+    mutationFn: (levelChange: 1 | -1) => apiUpdateVocabularyItemKnowledgeLevels(Array.from(selectedItems), levelChange),
     ...mutationOptions,
   });
 
   const clearAllVocabulary = useMutation({
-    mutationFn: dbClearAllVocabulary,
+    mutationFn: apiResetVocabularyDatabase,
     ...mutationOptions,
     onSuccess: () => {
       setCurrentPage(1);
