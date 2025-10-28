@@ -77,6 +77,7 @@ const manifest = {
         '*.css',
         '*.svg',
         'pasta-illustration-2.png',
+        'pasta-icon.webp',
         'icon-128.png',
         'icon-34.png',
         // '*.wasm', '*.wasm.js'

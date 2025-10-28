@@ -1346,8 +1346,19 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     // Create the widget
     const widget = document.createElement('div');
     widget.id = 'linguine-floating-widget';
-    widget.innerHTML = '✨';
     widget.title = 'Click to rewrite selected text';
+
+    // Create image element
+    const img = document.createElement('img');
+    img.src = chrome.runtime.getURL('pasta-icon.webp');
+    img.alt = 'Linguine Rewriter';
+    img.style.cssText = `
+        width: 70%;
+        height: 70%;
+        object-fit: contain;
+      `;
+
+    widget.appendChild(img);
 
     // Style the widget
     widget.style.cssText = `
@@ -1356,18 +1367,17 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         right: 20px;
         width: 50px;
         height: 50px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+        background: white;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 24px;
         cursor: move;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         z-index: 999999;
         user-select: none;
         transition: transform 0.2s, box-shadow 0.2s;
+        overflow: hidden;
       `;
 
     // Add hover effect
@@ -1432,39 +1442,93 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
       const selection = window.getSelection();
       if (!selection || selection.toString().trim().length === 0) {
-        // Show a brief message
-        widget.innerHTML = '❌';
+        // Show error state by changing background color briefly
+        const originalBg = widget.style.background;
+        widget.style.background = '#f87171'; // Softer coral red
         widget.title = 'Please select some text first';
+
+        // Create tooltip popup
+        const tooltip = document.createElement('div');
+        tooltip.textContent = 'Please select some text first';
+        tooltip.style.cssText = `
+          position: fixed;
+          bottom: 80px;
+          right: 20px;
+          background: #1f2937;
+          color: white;
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-size: 14px;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+          z-index: 1000000;
+          pointer-events: none;
+          animation: fadeIn 0.2s ease-out;
+        `;
+
+        // Add fade-in animation
+        if (!document.getElementById('linguine-tooltip-animation')) {
+          const style = document.createElement('style');
+          style.id = 'linguine-tooltip-animation';
+          style.textContent = `
+            @keyframes fadeIn {
+              from { opacity: 0; transform: translateY(10px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+          `;
+          document.head.appendChild(style);
+        }
+
+        document.body.appendChild(tooltip);
+
         setTimeout(() => {
-          widget.innerHTML = '✨';
+          widget.style.background = originalBg;
           widget.title = 'Click to rewrite selected text';
+          tooltip.remove();
         }, 1500);
         return;
       }
 
       try {
-        // Show loading state
-        widget.innerHTML = '⏳';
+        // Show loading state - make widget spin (keeps the pasta image)
+        widget.style.animation = 'spin 1s linear infinite';
         widget.title = 'Rewriting...';
         widget.style.cursor = 'wait';
+
+        // Add keyframe animation if not already added
+        if (!document.getElementById('linguine-spin-animation')) {
+          const style = document.createElement('style');
+          style.id = 'linguine-spin-animation';
+          style.textContent = `
+            @keyframes spin {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+          `;
+          document.head.appendChild(style);
+        }
 
         // Trigger the rewrite
         await this.rewriteSelectedText();
 
-        // Show success
-        widget.innerHTML = '✅';
+        // Stop spinning and show success with green background
+        widget.style.animation = '';
+        const originalBg = widget.style.background;
+        widget.style.background = '#4ade80'; // Fresh bright green
         widget.title = 'Rewrite complete!';
         setTimeout(() => {
-          widget.innerHTML = '✨';
+          widget.style.background = originalBg;
           widget.title = 'Click to rewrite selected text';
           widget.style.cursor = 'move';
         }, 1500);
       } catch (error) {
         console.error('Error rewriting from widget:', error);
-        widget.innerHTML = '❌';
+        widget.style.animation = ''; // Stop spinning on error
+        const originalBg = widget.style.background;
+        widget.style.background = '#f87171'; // Softer coral red
         widget.title = 'Rewrite failed';
         setTimeout(() => {
-          widget.innerHTML = '✨';
+          widget.style.background = originalBg;
           widget.title = 'Click to rewrite selected text';
           widget.style.cursor = 'move';
         }, 1500);
