@@ -5,10 +5,9 @@ import { useState } from 'react';
 
 interface VocabularyFormProps {
   onAddItem: (item: { text: string; language: string }) => void;
-  isLight: boolean;
 }
 
-export const VocabularyForm = ({ onAddItem, isLight }: VocabularyFormProps) => {
+export const VocabularyForm = ({ onAddItem }: VocabularyFormProps) => {
   const [newItemText, setNewItemText] = useState('');
   const [newItemLanguage, setNewItemLanguage] = useState('en-US');
 

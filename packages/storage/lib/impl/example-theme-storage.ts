@@ -5,7 +5,6 @@ const storage = createStorage<ThemeStateType>(
   'theme-storage-key',
   {
     theme: 'light',
-    isLight: true,
   },
   {
     storageEnum: StorageEnum.Local,
@@ -18,10 +17,18 @@ export const exampleThemeStorage: ThemeStorageType = {
   toggle: async () => {
     await storage.set(currentState => {
       const newTheme = currentState.theme === 'light' ? 'dark' : 'light';
+      
+      // Sync with document element for Tailwind dark mode
+      if (typeof document !== 'undefined') {
+        if (newTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
 
       return {
         theme: newTheme,
-        isLight: newTheme === 'light',
       };
     });
   },

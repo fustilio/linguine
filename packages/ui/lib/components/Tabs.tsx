@@ -10,11 +10,10 @@ interface Tab {
 
 interface TabsProps {
   tabs: Tab[];
-  isLight: boolean;
   defaultTabId?: string;
 }
 
-export const Tabs = ({ tabs, isLight, defaultTabId }: TabsProps) => {
+export const Tabs = ({ tabs, defaultTabId }: TabsProps) => {
   const [activeTab, setActiveTab] = useState(defaultTabId || tabs[0]?.id);
 
   const activeTabData = tabs.find(tab => tab.id === activeTab);
@@ -22,7 +21,7 @@ export const Tabs = ({ tabs, isLight, defaultTabId }: TabsProps) => {
   return (
     <div className="flex h-full flex-col">
       {/* Tab Headers */}
-      <div className="flex flex-shrink-0 border-b" style={{ borderColor: isLight ? '#e5e7eb' : '#374151' }}>
+      <div className="flex flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -30,12 +29,8 @@ export const Tabs = ({ tabs, isLight, defaultTabId }: TabsProps) => {
             className={cn(
               'px-6 py-3 text-sm font-medium transition-colors',
               activeTab === tab.id
-                ? isLight
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'border-b-2 border-blue-400 text-blue-400'
-                : isLight
-                  ? 'text-gray-600 hover:text-gray-900'
-                  : 'text-gray-400 hover:text-gray-100',
+                ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100',
             )}>
             {tab.label}
           </button>

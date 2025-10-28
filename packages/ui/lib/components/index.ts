@@ -12,3 +12,12 @@ export * from './Tabs';
 export * from './VocabularyFilterView';
 export * from './VocabularyStats';
 export * from './common-styles';
+
+// New reusable components
+export * from './forms';
+export * from './table';
+export * from './modal';
+export * from './card';
+export * from './stats';
+export * from './pagination';
+export * from './badge';

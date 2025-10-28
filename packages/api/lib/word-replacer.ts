@@ -2,6 +2,8 @@
 // This script runs on every webpage and handles both word replacement and selection
 // Users can select text to add replacements and see replacements applied in real-time
 
+import { addSentenceRewrite } from '@extension/sqlite';
+
 declare global {
   interface Window {
     Rewriter: {
@@ -1325,6 +1327,35 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // // Clear selection
       // selection.removeAllRanges();
 
+      console.log("rewriting text: ", originalText);
+
+      // Save to database
+      try {
+        const rewriterSettings = JSON.stringify({
+          sharedContext: 'Make this text easier to understand for language learners.',
+          tone: this.rewriterOptions.tone || 'more-casual',
+          format: this.rewriterOptions.format || 'plain-text',
+          length: this.rewriterOptions.length || 'shorter',
+        });
+
+        // Generate URL fragment for text anchor
+        const urlFragment = this.generateTextFragment(originalText);
+        console.log('💾 trying to write', originalText, rewrittenText);
+        await addSentenceRewrite({
+          original_text: originalText,
+          rewritten_text: rewrittenText,
+          language: navigator.language || 'en-US',
+          rewriter_settings: rewriterSettings,
+          source_url: window.location.href,
+          url_fragment: urlFragment,
+        });
+
+        console.log('💾 Sentence rewrite saved to database');
+      } catch (dbError) {
+        console.warn('⚠️ Failed to save rewrite to database:', dbError);
+        // Don't throw - the rewrite still succeeded
+      }
+
       return {
         originalText,
         rewrittenText,
@@ -1334,6 +1365,16 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       console.error('❌ Error rewriting selected text:', error);
       throw error;
     }
+  }
+
+  /**
+   * Generate URL fragment for text anchor (similar to Google's text fragments)
+   */
+  generateTextFragment(text: string): string {
+    // Take first 50 characters and encode for URL
+    const fragment = text.substring(0, 50).trim();
+    const encoded = encodeURIComponent(fragment);
+    return `#:~:text=${encoded}`;
   }
 
   /**

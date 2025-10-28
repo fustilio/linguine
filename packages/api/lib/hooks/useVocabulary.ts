@@ -1,6 +1,6 @@
 import {
   addVocabularyItem as dbAddVocabularyItem,
-  clearAllVocabulary as dbClearAllVocabulary,
+  resetVocabularyDatabase as dbClearAllVocabulary,
   deleteVocabularyItem as dbDeleteVocabularyItem,
   deleteVocabularyItems as dbDeleteVocabularyItems,
   ensureDatabaseInitialized,

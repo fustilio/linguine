@@ -6,14 +6,13 @@ import { cn, ErrorDisplay, LoadingSpinner } from '@extension/ui';
 import type { ComponentPropsWithoutRef } from 'react';
 
 const Panel = () => {
-  const { isLight } = useStorage(exampleThemeStorage);
-  const logo = isLight ? 'devtools-panel/logo_horizontal.svg' : 'devtools-panel/logo_horizontal_dark.svg';
+  const logo = 'devtools-panel/logo_horizontal.svg';
 
   const goGithubSite = () => chrome.tabs.create(PROJECT_URL_OBJECT);
 
   return (
-    <div className={cn('App', isLight ? 'bg-slate-50' : 'bg-gray-800')}>
-      <header className={cn('App-header', isLight ? 'text-gray-900' : 'text-gray-100')}>
+    <div className={cn('App bg-slate-50 dark:bg-gray-800')}>
+      <header className={cn('App-header text-gray-900 dark:text-gray-100')}>
         <button onClick={goGithubSite}>
           <img src={chrome.runtime.getURL(logo)} className="App-logo" alt="logo" />
         </button>
@@ -27,14 +26,12 @@ const Panel = () => {
 };
 
 const ToggleButton = (props: ComponentPropsWithoutRef<'button'>) => {
-  const { isLight } = useStorage(exampleThemeStorage);
-
   return (
     <button
       className={cn(
         props.className,
         'mt-4 rounded px-4 py-1 font-bold shadow hover:scale-105',
-        isLight ? 'bg-white text-black' : 'bg-black text-white',
+        'bg-white text-black dark:bg-black dark:text-white',
       )}
       onClick={exampleThemeStorage.toggle}>
       {props.children}

@@ -21,7 +21,6 @@ interface RewriterOptions {
 }
 
 const Popup = () => {
-  const { isLight } = useStorage(exampleThemeStorage);
   const logo = 'popup/pasta-illustration-2.svg';
 
   // State management
@@ -179,7 +178,7 @@ const Popup = () => {
     <div
       className={cn(
         'flex h-screen w-screen flex-col overflow-y-auto overflow-x-hidden text-sm',
-        isLight ? 'bg-white text-gray-800' : 'bg-gray-800 text-gray-100',
+        'bg-white text-gray-800 dark:bg-gray-800 dark:text-gray-100',
       )}>
       {/* Header with Logo and Title */}
       <div className="bg-gradient-to-br from-[#667eea] to-[#764ba2] p-4 text-white">
@@ -241,7 +240,7 @@ const Popup = () => {
           <button
             className={cn(
               'w-full rounded px-4 py-2 font-semibold shadow transition-transform hover:scale-105',
-              isLight ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-blue-600 text-white hover:bg-blue-700',
+              'bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700',
             )}
             onClick={injectContentScript}>
             {t('injectButton')}
@@ -250,8 +249,8 @@ const Popup = () => {
 
         {/* Instructions Section */}
         <div className="mb-5">
-          <h3 className={cn('mb-2 text-sm font-semibold', isLight ? 'text-[#444]' : 'text-gray-200')}>How to Use</h3>
-          <div className={cn('mt-2 text-[13px] leading-relaxed', isLight ? 'text-[#555]' : 'text-gray-300')}>
+          <h3 className={cn('mb-2 text-sm font-semibold text-[#444] dark:text-gray-200')}>How to Use</h3>
+          <div className={cn('mt-2 text-[13px] leading-relaxed text-[#555] dark:text-gray-300')}>
             <strong>1. Enable the extension</strong> using the toggle above
             <br />
             <strong>2. Select text</strong> on any webpage

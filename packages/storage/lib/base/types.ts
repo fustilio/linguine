@@ -46,9 +46,18 @@ export type StorageConfigType<D = string> = {
 
 export interface ThemeStateType {
   theme: 'light' | 'dark';
-  isLight: boolean;
 }
 
 export type ThemeStorageType = BaseStorageType<ThemeStateType> & {
   toggle: () => Promise<void>;
+};
+
+export interface LanguageStateType {
+  nativeLanguage: string;
+  targetLanguage: string;
+}
+
+export type LanguageStorageType = BaseStorageType<LanguageStateType> & {
+  setNativeLanguage: (language: string) => Promise<void>;
+  setTargetLanguage: (language: string) => Promise<void>;
 };

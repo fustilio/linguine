@@ -1,13 +1,11 @@
 import { button } from './common-styles';
-import { cn } from '@/lib/utils';
 
 interface DebugActionsProps {
   populateDummyVocabulary: () => void;
   clearAllVocabulary: () => void;
-  isLight: boolean;
 }
 
-export const DebugActions = ({ populateDummyVocabulary, clearAllVocabulary, isLight }: DebugActionsProps) => {
+export const DebugActions = ({ populateDummyVocabulary, clearAllVocabulary }: DebugActionsProps) => {
   const handleClear = () => {
     if (window.confirm('Are you sure you want to delete all vocabulary items?')) {
       clearAllVocabulary();

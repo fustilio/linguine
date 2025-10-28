@@ -4,15 +4,14 @@ import { exampleThemeStorage } from '@extension/storage';
 import { ToggleButton, cn } from '@extension/ui';
 
 interface HeaderProps {
-  isLight: boolean;
   logo: string;
 }
 
-export const Header = ({ isLight, logo }: HeaderProps) => {
+export const Header = ({ logo }: HeaderProps) => {
   const goGithubSite = () => chrome.tabs.create(PROJECT_URL_OBJECT);
 
   return (
-    <header className={cn('App-header', isLight ? 'text-gray-900' : 'text-gray-100')}>
+    <header className={cn('App-header text-gray-900 dark:text-gray-100')}>
       <button onClick={goGithubSite}>
         <img src={chrome.runtime.getURL(logo)} className="App-logo" alt="logo" />
       </button>

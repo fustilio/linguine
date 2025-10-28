@@ -4,15 +4,14 @@ import { LANGUAGES } from '@extension/shared/const';
 interface VocabularyToolbarProps {
   languageFilter: string | null;
   onLanguageChange: (language: string | null) => void;
-  isLight: boolean;
 }
 
-export const VocabularyToolbar = ({ languageFilter, onLanguageChange, isLight }: VocabularyToolbarProps) => (
+export const VocabularyToolbar = ({ languageFilter, onLanguageChange }: VocabularyToolbarProps) => (
   <div className="mb-4 flex items-center justify-end">
     <select
       className={cn(
         'w-40 rounded border px-3 py-2',
-        isLight ? 'border-gray-300 bg-white text-gray-900' : 'border-gray-600 bg-gray-700 text-gray-100',
+        'border-gray-300 bg-white text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100',
       )}
       value={languageFilter || ''}
       onChange={e => onLanguageChange(e.target.value || null)}>
