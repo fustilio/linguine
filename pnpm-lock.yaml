@@ -25,8 +25,8 @@ importers:
         specifier: ^9.27.0
         version: 9.35.0
       '@types/chrome':
-        specifier: ^0.0.323
-        version: 0.0.323
+        specifier: ^0.1.27
+        version: 0.1.27
       '@types/eslint-plugin-jsx-a11y':
         specifier: ^6.10.0
         version: 6.10.0
@@ -179,6 +179,28 @@ importers:
         specifier: ^9.5.2
         version: 9.5.4(typescript@5.9.2)(webpack@5.94.0(@swc/core@1.13.5))
 
+  packages/api:
+    dependencies:
+      '@extension/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@extension/sqlite':
+        specifier: workspace:*
+        version: link:../sqlite
+      '@tanstack/react-query':
+        specifier: ^5.90.5
+        version: 5.90.5(react@19.1.1)
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/dom-chromium-ai':
+        specifier: ^0.0.10
+        version: 0.0.10
+      tsc-alias:
+        specifier: ^1.8.16
+        version: 1.8.16
+
   packages/dev-utils:
     devDependencies:
       '@extension/shared':
@@ -316,6 +338,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@extension/api':
+        specifier: workspace:*
+        version: link:../api
       '@extension/i18n':
         specifier: workspace:*
         version: link:../i18n
@@ -516,6 +541,9 @@ importers:
 
   pages/options:
     dependencies:
+      '@extension/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@extension/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
@@ -1457,8 +1485,11 @@ packages:
   '@tybys/wasm-util@0.10.0':
     resolution: {integrity: sha512-VyyPYFlOMNylG45GoAe0xDoLwWuowvf92F9kySqzYh8vmYm7D2u4iUJKa1tOUpS70Ku13ASrOkS4ScXFsTaCNQ==}
 
-  '@types/chrome@0.0.323':
-    resolution: {integrity: sha512-ipiDwx41lmGeLnbiT6ENOayvWXdkqKqNwqDQWEuz6dujaX7slSkk1nbSt5Q5c6xnQ708+kuCFrC00VLltSbWVA==}
+  '@types/chrome@0.1.27':
+    resolution: {integrity: sha512-pkkCb0Ft8X+Igi751POzT+YqchSxUCtB6s4Gs6ttgSj8qzJga/qlJMgSW1mKxuQTW4i0sTqQbqVtzXDS5AU+4A==}
+
+  '@types/dom-chromium-ai@0.0.10':
+    resolution: {integrity: sha512-9CSfOOIx6/pyOjsp6VTtai18Bjh0mS2XWwiXn7/rBJIxX1Y/1onJe+1MqPVo6bsEUE3rZlxQHEAg1yRKRFTkWg==}
 
   '@types/eslint-plugin-jsx-a11y@6.10.0':
     resolution: {integrity: sha512-TGKmk2gO6DrvTVADNOGQMqn3SzqcFcJILFnXNllQA34us9uClS3/AsL/cERPz6jS9ePI3bx+1q8/d2GZsxPVYw==}
@@ -5887,10 +5918,12 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
-  '@types/chrome@0.0.323':
+  '@types/chrome@0.1.27':
     dependencies:
       '@types/filesystem': 0.0.36
       '@types/har-format': 1.2.16
+
+  '@types/dom-chromium-ai@0.0.10': {}
 
   '@types/eslint-plugin-jsx-a11y@6.10.0':
     dependencies:

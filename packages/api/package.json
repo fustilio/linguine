@@ -1,15 +1,15 @@
 {
-  "name": "@extension/ui",
+  "name": "@extension/api",
   "version": "0.5.0",
-  "description": "chrome extension - ui components",
+  "description": "chrome extension - AI API integration",
   "type": "module",
   "private": true,
-  "sideEffects": true,
+  "sideEffects": false,
   "files": [
     "dist/**"
   ],
-  "types": "index.ts",
-  "main": "dist/index.js",
+  "types": "index.mts",
+  "main": "dist/index.mjs",
   "scripts": {
     "clean:bundle": "rimraf dist",
     "clean:node_modules": "pnpx rimraf node_modules",
@@ -22,18 +22,13 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@extension/api": "workspace:*",
-    "@extension/i18n": "workspace:*",
     "@extension/shared": "workspace:*",
-    "@extension/storage": "workspace:*",
     "@extension/sqlite": "workspace:*",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^3.3.0"
+    "@tanstack/react-query": "^5.90.5"
   },
   "devDependencies": {
-    "@extension/tailwindcss-config": "workspace:*",
     "@extension/tsconfig": "workspace:*",
-    "react-spinners": "^0.17.0",
+    "@types/dom-chromium-ai": "^0.0.10",
     "tsc-alias": "^1.8.16"
   }
 }

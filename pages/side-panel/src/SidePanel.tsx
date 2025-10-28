@@ -1,8 +1,8 @@
 import '@src/SidePanel.css';
 import { Header } from './components/Header';
 import { Pagination } from './components/Pagination';
+import { useVocabulary } from '@extension/api';
 import { useStorage, withErrorBoundary, withSuspense } from '@extension/shared';
-import { useVocabulary } from '@extension/sqlite';
 import { exampleThemeStorage } from '@extension/storage';
 import {
   cn,

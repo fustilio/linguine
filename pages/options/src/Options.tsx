@@ -4,12 +4,12 @@ import { VocabularyAdmin } from './VocabularyAdmin';
 import { t } from '@extension/i18n';
 import { PROJECT_URL_OBJECT, useStorage, withErrorBoundary, withSuspense } from '@extension/shared';
 import { exampleThemeStorage } from '@extension/storage';
-import { cn, ErrorDisplay, LoadingSpinner, ToggleButton } from '@extension/ui';
+import { cn, ErrorDisplay, LoadingSpinner, ToggleButton, VocabularyAnalytics } from '@extension/ui';
 import { useState } from 'react';
 
 const Options = () => {
   const { isLight } = useStorage(exampleThemeStorage);
-  const [activeTab, setActiveTab] = useState('vocabulary');
+  const [activeTab, setActiveTab] = useState('vocabulary-admin');
   const logo = isLight ? 'options/logo_horizontal.svg' : 'options/logo_horizontal_dark.svg';
 
   const goGithubSite = () => chrome.tabs.create(PROJECT_URL_OBJECT);
@@ -33,7 +33,8 @@ const Options = () => {
             </div>
           </div>
           <div className="flex-1 overflow-hidden p-6">
-            {activeTab === 'vocabulary' && <VocabularyAdmin />}
+            {activeTab === 'vocabulary-admin' && <VocabularyAdmin />}
+            {activeTab === 'vocabulary-analytics' && <VocabularyAnalytics isLight={isLight} />}
             {activeTab === 'settings' && (
               <div className={cn(isLight ? 'text-gray-700' : 'text-gray-300')}>
                 <h2 className="mb-4 text-2xl font-bold">Settings</h2>

@@ -1,5 +1,5 @@
+import { useVocabulary } from '@extension/api';
 import { useStorage } from '@extension/shared';
-import { useVocabulary } from '@extension/sqlite';
 import { exampleThemeStorage } from '@extension/storage';
 import { DebugActions, VocabularyForm, VocabularyList, VocabularyToolbar, cn } from '@extension/ui';
 

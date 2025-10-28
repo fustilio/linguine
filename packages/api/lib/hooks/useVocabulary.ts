@@ -9,10 +9,10 @@ import {
   populateDummyVocabulary as dbPopulateDummyVocabulary,
   updateVocabularyItemKnowledgeLevel as dbUpdateVocabularyItemKnowledgeLevel,
   updateVocabularyItemKnowledgeLevels as dbUpdateVocabularyItemKnowledgeLevels,
-} from '../lib/vocabulary.js';
+} from '@extension/sqlite';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import type { NewVocabularyItem } from '../lib/types.js';
+import type { NewVocabularyItem } from '@extension/sqlite';
 
 const PAGE_SIZE = 10;
 

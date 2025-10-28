@@ -159,3 +159,85 @@ export const populateDummyVocabulary = async () => {
     .onConflict(oc => oc.doNothing())
     .execute();
 };
+
+// New query functions for AI analytics
+
+export const getAllVocabularyForSummary = async (): Promise<VocabularyItem[]> => {
+  const db = getDb();
+  if (!db) return [];
+  return await db
+    .selectFrom('vocabulary')
+    .selectAll()
+    .orderBy('language', 'asc')
+    .orderBy('knowledge_level', 'desc')
+    .execute();
+};
+
+export const getVocabularyByLanguage = async (language: string): Promise<VocabularyItem[]> => {
+  const db = getDb();
+  if (!db) return [];
+  return await db
+    .selectFrom('vocabulary')
+    .selectAll()
+    .where('language', '=', language)
+    .orderBy('knowledge_level', 'desc')
+    .execute();
+};
+
+export const getVocabularyByKnowledgeLevel = async (minLevel: number, maxLevel: number): Promise<VocabularyItem[]> => {
+  const db = getDb();
+  if (!db) return [];
+  return await db
+    .selectFrom('vocabulary')
+    .selectAll()
+    .where('knowledge_level', '>=', minLevel)
+    .where('knowledge_level', '<=', maxLevel)
+    .orderBy('knowledge_level', 'desc')
+    .execute();
+};
+
+export const getRecentVocabulary = async (days: number): Promise<VocabularyItem[]> => {
+  const db = getDb();
+  if (!db) return [];
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  const cutoffISO = cutoffDate.toISOString();
+
+  // Get recently added or recently reviewed words
+  const recentlyAdded = await db.selectFrom('vocabulary').selectAll().where('created_at', '>=', cutoffISO).execute();
+
+  const recentlyReviewed = await db
+    .selectFrom('vocabulary')
+    .selectAll()
+    .where('last_reviewed_at', '>=', cutoffISO)
+    .execute();
+
+  // Combine and deduplicate by ID
+  const combined = [...recentlyAdded, ...recentlyReviewed];
+  const uniqueItems = Array.from(new Map(combined.map(item => [item.id, item])).values());
+
+  // Sort by created_at descending
+  return uniqueItems.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+};
+
+export const getStrugglingWords = async (): Promise<VocabularyItem[]> => {
+  const db = getDb();
+  if (!db) return [];
+  return await db
+    .selectFrom('vocabulary')
+    .selectAll()
+    .where('knowledge_level', '<=', 2)
+    .orderBy('knowledge_level', 'asc')
+    .execute();
+};
+
+export const getMasteredWords = async (): Promise<VocabularyItem[]> => {
+  const db = getDb();
+  if (!db) return [];
+  return await db
+    .selectFrom('vocabulary')
+    .selectAll()
+    .where('knowledge_level', '=', 5)
+    .orderBy('last_reviewed_at', 'desc')
+    .execute();
+};
