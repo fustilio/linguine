@@ -17,7 +17,19 @@ const configs = Object.entries(getContentScriptEntries(matchesDir)).map(([name, 
       },
     },
     publicDir: resolve(rootDir, 'public'),
-    plugins: [IS_DEV && makeEntryPointPlugin()],
+    plugins: [
+      IS_DEV && makeEntryPointPlugin(),
+      {
+        name: 'configure-response-headers',
+        configureServer: server => {
+          server.middlewares.use((_req, res, next) => {
+            res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+            res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+            next();
+          });
+        },
+      },
+    ],
     build: {
       lib: {
         name: name,
@@ -26,6 +38,12 @@ const configs = Object.entries(getContentScriptEntries(matchesDir)).map(([name, 
         fileName: name,
       },
       outDir: resolve(rootDir, '..', '..', 'dist', 'content'),
+    },
+    optimizeDeps: {
+      exclude: ['sqlocal'],
+    },
+    worker: {
+      format: 'es',
     },
   }),
 );

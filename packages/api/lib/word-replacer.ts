@@ -483,12 +483,12 @@ export class WordReplacer {
       const wrapper = document.createElement('span');
       wrapper.className = 'rewriter-highlight';
       wrapper.style.cssText = `
-          background-color: #e5e7eb;
-          padding: 2px 4px;
-          border-radius: 3px;
-          position: relative;
-          display: inline;
-        `;
+            background-color: #e5e7eb;
+            padding: 2px 4px;
+            border-radius: 3px;
+            position: relative;
+            display: inline;
+          `;
 
       // Store both texts as data attributes
       wrapper.dataset.originalText = originalText;
@@ -499,24 +499,24 @@ export class WordReplacer {
       const buttonContainer = document.createElement('span');
       buttonContainer.className = 'rewriter-buttons';
       buttonContainer.style.cssText = `
-          display: inline-flex;
-          gap: 4px;
-          margin-left: 6px;
-          vertical-align: middle;
-        `;
+            display: inline-flex;
+            gap: 4px;
+            margin-left: 6px;
+            vertical-align: middle;
+          `;
 
       // Create button styles
       const buttonStyle = `
-          padding: 2px 6px;
-          font-size: 11px;
-          border: 1px solid #d1d5db;
-          border-radius: 3px;
-          cursor: pointer;
-          background: white;
-          color: #374151;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          transition: all 0.15s;
-        `;
+            padding: 2px 6px;
+            font-size: 11px;
+            border: 1px solid #d1d5db;
+            border-radius: 3px;
+            cursor: pointer;
+            background: white;
+            color: #374151;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            transition: all 0.15s;
+          `;
 
       // Toggle button (switch between original and rewritten)
       let showingRewritten = true;
@@ -526,9 +526,9 @@ export class WordReplacer {
       toggleBtn.style.cssText =
         buttonStyle +
         `
-          color: #2563eb;
-          border-color: #93c5fd;
-        `;
+            color: #2563eb;
+            border-color: #93c5fd;
+          `;
 
       toggleBtn.addEventListener('mouseover', () => {
         toggleBtn.style.backgroundColor = '#dbeafe';
@@ -557,9 +557,9 @@ export class WordReplacer {
       applyBtn.style.cssText =
         buttonStyle +
         `
-          color: #16a34a;
-          border-color: #86efac;
-        `;
+            color: #16a34a;
+            border-color: #86efac;
+          `;
 
       applyBtn.addEventListener('mouseover', () => {
         applyBtn.style.backgroundColor = '#dcfce7';
@@ -921,12 +921,12 @@ export class WordReplacer {
       const wrapper = document.createElement('span');
       wrapper.className = 'rewriter-highlight';
       wrapper.style.cssText = `
-          background-color: #e5e7eb;
-          padding: 2px 4px;
-          border-radius: 3px;
-          position: relative;
-          display: inline;
-        `;
+            background-color: #e5e7eb;
+            padding: 2px 4px;
+            border-radius: 3px;
+            position: relative;
+            display: inline;
+          `;
 
       // Store original text as data attribute
       wrapper.dataset.originalText = originalText;
@@ -937,24 +937,24 @@ export class WordReplacer {
       const buttonContainer = document.createElement('span');
       buttonContainer.className = 'rewriter-buttons';
       buttonContainer.style.cssText = `
-          display: inline-flex;
-          gap: 4px;
-          margin-left: 6px;
-          vertical-align: middle;
-        `;
+            display: inline-flex;
+            gap: 4px;
+            margin-left: 6px;
+            vertical-align: middle;
+          `;
 
       // Create small buttons
       const buttonStyle = `
-          padding: 2px 6px;
-          font-size: 11px;
-          border: 1px solid #d1d5db;
-          border-radius: 3px;
-          cursor: pointer;
-          background: white;
-          color: #374151;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          transition: all 0.15s;
-        `;
+            padding: 2px 6px;
+            font-size: 11px;
+            border: 1px solid #d1d5db;
+            border-radius: 3px;
+            cursor: pointer;
+            background: white;
+            color: #374151;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            transition: all 0.15s;
+          `;
 
       // Toggle button (switch between original and rewritten)
       let showingRewritten = true;
@@ -964,9 +964,9 @@ export class WordReplacer {
       toggleBtn.style.cssText =
         buttonStyle +
         `
-          color: #2563eb;
-          border-color: #93c5fd;
-        `;
+            color: #2563eb;
+            border-color: #93c5fd;
+          `;
       toggleBtn.addEventListener('mouseover', () => {
         toggleBtn.style.backgroundColor = '#dbeafe';
       });
@@ -994,9 +994,9 @@ export class WordReplacer {
       applyBtn.style.cssText =
         buttonStyle +
         `
-          color: #16a34a;
-          border-color: #86efac;
-        `;
+            color: #16a34a;
+            border-color: #86efac;
+          `;
       applyBtn.addEventListener('mouseover', () => {
         applyBtn.style.backgroundColor = '#dcfce7';
       });
@@ -1048,24 +1048,24 @@ export class WordReplacer {
 
     // Style the widget
     widget.style.cssText = `
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      width: 50px;
-      height: 50px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      cursor: move;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      z-index: 999999;
-      user-select: none;
-      transition: transform 0.2s, box-shadow 0.2s;
-    `;
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        cursor: move;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 999999;
+        user-select: none;
+        transition: transform 0.2s, box-shadow 0.2s;
+      `;
 
     // Add hover effect
     widget.addEventListener('mouseenter', () => {

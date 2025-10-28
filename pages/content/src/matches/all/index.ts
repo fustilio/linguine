@@ -1,5 +1,5 @@
+import { WordReplacer } from '@extension/api';
 import { sampleFunction } from '@src/sample-function';
-import { WordReplacer } from '@src/word-replacer';
 
 console.log('[CEB] All content script loaded');
 

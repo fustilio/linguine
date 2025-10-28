@@ -406,6 +406,9 @@ importers:
 
   pages/content:
     dependencies:
+      '@extension/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@extension/env':
         specifier: workspace:*
         version: link:../../packages/env
