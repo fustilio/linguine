@@ -37,7 +37,7 @@ const SidePanel = () => {
   } = useVocabulary();
 
   const { isLight } = useStorage(exampleThemeStorage);
-  const logo = isLight ? 'side-panel/logo_vertical.svg' : 'side-panel/logo_vertical_dark.svg';
+  const logo = 'side-panel/pasta-illustration-2.svg';
 
   return (
     <div className={cn('App', isLight ? 'bg-slate-50' : 'bg-gray-800')}>
