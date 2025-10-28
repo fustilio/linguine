@@ -61,8 +61,8 @@ export class WordReplacer {
     this.isRewriterReady = false;
     this.rewriterOptions = {
       sharedContext: 'Use simpler vocabulary so I can understand this text.',
-      tone: 'more-casual',
-      format: 'plain-text',
+      tone: 'as-is',
+      format: 'as-is',
       length: 'shorter',
     };
     this.downloadProgress = 0;
@@ -450,6 +450,158 @@ export class WordReplacer {
   }
 
   /**
+   * Clean up the rewritten response by removing any unwanted formatting or context
+   */
+  private cleanRewrittenResponse(rawResponse: string): string {
+    let cleanedResponse = rawResponse.trim();
+
+    // Remove common response patterns that include context
+    cleanedResponse = cleanedResponse
+      .replace(/^context:\s*/gi, '')
+      .replace(/^rewrite.*?:\s*/gi, '')
+      .replace(/^original.*?:\s*/gi, '')
+      .replace(/^replacement:\s*/gi, '')
+      .replace(/^answer:\s*/gi, '')
+      .replace(/^result:\s*/gi, '')
+      .replace(/^["']|["']$/g, '') // Remove surrounding quotes
+      .replace(/^\[.*?\]\s*/g, '') // Remove bracketed prefixes like [TARGET]
+      .replace(/\[TARGET\]/gi, '') // Remove any remaining [TARGET] markers
+      .replace(/\.\.\./g, '') // Remove ellipsis that might indicate context
+      .trim();
+
+    // Remove any sentences that seem to include the original context
+    // Split by periods and take the shortest meaningful phrase
+    const sentences = cleanedResponse
+      .split(/[.!?]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    if (sentences.length > 1) {
+      // If multiple sentences, prefer the shortest one (likely the replacement)
+      const shortestSentence = sentences.reduce((shortest, current) =>
+        current.length < shortest.length ? current : shortest,
+      );
+      if (shortestSentence.length > 0) {
+        cleanedResponse = shortestSentence;
+      }
+    }
+
+    // If the response has multiple lines, prefer the first non-empty line
+    const lines = cleanedResponse
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+    if (lines.length > 0) {
+      return lines[0];
+    }
+
+    return cleanedResponse;
+  }
+
+  /**
+   * Extract surrounding context from within the same sentence
+   */
+  private extractSurroundingContext(
+    element: HTMLElement,
+    targetText: string,
+    contextLength: number = 100,
+  ): {
+    beforeContext: string;
+    afterContext: string;
+    fullContext: string;
+  } {
+    try {
+      // Get the parent container that likely contains the sentence
+      let contextContainer = element.parentElement;
+      while (
+        contextContainer &&
+        contextContainer.textContent &&
+        contextContainer.textContent.length < targetText.length + contextLength * 2
+      ) {
+        contextContainer = contextContainer.parentElement;
+        // Stop if we've gone too far up (like body or html)
+        if (!contextContainer || ['BODY', 'HTML', 'MAIN', 'ARTICLE'].includes(contextContainer.tagName)) {
+          break;
+        }
+      }
+
+      if (!contextContainer || !contextContainer.textContent) {
+        return { beforeContext: '', afterContext: '', fullContext: targetText };
+      }
+
+      const fullText = contextContainer.textContent;
+      const targetIndex = fullText.indexOf(targetText);
+
+      if (targetIndex === -1) {
+        return { beforeContext: '', afterContext: '', fullContext: targetText };
+      }
+
+      // Find sentence boundaries around the target text
+      const sentenceEnd = this.findSentenceEnd(fullText, targetIndex + targetText.length);
+      const sentenceStart = this.findSentenceStart(fullText, targetIndex);
+
+      // Extract context within the same sentence
+      const beforeContext = fullText.substring(sentenceStart, targetIndex).trim();
+      const afterContext = fullText.substring(targetIndex + targetText.length, sentenceEnd).trim();
+      const fullContext = fullText.substring(sentenceStart, sentenceEnd).trim();
+
+      console.log('🔍 Sentence boundary detection:', {
+        targetText: targetText.substring(0, 30) + '...',
+        sentenceStart,
+        sentenceEnd,
+        fullSentence: fullContext.substring(0, 100) + '...',
+      });
+
+      return { beforeContext, afterContext, fullContext };
+    } catch (error) {
+      console.warn('Error extracting context:', error);
+      return { beforeContext: '', afterContext: '', fullContext: targetText };
+    }
+  }
+
+  /**
+   * Find the start of the sentence containing the given position
+   */
+  private findSentenceStart(text: string, position: number): number {
+    // Common sentence ending punctuation followed by whitespace or start of text
+    const sentenceEnders = /[.!?]\s+/g;
+
+    // Look backwards from the position to find the previous sentence ending
+    const textBefore = text.substring(0, position);
+    let lastMatch = 0;
+    let match;
+
+    // Reset regex lastIndex to ensure proper matching
+    sentenceEnders.lastIndex = 0;
+
+    while ((match = sentenceEnders.exec(textBefore)) !== null) {
+      lastMatch = match.index + match[0].length;
+    }
+
+    return lastMatch;
+  }
+
+  /**
+   * Find the end of the sentence containing the given position
+   */
+  private findSentenceEnd(text: string, position: number): number {
+    // Common sentence ending punctuation, optionally followed by whitespace or end of text
+    const sentenceEnders = /[.!?](?=\s|$)/;
+
+    // Look forward from the position to find the next sentence ending
+    const textAfter = text.substring(position);
+    const match = textAfter.match(sentenceEnders);
+
+    if (match && match.index !== undefined) {
+      // Include the punctuation mark
+      return position + match.index + 1;
+    }
+
+    // If no sentence ending found, return the end of the text
+    return text.length;
+  }
+
+  /**
    * Rewrite highlighted text using AI and create interactive UI
    */
   async rewriteHighlightedText(originalText: string, highlightSpan: HTMLElement): Promise<void> {
@@ -465,19 +617,57 @@ export class WordReplacer {
       highlightSpan.style.backgroundColor = '#fbbf24';
       highlightSpan.title = 'Rewriting with AI...';
 
+      // Extract surrounding context for better rewriting
+      const contextInfo = this.extractSurroundingContext(highlightSpan, originalText);
+      console.log('📖 Context extracted:', {
+        before: contextInfo.beforeContext.substring(-30),
+        target: originalText,
+        after: contextInfo.afterContext.substring(0, 30),
+      });
+
       // Initialize rewriter
       const rewriter = await this.initRewriter();
 
+      // Prepare context-aware prompt - only rewrite the highlighted text
+      const rewritePrompt = originalText; // Only the highlighted text to be rewritten
+      let contextPrompt = 'Make this text easier to understand for language learners.';
+
+      if (contextInfo.beforeContext || contextInfo.afterContext) {
+        // Provide context in the context parameter, not in the text to be rewritten
+        contextPrompt = `CONTEXT: "${contextInfo.beforeContext} [TARGET] ${contextInfo.afterContext}"
+
+INSTRUCTIONS: 
+- You will rewrite ONLY the word(s) marked as [TARGET] 
+- The [TARGET] text is: "${originalText}"
+- Make it easier to understand for language learners
+- Your response should contain ONLY the replacement text, nothing else
+- Do NOT include the surrounding context in your response
+- Do NOT repeat the original text
+- Do NOT provide explanations
+
+EXAMPLE:
+If context is "The cat [TARGET] quickly" and target is "ran", respond with just: "moved fast"`;
+      }
+
       // Rewrite the text
-      console.log('✨ Rewriting...');
-      const rawRewrittenText = await rewriter.rewrite(originalText, {
-        context: 'Make this text easier to understand for language learners.',
+      console.log('✨ Rewriting with context...');
+      const rawRewrittenText = await rewriter.rewrite(rewritePrompt, {
+        context: contextPrompt,
+      });
+
+      // Clean up the rewritten response
+      let rewrittenText = this.cleanRewrittenResponse(rawRewrittenText);
+
+      console.log('🔧 Response processing:', {
+        original: originalText,
+        rawResponse: rawRewrittenText.substring(0, 100) + '...',
+        cleaned: rewrittenText.substring(0, 50) + '...',
       });
 
       // Preserve original formatting patterns
-      const rewrittenText = this.preserveOriginalFormatting(originalText, rawRewrittenText);
+      rewrittenText = this.preserveOriginalFormatting(originalText, rewrittenText);
 
-      console.log('✅ Rewritten text:', rewrittenText.substring(0, 50) + '...');
+      console.log('✅ Final rewritten text:', rewrittenText.substring(0, 50) + '...');
 
       // Create wrapper for the rewritten content
       const wrapper = document.createElement('span');
@@ -903,19 +1093,69 @@ export class WordReplacer {
       const range = selection.getRangeAt(0);
       const originalText = selectedText;
 
+      // Extract surrounding context for better rewriting
+      const commonAncestor = range.commonAncestorContainer;
+      let contextElement: HTMLElement | null = null;
+
+      if (commonAncestor.nodeType === Node.ELEMENT_NODE) {
+        contextElement = commonAncestor as HTMLElement;
+      } else if (commonAncestor.parentElement) {
+        contextElement = commonAncestor.parentElement;
+      }
+
+      let contextInfo = { beforeContext: '', afterContext: '', fullContext: originalText };
+      if (contextElement) {
+        contextInfo = this.extractSurroundingContext(contextElement, originalText);
+        console.log('📖 Selection context extracted:', {
+          before: contextInfo.beforeContext.substring(-30),
+          target: originalText,
+          after: contextInfo.afterContext.substring(0, 30),
+        });
+      }
+
       // Initialize rewriter
       const rewriter = await this.initRewriter();
 
+      // Prepare context-aware prompt - only rewrite the selected text
+      const rewritePrompt = originalText; // Only the selected text to be rewritten
+      let contextPrompt = 'Make this text easier to understand for language learners.';
+
+      if (contextInfo.beforeContext || contextInfo.afterContext) {
+        // Provide context in the context parameter, not in the text to be rewritten
+        contextPrompt = `CONTEXT: "${contextInfo.beforeContext} [TARGET] ${contextInfo.afterContext}"
+
+INSTRUCTIONS: 
+- You will rewrite ONLY the word(s) marked as [TARGET] 
+- The [TARGET] text is: "${originalText}"
+- Make it easier to understand for language learners
+- Your response should contain ONLY the replacement text, nothing else
+- Do NOT include the surrounding context in your response
+- Do NOT repeat the original text
+- Do NOT provide explanations
+
+EXAMPLE:
+If context is "The cat [TARGET] quickly" and target is "ran", respond with just: "moved fast"`;
+      }
+
       // Rewrite the text
-      console.log('✨ Rewriting...');
-      const rawRewrittenText = await rewriter.rewrite(originalText, {
-        context: 'Make this text easier to understand for language learners.',
+      console.log('✨ Rewriting with context...');
+      const rawRewrittenText = await rewriter.rewrite(rewritePrompt, {
+        context: contextPrompt,
+      });
+
+      // Clean up the rewritten response
+      let rewrittenText = this.cleanRewrittenResponse(rawRewrittenText);
+
+      console.log('🔧 Response processing:', {
+        original: originalText,
+        rawResponse: rawRewrittenText.substring(0, 100) + '...',
+        cleaned: rewrittenText.substring(0, 50) + '...',
       });
 
       // Preserve original formatting patterns
-      const rewrittenText = this.preserveOriginalFormatting(originalText, rawRewrittenText);
+      rewrittenText = this.preserveOriginalFormatting(originalText, rewrittenText);
 
-      console.log('✅ Rewritten text:', rewrittenText.substring(0, 100) + '...');
+      console.log('✅ Final rewritten text:', rewrittenText.substring(0, 100) + '...');
 
       // Create a wrapper span to replace the selected text
       const wrapper = document.createElement('span');
