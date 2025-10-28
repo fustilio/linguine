@@ -341,7 +341,7 @@ export class WordReplacer {
       const selectedText = selection ? selection.toString().trim() : '';
 
       if (selectedText && selectedText.length > 0) {
-        this.highlightSelectedWord(selectedText, selection);
+        // this.highlightSelectedWord(selectedText, selection);
       }
     };
 
@@ -686,89 +686,89 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       wrapper.textContent = rewrittenText;
 
       // Create button container
-      const buttonContainer = document.createElement('span');
-      buttonContainer.className = 'rewriter-buttons';
-      buttonContainer.style.cssText = `
-            display: inline-flex;
-            gap: 4px;
-            margin-left: 6px;
-            vertical-align: middle;
-          `;
+      // const buttonContainer = document.createElement('span');
+      // buttonContainer.className = 'rewriter-buttons';
+      // buttonContainer.style.cssText = `
+      //       display: inline-flex;
+      //       gap: 4px;
+      //       margin-left: 6px;
+      //       vertical-align: middle;
+      //     `;
 
       // Create button styles
-      const buttonStyle = `
-            padding: 2px 6px;
-            font-size: 11px;
-            border: 1px solid #d1d5db;
-            border-radius: 3px;
-            cursor: pointer;
-            background: white;
-            color: #374151;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            transition: all 0.15s;
-          `;
+      // const buttonStyle = `
+      //       padding: 2px 6px;
+      //       font-size: 11px;
+      //       border: 1px solid #d1d5db;
+      //       border-radius: 3px;
+      //       cursor: pointer;
+      //       background: white;
+      //       color: #374151;
+      //       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      //       transition: all 0.15s;
+      //     `;
 
       // Toggle button (switch between original and rewritten)
-      let showingRewritten = true;
-      const toggleBtn = document.createElement('button');
-      toggleBtn.textContent = '⇄';
-      toggleBtn.title = 'Toggle between original and rewritten';
-      toggleBtn.style.cssText =
-        buttonStyle +
-        `
-            color: #2563eb;
-            border-color: #93c5fd;
-          `;
+      // let showingRewritten = true;
+      // const toggleBtn = document.createElement('button');
+      // toggleBtn.textContent = '⇄';
+      // toggleBtn.title = 'Toggle between original and rewritten';
+      // toggleBtn.style.cssText =
+      //   buttonStyle +
+      //   `
+      //       color: #2563eb;
+      //       border-color: #93c5fd;
+      //     `;
 
-      toggleBtn.addEventListener('mouseover', () => {
-        toggleBtn.style.backgroundColor = '#dbeafe';
-      });
-      toggleBtn.addEventListener('mouseout', () => {
-        toggleBtn.style.backgroundColor = 'white';
-      });
-      toggleBtn.addEventListener('click', () => {
-        if (showingRewritten) {
-          wrapper.textContent = originalText;
-          wrapper.style.backgroundColor = '#fef3c7';
-          toggleBtn.title = 'Showing original - click to see rewritten';
-          showingRewritten = false;
-        } else {
-          wrapper.textContent = rewrittenText;
-          wrapper.style.backgroundColor = '#e5e7eb';
-          toggleBtn.title = 'Showing rewritten - click to see original';
-          showingRewritten = true;
-        }
-      });
+      // toggleBtn.addEventListener('mouseover', () => {
+      //   toggleBtn.style.backgroundColor = '#dbeafe';
+      // });
+      // toggleBtn.addEventListener('mouseout', () => {
+      //   toggleBtn.style.backgroundColor = 'white';
+      // });
+      // toggleBtn.addEventListener('click', () => {
+      //   if (showingRewritten) {
+      //     wrapper.textContent = originalText;
+      //     wrapper.style.backgroundColor = '#fef3c7';
+      //     toggleBtn.title = 'Showing original - click to see rewritten';
+      //     showingRewritten = false;
+      //   } else {
+      //     wrapper.textContent = rewrittenText;
+      //     wrapper.style.backgroundColor = '#e5e7eb';
+      //     toggleBtn.title = 'Showing rewritten - click to see original';
+      //     showingRewritten = true;
+      //   }
+      // });
 
       // Apply button
-      const applyBtn = document.createElement('button');
-      applyBtn.textContent = '✓';
-      applyBtn.title = 'Apply current version';
-      applyBtn.style.cssText =
-        buttonStyle +
-        `
-            color: #16a34a;
-            border-color: #86efac;
-          `;
+      // const applyBtn = document.createElement('button');
+      // applyBtn.textContent = '✓';
+      // applyBtn.title = 'Apply current version';
+      // applyBtn.style.cssText =
+      //   buttonStyle +
+      //   `
+      //       color: #16a34a;
+      //       border-color: #86efac;
+      //     `;
 
-      applyBtn.addEventListener('mouseover', () => {
-        applyBtn.style.backgroundColor = '#dcfce7';
-      });
-      applyBtn.addEventListener('mouseout', () => {
-        applyBtn.style.backgroundColor = 'white';
-      });
-      applyBtn.addEventListener('click', () => {
-        // Remove buttons and keep the current text
-        buttonContainer.remove();
-        wrapper.style.backgroundColor = 'transparent';
-        wrapper.style.padding = '0';
-        wrapper.classList.remove('rewriter-highlight');
+      // applyBtn.addEventListener('mouseover', () => {
+      //   applyBtn.style.backgroundColor = '#dcfce7';
+      // });
+      // applyBtn.addEventListener('mouseout', () => {
+      //   applyBtn.style.backgroundColor = 'white';
+      // });
+      // applyBtn.addEventListener('click', () => {
+      //   // Remove buttons and keep the current text
+      //   buttonContainer.remove();
+      //   wrapper.style.backgroundColor = 'transparent';
+      //   wrapper.style.padding = '0';
+      //   wrapper.classList.remove('rewriter-highlight');
 
-        // Clear current highlight reference
-        if (this.currentHighlight === highlightSpan) {
-          this.currentHighlight = null;
-        }
-      });
+      //   // Clear current highlight reference
+      //   if (this.currentHighlight === highlightSpan) {
+      //     this.currentHighlight = null;
+      //   }
+      // });
 
       // Save button (add to replacements)
       // const saveBtn = document.createElement('button');
@@ -815,15 +815,15 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // });
 
       // Assemble buttons
-      buttonContainer.appendChild(toggleBtn);
-      buttonContainer.appendChild(applyBtn);
+      // buttonContainer.appendChild(toggleBtn);
+      // buttonContainer.appendChild(applyBtn);
       // buttonContainer.appendChild(saveBtn);
 
       // Replace the highlight span with the new interactive content
       const parent = highlightSpan.parentNode;
       if (parent) {
         parent.insertBefore(wrapper, highlightSpan);
-        parent.insertBefore(buttonContainer, highlightSpan);
+        // parent.insertBefore(buttonContainer, highlightSpan);
         parent.removeChild(highlightSpan);
 
         // Update current highlight reference
@@ -1069,6 +1069,62 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
   }
 
   /**
+   * Replace selected text in the DOM while preserving position, font, and style
+   */
+  replaceSelectedTextInDOM(range: Range, newText: string): void {
+    // Store the parent element for cleanup
+    const parentElement = range.commonAncestorContainer.parentElement;
+
+    // Create a document fragment to hold the new text
+    // This handles newlines and preserves whitespace better
+    const fragment = document.createDocumentFragment();
+
+    // Split text by newlines to preserve paragraph structure
+    const lines = newText.split('\n');
+
+    lines.forEach((line, index) => {
+      // Add text node for the line
+      fragment.appendChild(document.createTextNode(line));
+
+      // Add line break between lines (except after the last one)
+      if (index < lines.length - 1) {
+        fragment.appendChild(document.createElement('br'));
+      }
+    });
+
+    // Delete the old content and insert the new fragment
+    range.deleteContents();
+    range.insertNode(fragment);
+
+    // Clean up any leftover empty elements (like empty <code>, <span>, etc.)
+    if (parentElement) {
+      this.cleanupEmptyElements(parentElement);
+    }
+
+    // Clear the selection
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+    }
+
+    console.log('✅ Text replaced in DOM successfully');
+  }
+
+  /**
+   * Remove empty inline elements that might be left over after text replacement
+   */
+  private cleanupEmptyElements(container: HTMLElement): void {
+    const emptyElements = container.querySelectorAll('code, span, em, strong, i, b, mark, small, del, ins, sub, sup');
+
+    emptyElements.forEach(element => {
+      // Remove if element is empty or contains only whitespace
+      if (!element.textContent || element.textContent.trim() === '') {
+        element.remove();
+      }
+    });
+  }
+
+  /**
    * Rewrite the selected/highlighted text in an easier to understand way
    */
   async rewriteSelectedText() {
@@ -1155,112 +1211,119 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // Preserve original formatting patterns
       rewrittenText = this.preserveOriginalFormatting(originalText, rewrittenText);
 
-      console.log('✅ Final rewritten text:', rewrittenText.substring(0, 100) + '...');
+      console.log('✅ Final rewritten text:', rewrittenText);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📄 ORIGINAL:', originalText);
+      console.log('✨ REWRITTEN:', rewrittenText);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-      // Create a wrapper span to replace the selected text
-      const wrapper = document.createElement('span');
-      wrapper.className = 'rewriter-highlight';
-      wrapper.style.cssText = `
-            background-color: #e5e7eb;
-            padding: 2px 4px;
-            border-radius: 3px;
-            position: relative;
-            display: inline;
-          `;
+      // Replace the selected text in the DOM with the rewritten version
+      this.replaceSelectedTextInDOM(range, rewrittenText);
 
-      // Store original text as data attribute
-      wrapper.dataset.originalText = originalText;
-      wrapper.dataset.rewrittenText = rewrittenText;
-      wrapper.textContent = rewrittenText;
+      // // Create a wrapper span to replace the selected text
+      // const wrapper = document.createElement('span');
+      // wrapper.className = 'rewriter-highlight';
+      // wrapper.style.cssText = `
+      //       background-color: #e5e7eb;
+      //       padding: 2px 4px;
+      //       border-radius: 3px;
+      //       position: relative;
+      //       display: inline;
+      //     `;
 
-      // Create button container
-      const buttonContainer = document.createElement('span');
-      buttonContainer.className = 'rewriter-buttons';
-      buttonContainer.style.cssText = `
-            display: inline-flex;
-            gap: 4px;
-            margin-left: 6px;
-            vertical-align: middle;
-          `;
+      // // Store original text as data attribute
+      // wrapper.dataset.originalText = originalText;
+      // wrapper.dataset.rewrittenText = rewrittenText;
+      // wrapper.textContent = rewrittenText;
 
-      // Create small buttons
-      const buttonStyle = `
-            padding: 2px 6px;
-            font-size: 11px;
-            border: 1px solid #d1d5db;
-            border-radius: 3px;
-            cursor: pointer;
-            background: white;
-            color: #374151;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            transition: all 0.15s;
-          `;
+      // // Create button container
+      // const buttonContainer = document.createElement('span');
+      // buttonContainer.className = 'rewriter-buttons';
+      // buttonContainer.style.cssText = `
+      //       display: inline-flex;
+      //       gap: 4px;
+      //       margin-left: 6px;
+      //       vertical-align: middle;
+      //     `;
 
-      // Toggle button (switch between original and rewritten)
-      let showingRewritten = true;
-      const toggleBtn = document.createElement('button');
-      toggleBtn.textContent = '⇄';
-      toggleBtn.title = 'Toggle between original and rewritten';
-      toggleBtn.style.cssText =
-        buttonStyle +
-        `
-            color: #2563eb;
-            border-color: #93c5fd;
-          `;
-      toggleBtn.addEventListener('mouseover', () => {
-        toggleBtn.style.backgroundColor = '#dbeafe';
-      });
-      toggleBtn.addEventListener('mouseout', () => {
-        toggleBtn.style.backgroundColor = 'white';
-      });
-      toggleBtn.addEventListener('click', () => {
-        if (showingRewritten) {
-          wrapper.textContent = originalText;
-          wrapper.style.backgroundColor = '#fef3c7';
-          toggleBtn.title = 'Showing original - click to see rewritten';
-          showingRewritten = false;
-        } else {
-          wrapper.textContent = rewrittenText;
-          wrapper.style.backgroundColor = '#e5e7eb';
-          toggleBtn.title = 'Showing rewritten - click to see original';
-          showingRewritten = true;
-        }
-      });
+      // // Create small buttons
+      // const buttonStyle = `
+      //       padding: 2px 6px;
+      //       font-size: 11px;
+      //       border: 1px solid #d1d5db;
+      //       border-radius: 3px;
+      //       cursor: pointer;
+      //       background: white;
+      //       color: #374151;
+      //       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      //       transition: all 0.15s;
+      //     `;
 
-      // Apply button
-      const applyBtn = document.createElement('button');
-      applyBtn.textContent = '✓';
-      applyBtn.title = 'Apply current version';
-      applyBtn.style.cssText =
-        buttonStyle +
-        `
-            color: #16a34a;
-            border-color: #86efac;
-          `;
-      applyBtn.addEventListener('mouseover', () => {
-        applyBtn.style.backgroundColor = '#dcfce7';
-      });
-      applyBtn.addEventListener('mouseout', () => {
-        applyBtn.style.backgroundColor = 'white';
-      });
-      applyBtn.addEventListener('click', () => {
-        // Remove buttons and keep the current text (whatever is showing)
-        buttonContainer.remove();
-        wrapper.style.backgroundColor = 'transparent';
-        wrapper.style.padding = '0';
-      });
+      // // Toggle button (switch between original and rewritten)
+      // let showingRewritten = true;
+      // const toggleBtn = document.createElement('button');
+      // toggleBtn.textContent = '⇄';
+      // toggleBtn.title = 'Toggle between original and rewritten';
+      // toggleBtn.style.cssText =
+      //   buttonStyle +
+      //   `
+      //       color: #2563eb;
+      //       border-color: #93c5fd;
+      //     `;
+      // toggleBtn.addEventListener('mouseover', () => {
+      //   toggleBtn.style.backgroundColor = '#dbeafe';
+      // });
+      // toggleBtn.addEventListener('mouseout', () => {
+      //   toggleBtn.style.backgroundColor = 'white';
+      // });
+      // toggleBtn.addEventListener('click', () => {
+      //   if (showingRewritten) {
+      //     wrapper.textContent = originalText;
+      //     wrapper.style.backgroundColor = '#fef3c7';
+      //     toggleBtn.title = 'Showing original - click to see rewritten';
+      //     showingRewritten = false;
+      //   } else {
+      //     wrapper.textContent = rewrittenText;
+      //     wrapper.style.backgroundColor = '#e5e7eb';
+      //     toggleBtn.title = 'Showing rewritten - click to see original';
+      //     showingRewritten = true;
+      //   }
+      // });
 
-      // Assemble buttons
-      buttonContainer.appendChild(toggleBtn);
-      buttonContainer.appendChild(applyBtn);
+      // // Apply button
+      // const applyBtn = document.createElement('button');
+      // applyBtn.textContent = '✓';
+      // applyBtn.title = 'Apply current version';
+      // applyBtn.style.cssText =
+      //   buttonStyle +
+      //   `
+      //       color: #16a34a;
+      //       border-color: #86efac;
+      //     `;
+      // applyBtn.addEventListener('mouseover', () => {
+      //   applyBtn.style.backgroundColor = '#dcfce7';
+      // });
+      // applyBtn.addEventListener('mouseout', () => {
+      //   applyBtn.style.backgroundColor = 'white';
+      // });
+      // applyBtn.addEventListener('click', () => {
+      //   // Remove buttons and keep the current text (whatever is showing)
+      //   buttonContainer.remove();
+      //   wrapper.style.backgroundColor = 'transparent';
+      //   wrapper.style.padding = '0';
+      // });
 
-      // Replace the selected text with wrapper
-      range.deleteContents();
-      range.insertNode(buttonContainer);
-      range.insertNode(wrapper);
+      // // Assemble buttons
+      // buttonContainer.appendChild(toggleBtn);
+      // buttonContainer.appendChild(applyBtn);
 
-      // Clear selection
-      selection.removeAllRanges();
+      // // Replace the selected text with wrapper
+      // range.deleteContents();
+      // range.insertNode(buttonContainer);
+      // range.insertNode(wrapper);
+
+      // // Clear selection
+      // selection.removeAllRanges();
 
       return {
         originalText,
