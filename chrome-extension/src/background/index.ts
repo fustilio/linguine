@@ -1,54 +1,59 @@
 import 'webextension-polyfill';
 import { exampleThemeStorage } from '@extension/storage';
 
+// Initialize theme storage
 exampleThemeStorage.get().then(theme => {
-  console.log('theme', theme);
+  console.log('Theme loaded:', theme);
 });
 
-console.log('Background loaded');
-console.log("Edit 'chrome-extension/src/background/index.ts' and save to reload.");
+// Offscreen document lifecycle management
+let creating: Promise<void> | null = null; // Global promise to avoid concurrency issues
 
-// Offscreen document management
-let offscreenDocument: boolean = false;
+async function setupOffscreenDocument(path: string): Promise<void> {
+  // Check all windows controlled by the service worker to see if one
+  // of them is the offscreen document with the given path
+  const offscreenUrl = chrome.runtime.getURL(path);
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [offscreenUrl]
+  });
 
-async function createOffscreenDocument() {
-  if (offscreenDocument) {
-    return; // Already exists
+  if (existingContexts.length > 0) {
+    console.log('✅ Offscreen document already exists');
+    return;
   }
 
-  try {
-    await chrome.offscreen.createDocument({
-      url: 'offscreen.html',
-      reasons: ['DOM_SCRAPING'],
+  // Create offscreen document
+  if (creating) {
+    await creating;
+  } else {
+    creating = chrome.offscreen.createDocument({
+      url: path,
+      reasons: ["WORKERS", "LOCAL_STORAGE"],
       justification: 'Access OPFS for SQLite database operations',
     });
-    offscreenDocument = true;
+    await creating;
+    creating = null;
     console.log('✅ Offscreen document created');
-  } catch (error) {
-    console.error('❌ Failed to create offscreen document:', error);
   }
 }
 
-async function ensureOffscreenDocument() {
-  if (!offscreenDocument) {
-    await createOffscreenDocument();
-  }
+// Initialize offscreen document on startup
+async function initializeOffscreenDocument(): Promise<void> {
+  await setupOffscreenDocument('offscreen.html');
+  console.log('✅ Offscreen document initialized');
 }
 
-async function main() {
-  await ensureOffscreenDocument();
-  console.log('✅ Offscreen document ensured');
-}
-
-console.log('starting main');
-main().then(() => console.log('✅ Main function completed'));
+// Initialize on startup
+initializeOffscreenDocument().catch(error => {
+  console.error('❌ Failed to initialize offscreen document:', error);
+});
 
 // Word Replacer Background Script (Service Worker)
 // Handles extension lifecycle and message passing
 
 // Handle messages from popup and content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('Background received message:', message);
 
   // Handle async operations
   const handleAsyncMessage = async (): Promise<void> => {
@@ -84,7 +89,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       if (databaseActions.includes(message.action)) {
         // Ensure offscreen document exists
-        await ensureOffscreenDocument();
+        await setupOffscreenDocument('offscreen.html');
 
         // Forward database-related messages to offscreen document
         const response = await chrome.runtime.sendMessage(message);
@@ -177,13 +182,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Word Replacer extension installed');
+  console.log('Extension installed');
 });
 
 // Handle extension icon click
-chrome.action.onClicked.addListener(tab => {
-  // Open popup (this is handled automatically by manifest.json)
+chrome.action.onClicked.addListener(async (tab) => {
   console.log('Extension icon clicked on tab:', tab.id);
+  
+  // Ensure offscreen document exists before any operations
+  await setupOffscreenDocument('offscreen.html');
+  
+  // Send ping to offscreen document
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'ping',
+      target: 'offscreen',
+      data: 'Extension icon clicked'
+    });
+    console.log('Offscreen response:', response);
+  } catch (error) {
+    console.error('Failed to communicate with offscreen document:', error);
+  }
 });
 
 // Handle tab updates to reinject content script if needed
@@ -210,66 +229,3 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// const menuId = 'addSentenceRewrite';
-
-// async function manageContextMenuListener() {
-//   console.log('existing contextg menus', await chrome.contextMenus.remove(menuId));
-//   console.log('Background connected to someone, creating context menu');
-
-//   if (!chrome.contextMenus) {
-//     console.log('contextMenus is not supported in this browser');
-//     return;
-//   }
-
-//   chrome.contextMenus.create({
-//     id: menuId,
-//     title: 'Add Sentence Rewrite',
-//     type: 'normal',
-//     contexts: ['selection'],
-//   });
-
-//   const listener = async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
-//     console.log('Context menu clicked:', info, tab);
-//     if (info.menuItemId === 'addSentenceRewrite') {
-//       console.log('Add sentence rewrite clicked');
-//       const selection = info.selectionText;
-//       console.log('Selection:', selection);
-
-//       try {
-//         await ensureOffscreenDocument();
-
-//         const rewriteData = {
-//           original_text: selection,
-//           rewritten_text: selection,
-//           language: 'en-US',
-//           rewriter_settings: JSON.stringify({
-//             sharedContext: 'Context menu selection',
-//             tone: 'as-is',
-//             format: 'plain-text',
-//             length: 'as-is',
-//           }),
-//           source_url: tab?.url || 'unknown',
-//           url_fragment: '',
-//         };
-
-//         // Use the same message passing pattern as the API
-//         const response = await chrome.runtime.sendMessage({
-//           action: 'addSentenceRewrite',
-//           data: rewriteData,
-//         });
-
-//         if (response.success) {
-//           console.log('✅ Sentence rewrite added via context menu');
-//         } else {
-//           console.error('❌ Failed to add sentence rewrite:', response.error);
-//         }
-//       } catch (error) {
-//         console.error('❌ Error adding sentence rewrite:', error);
-//       }
-//     }
-//   };
-
-//   chrome.contextMenus.onClicked.addListener(listener);
-// }
-
-// chrome.runtime.onConnect.addListener(manageContextMenuListener);

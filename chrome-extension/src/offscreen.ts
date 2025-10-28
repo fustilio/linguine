@@ -29,8 +29,9 @@ import {
   getVocabularyWordsInSentence,
   getSentencesContainingWord,
   resetSentenceRewritesDatabase,
+
+  getDatabaseManager
 } from '@extension/sqlite';
-import { getDatabaseManager } from '@extension/sqlite/lib/database-manager.js';
 
 console.log('Offscreen document loaded');
 
@@ -54,6 +55,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   const handleMessage = async () => {
     try {
+      // Handle messages with the new format (type, target, data)
+      if (message.type && message.target === 'offscreen') {
+        switch (message.type) {
+          case 'ping':
+            sendResponse({ success: true, pong: true, message: 'Offscreen document is ready' });
+            return;
+          
+          default:
+            console.warn('Unknown message type:', message.type);
+            sendResponse({ success: false, error: `Unknown message type: ${message.type}` });
+            return;
+        }
+      }
+
+      // Handle legacy action-based messages
       switch (message.action) {
         // Vocabulary operations
         case 'getAllVocabularyForSummary':
