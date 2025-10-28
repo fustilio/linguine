@@ -70,11 +70,11 @@ export const MODULE_CONFIG = {
       type: 'module',
     },
   },
-  'new-tab': {
-    chrome_url_overrides: {
-      newtab: 'new-tab/index.html',
-    },
-  },
+  // 'new-tab': {
+  //   chrome_url_overrides: {
+  //     newtab: 'new-tab/index.html',
+  //   },
+  // },
   popup: {
     action: {
       default_popup: 'popup/index.html',

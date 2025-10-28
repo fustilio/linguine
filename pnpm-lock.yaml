@@ -322,6 +322,9 @@ importers:
       '@extension/shared':
         specifier: workspace:*
         version: link:../shared
+      '@extension/sqlite':
+        specifier: workspace:*
+        version: link:../sqlite
       '@extension/storage':
         specifier: workspace:*
         version: link:../storage
@@ -519,6 +522,9 @@ importers:
       '@extension/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@extension/sqlite':
+        specifier: workspace:*
+        version: link:../../packages/sqlite
       '@extension/storage':
         specifier: workspace:*
         version: link:../../packages/storage

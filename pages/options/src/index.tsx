@@ -1,4 +1,5 @@
 import '@src/index.css';
+import { QueryClient, QueryClientProvider } from '@extension/sqlite';
 import Options from '@src/Options';
 import { createRoot } from 'react-dom/client';
 
@@ -7,8 +8,14 @@ const init = () => {
   if (!appContainer) {
     throw new Error('Can not find #app-container');
   }
+
+  const queryClient = new QueryClient();
   const root = createRoot(appContainer);
-  root.render(<Options />);
+  root.render(
+    <QueryClientProvider client={queryClient}>
+      <Options />
+    </QueryClientProvider>,
+  );
 };
 
 init();

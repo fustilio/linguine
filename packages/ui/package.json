@@ -25,6 +25,7 @@
     "@extension/i18n": "workspace:*",
     "@extension/shared": "workspace:*",
     "@extension/storage": "workspace:*",
+    "@extension/sqlite": "workspace:*",
     "clsx": "^2.1.1",
     "tailwind-merge": "^3.3.0"
   },

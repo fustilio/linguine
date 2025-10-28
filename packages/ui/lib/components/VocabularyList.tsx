@@ -1,5 +1,5 @@
+import { cn } from '@/lib/utils';
 import type { VocabularyItem } from '@extension/sqlite';
-import { cn } from '@extension/ui';
 
 interface VocabularyListProps {
   items: VocabularyItem[];
@@ -23,7 +23,11 @@ export const VocabularyList = ({
   <div className={cn('space-y-2', isLight ? 'text-gray-900' : 'text-gray-100')}>
     {/* Select All Checkbox */}
     <div className="flex items-center gap-2 p-2">
-      <input type="checkbox" checked={selectedItems.size === items.length && items.length > 0} onChange={onToggleSelectAll} />
+      <input
+        type="checkbox"
+        checked={selectedItems.size === items.length && items.length > 0}
+        onChange={onToggleSelectAll}
+      />
       <span>Select All</span>
     </div>
 

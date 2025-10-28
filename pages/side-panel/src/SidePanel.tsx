@@ -1,15 +1,19 @@
 import '@src/SidePanel.css';
+import { Header } from './components/Header';
+import { Pagination } from './components/Pagination';
 import { useStorage, withErrorBoundary, withSuspense } from '@extension/shared';
 import { useVocabulary } from '@extension/sqlite';
 import { exampleThemeStorage } from '@extension/storage';
-import { cn, ErrorDisplay, LoadingSpinner } from '@extension/ui';
-import { BulkActionsBar } from './components/BulkActionsBar';
-import { DebugActions } from './components/DebugActions';
-import { Header } from './components/Header';
-import { Pagination } from './components/Pagination';
-import { VocabularyForm } from './components/VocabularyForm';
-import { VocabularyList } from './components/VocabularyList';
-import { VocabularyToolbar } from './components/VocabularyToolbar';
+import {
+  cn,
+  ErrorDisplay,
+  LoadingSpinner,
+  BulkActionsBar,
+  DebugActions,
+  VocabularyForm,
+  VocabularyList,
+  VocabularyToolbar,
+} from '@extension/ui';
 
 const SidePanel = () => {
   const {
@@ -46,11 +50,7 @@ const SidePanel = () => {
           </h2>
 
           <VocabularyForm onAddItem={item => addVocabularyItem.mutate(item)} isLight={isLight} />
-          <VocabularyToolbar
-            languageFilter={languageFilter}
-            onLanguageChange={setLanguageFilter}
-            isLight={isLight}
-          />
+          <VocabularyToolbar languageFilter={languageFilter} onLanguageChange={setLanguageFilter} isLight={isLight} />
 
           {selectedItems.size > 0 && (
             <BulkActionsBar
@@ -91,4 +91,3 @@ const SidePanel = () => {
 };
 
 export default withErrorBoundary(withSuspense(SidePanel, <LoadingSpinner />), ErrorDisplay);
-

@@ -1,5 +1,5 @@
+import { cn } from '@/lib/utils';
 import { LANGUAGES } from '@extension/shared/const';
-import { cn } from '@extension/ui';
 
 interface VocabularyToolbarProps {
   languageFilter: string | null;

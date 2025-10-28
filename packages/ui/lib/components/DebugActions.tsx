@@ -1,4 +1,4 @@
-import { cn } from '@extension/ui';
+import { cn } from '@/lib/utils';
 
 interface DebugActionsProps {
   populateDummyVocabulary: () => void;
