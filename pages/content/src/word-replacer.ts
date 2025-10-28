@@ -108,7 +108,7 @@ export class WordReplacer {
       this.rewriterOptions = {
         sharedContext:
           settings.rewriterOptions?.sharedContext ||
-          'I am learning English. Use simpler vocabulary so I can understand this text.',
+          'I am learning this language. Use simpler vocabulary in its original language so I can understand this text.',
         tone: settings.rewriterOptions?.tone || 'more-casual',
         format: settings.rewriterOptions?.format || 'plain-text',
         length: settings.rewriterOptions?.length || 'shorter',
@@ -393,7 +393,7 @@ export class WordReplacer {
 
     // Add click event to trigger AI rewriting
     span.addEventListener('click', async () => {
-      await this.rewriteHighlightedText(finalWord, span, range);
+      await this.rewriteHighlightedText(finalWord, span);
     });
 
     try {
@@ -434,9 +434,12 @@ export class WordReplacer {
 
       // Rewrite the text
       console.log('✨ Rewriting...');
-      const rewrittenText = await rewriter.rewrite(originalText, {
+      const rawRewrittenText = await rewriter.rewrite(originalText, {
         context: 'Make this text easier to understand for language learners.',
       });
+
+      // Preserve original formatting patterns
+      const rewrittenText = this.preserveOriginalFormatting(originalText, rawRewrittenText);
 
       console.log('✅ Rewritten text:', rewrittenText.substring(0, 50) + '...');
 
@@ -542,53 +545,53 @@ export class WordReplacer {
       });
 
       // Save button (add to replacements)
-      const saveBtn = document.createElement('button');
-      saveBtn.textContent = '💾';
-      saveBtn.title = 'Save as permanent replacement';
-      saveBtn.style.cssText =
-        buttonStyle +
-        `
-          color: #7c3aed;
-          border-color: #c4b5fd;
-        `;
+      // const saveBtn = document.createElement('button');
+      // saveBtn.textContent = '💾';
+      // saveBtn.title = 'Save as permanent replacement';
+      // saveBtn.style.cssText =
+      //   buttonStyle +
+      //   `
+      //     color: #7c3aed;
+      //     border-color: #c4b5fd;
+      //   `;
 
-      saveBtn.addEventListener('mouseover', () => {
-        saveBtn.style.backgroundColor = '#f3f4f6';
-      });
-      saveBtn.addEventListener('mouseout', () => {
-        saveBtn.style.backgroundColor = 'white';
-      });
-      saveBtn.addEventListener('click', () => {
-        const currentText = showingRewritten ? rewrittenText : originalText;
-        this.replacements.set(originalText, currentText);
-        this.saveSettings();
+      // saveBtn.addEventListener('mouseover', () => {
+      //   saveBtn.style.backgroundColor = '#f3f4f6';
+      // });
+      // saveBtn.addEventListener('mouseout', () => {
+      //   saveBtn.style.backgroundColor = 'white';
+      // });
+      // saveBtn.addEventListener('click', () => {
+      //   const currentText = showingRewritten ? rewrittenText : originalText;
+      //   this.replacements.set(originalText, currentText);
+      //   this.saveSettings();
 
-        // Apply replacements to the whole page
-        this.replaceWordsInPage();
+      //   // Apply replacements to the whole page
+      //   this.replaceWordsInPage();
 
-        // Remove the interactive UI
-        buttonContainer.remove();
-        wrapper.style.backgroundColor = 'transparent';
-        wrapper.style.padding = '0';
-        wrapper.classList.remove('rewriter-highlight');
+      //   // Remove the interactive UI
+      //   buttonContainer.remove();
+      //   wrapper.style.backgroundColor = 'transparent';
+      //   wrapper.style.padding = '0';
+      //   wrapper.classList.remove('rewriter-highlight');
 
-        // Send message to popup to update UI
-        chrome.runtime.sendMessage({
-          action: 'wordSelected',
-          original: originalText,
-          replacement: currentText,
-        });
+      //   // Send message to popup to update UI
+      //   chrome.runtime.sendMessage({
+      //     action: 'wordSelected',
+      //     original: originalText,
+      //     replacement: currentText,
+      //   });
 
-        // Clear current highlight reference
-        if (this.currentHighlight === highlightSpan) {
-          this.currentHighlight = null;
-        }
-      });
+      //   // Clear current highlight reference
+      //   if (this.currentHighlight === highlightSpan) {
+      //     this.currentHighlight = null;
+      //   }
+      // });
 
       // Assemble buttons
       buttonContainer.appendChild(toggleBtn);
       buttonContainer.appendChild(applyBtn);
-      buttonContainer.appendChild(saveBtn);
+      // buttonContainer.appendChild(saveBtn);
 
       // Replace the highlight span with the new interactive content
       const parent = highlightSpan.parentNode;
@@ -605,7 +608,7 @@ export class WordReplacer {
 
       // Reset highlight on error
       highlightSpan.style.backgroundColor = '#ef4444';
-      highlightSpan.title = `Error: ${error.message}`;
+      highlightSpan.title = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
 
       // Reset after 3 seconds
       setTimeout(() => {
@@ -696,6 +699,51 @@ export class WordReplacer {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
+  /**
+   * Analyze the formatting patterns of the original text
+   */
+  analyzeTextFormatting(text: string): {
+    hasCapitalization: boolean;
+    hasPunctuation: boolean;
+    startsWithCapital: boolean;
+    endsWithPunctuation: boolean;
+  } {
+    const trimmedText = text.trim();
+
+    return {
+      hasCapitalization: /[A-Z]/.test(trimmedText),
+      hasPunctuation: /[.!?,:;]/.test(trimmedText),
+      startsWithCapital: /^[A-Z]/.test(trimmedText),
+      endsWithPunctuation: /[.!?]$/.test(trimmedText),
+    };
+  }
+
+  /**
+   * Apply the original text's formatting patterns to the rewritten text
+   */
+  preserveOriginalFormatting(originalText: string, rewrittenText: string): string {
+    const originalFormatting = this.analyzeTextFormatting(originalText);
+    let processedText = rewrittenText.trim();
+
+    // If the original text has no capitalization, convert rewritten text to lowercase
+    if (!originalFormatting.hasCapitalization) {
+      processedText = processedText.toLowerCase();
+    } else if (originalFormatting.startsWithCapital && processedText.length > 0) {
+      // Preserve the capital at the start if original had it
+      processedText = processedText.charAt(0).toUpperCase() + processedText.slice(1);
+    }
+
+    // If the original text has no punctuation, remove punctuation from rewritten text
+    if (!originalFormatting.hasPunctuation) {
+      processedText = processedText.replace(/[.!?,:;]/g, '');
+    } else if (originalFormatting.endsWithPunctuation && !/[.!?]$/.test(processedText)) {
+      // If original ended with punctuation but rewritten doesn't, add a period
+      processedText += '.';
+    }
+
+    return processedText;
+  }
+
   removeHighlights() {
     // Remove current highlight reference
     this.currentHighlight = null;
@@ -729,8 +777,7 @@ export class WordReplacer {
         };
       }
 
-      // @ts-expect-error - Rewriter API is experimental and not in TypeScript types
-      const availability = await self.Rewriter.availability();
+      const availability = await window.Rewriter.availability();
       return {
         available: true,
         status: availability,
@@ -739,7 +786,7 @@ export class WordReplacer {
     } catch (error) {
       return {
         available: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -774,9 +821,9 @@ export class WordReplacer {
         tone: this.rewriterOptions.tone !== 'as-is' ? this.rewriterOptions.tone : undefined,
         format: this.rewriterOptions.format !== 'as-is' ? this.rewriterOptions.format : undefined,
         length: this.rewriterOptions.length !== 'as-is' ? this.rewriterOptions.length : undefined,
-        monitor: m => {
+        monitor: (m: DownloadMonitor) => {
           console.log('📡 Monitor callback activated (Rewriter)');
-          m.addEventListener('downloadprogress', e => {
+          m.addEventListener('downloadprogress', (e: ProgressEvent) => {
             this.downloadProgress = Math.round((e.loaded / e.total) * 100);
             console.log(`📥 Rewriter download: ${this.downloadProgress}%`);
           });
@@ -825,9 +872,12 @@ export class WordReplacer {
 
       // Rewrite the text
       console.log('✨ Rewriting...');
-      const rewrittenText = await rewriter.rewrite(originalText, {
+      const rawRewrittenText = await rewriter.rewrite(originalText, {
         context: 'Make this text easier to understand for language learners.',
       });
+
+      // Preserve original formatting patterns
+      const rewrittenText = this.preserveOriginalFormatting(originalText, rawRewrittenText);
 
       console.log('✅ Rewritten text:', rewrittenText.substring(0, 100) + '...');
 
