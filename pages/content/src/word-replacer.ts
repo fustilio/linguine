@@ -145,22 +145,47 @@ export class WordReplacer {
     sendResponse: (response: unknown) => void,
   ): boolean | void {
     switch (message.action) {
-      case 'toggleActive':
-        this.isActive = !this.isActive;
-        this.saveSettings();
-        if (this.isActive) {
+      case 'updateState': {
+        // Single handler for all state updates
+        const state = message.state as {
+          isActive?: boolean;
+          rewriterOptions?: RewriterOptions;
+        };
+
+        const wasActive = this.isActive;
+
+        // Update state
+        if (state.isActive !== undefined) {
+          this.isActive = state.isActive;
+        }
+        if (state.rewriterOptions) {
+          // Shallow merge two objects
+          this.rewriterOptions = {
+            ...this.rewriterOptions,
+            ...state.rewriterOptions,
+          };
+          // Reset rewriter when options change
+          this.isRewriterReady = false;
+          this.rewriter = null;
+        }
+
+        // Handle activation/deactivation
+        if (this.isActive && !wasActive) {
           this.setupSelectionMode();
           this.replaceWordsInPage();
-        } else {
+        } else if (!this.isActive && wasActive) {
           this.removeHighlights();
-          this.removeCurrentHighlight(); // Clear current highlight when deactivating
-          this.removeSelectionMode(); // Use the new method to properly remove listener
+          this.removeCurrentHighlight();
+          this.removeSelectionMode();
         }
-        sendResponse({ success: true, isActive: this.isActive });
+
+        this.saveSettings();
+        sendResponse({ success: true });
         break;
+      }
 
       case 'addReplacement':
-        this.replacements.set(message.original, message.replacement);
+        this.replacements.set(message.original as string, message.replacement as string);
         this.saveSettings();
         if (this.isActive) {
           this.replaceWordsInPage();
@@ -169,7 +194,7 @@ export class WordReplacer {
         break;
 
       case 'removeReplacement':
-        this.replacements.delete(message.original);
+        this.replacements.delete(message.original as string);
         this.saveSettings();
         if (this.isActive) {
           this.replaceWordsInPage();
@@ -225,7 +250,7 @@ export class WordReplacer {
       case 'updateRewriterOptions':
         this.rewriterOptions = {
           ...this.rewriterOptions,
-          ...message.options,
+          ...(message.options as Partial<RewriterOptions>),
         };
         // Reset rewriter when options change
         this.isRewriterReady = false;
@@ -259,12 +284,11 @@ export class WordReplacer {
       mutations.forEach(mutation => {
         if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
           // Check if any text nodes were added
-          for (const node of mutation.addedNodes) {
+          mutation.addedNodes.forEach(node => {
             if (node.nodeType === Node.TEXT_NODE || (node.nodeType === Node.ELEMENT_NODE && node.textContent)) {
               shouldReplace = true;
-              break;
             }
-          }
+          });
         }
       });
 
@@ -773,7 +797,7 @@ export class WordReplacer {
       if (!('Rewriter' in self)) {
         return {
           available: false,
-          message: 'Rewriter API not available. Enable chrome://flags/#rewriter-api-for-gemini-nano',
+          error: 'Rewriter API not found in browser',
         };
       }
 
@@ -814,7 +838,7 @@ export class WordReplacer {
       }
 
       // Create rewriter with configurable settings
-      const options = {
+      const options: RewriterOptions = {
         sharedContext: this.rewriterOptions.sharedContext || undefined,
         expectedInputLanguages: ['en', 'ja', 'es'],
         expectedContextLanguages: ['en', 'ja', 'es'],

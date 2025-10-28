@@ -6,6 +6,6 @@ console.log('[CEB] All content script loaded');
 void sampleFunction();
 
 // Initialize the word replacer when the script loads
-console.log("[CEB] Initializing word replacer");
+console.log('[CEB] Initializing word replacer');
 new WordReplacer();
-console.log("[CEB] Word replacer initialized");
+console.log('[CEB] Word replacer initialized');

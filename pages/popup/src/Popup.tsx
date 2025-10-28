@@ -92,69 +92,62 @@ const Popup = () => {
   };
 
   // Save state to storage and notify content script
-  const saveState = async (newIsActive?: boolean, newOptions?: RewriterOptions) => {
+  const saveState = async (newOptions?: RewriterOptions, newIsActive?: boolean) => {
     try {
       const stateToSave = {
-        isActive: newIsActive !== undefined ? newIsActive : isActive,
-        rewriterOptions: newOptions || rewriterOptions,
+        isActive: newIsActive ?? isActive,
+        rewriterOptions: newOptions ?? rewriterOptions,
       };
 
+      // Save to storage first
       await chrome.storage.sync.set({
         wordReplacer: stateToSave,
       });
 
-      // Notify content script of the change
+      // Then notify content script with the complete state
       if (currentTab?.id) {
         try {
           await chrome.tabs.sendMessage(currentTab.id, {
-            action: 'stateChanged',
+            action: 'updateState',
             state: stateToSave,
           });
         } catch (error) {
           console.error('Error sending message to content script:', error);
         }
       }
+      return { success: true };
     } catch (error) {
       console.error('Error saving state:', error);
+      return { success: false, error };
     }
   };
 
   // Toggle extension active state
   const toggleActive = async () => {
     const newState = !isActive;
-    setIsActive(newState);
-    await saveState(newState);
 
-    // Notify content script
-    if (currentTab?.id) {
-      try {
-        await chrome.tabs.sendMessage(currentTab.id, {
-          action: 'toggleActive',
-        });
-      } catch (error) {
-        console.error('Error toggling active state:', error);
-      }
+    // Save state - this handles both storage and content script notification
+    const result = await saveState(rewriterOptions, newState);
+
+    if (result.success) {
+      setIsActive(newState); // Only update UI state if save succeeded
+    } else {
+      // Show error to user
+      console.error('Failed to toggle active state');
     }
   };
 
   // Save rewriter options
   const handleSaveSettings = async () => {
-    await saveState(undefined, rewriterOptions);
+    const result = await saveState(rewriterOptions, isActive);
 
-    // Show save confirmation
-    setSaveStatus('✓ Saved!');
-    setTimeout(() => setSaveStatus(''), 2000);
-
-    // Notify content script
-    if (currentTab?.id) {
-      try {
-        await chrome.tabs.sendMessage(currentTab.id, {
-          action: 'updateRewriterOptions',
-          options: rewriterOptions,
-        });
-      } catch (error) {
-        console.error('Error updating rewriter options:', error);
-      }
+    if (result.success) {
+      // Show save confirmation
+      setSaveStatus('✓ Saved!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } else {
+      setSaveStatus('✗ Save failed');
+      setTimeout(() => setSaveStatus(''), 2000);
     }
   };
 
