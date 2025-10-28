@@ -1,6 +1,6 @@
 import { ManualSqliteClient } from './manual.js';
 import type { VocabularyItem, NewVocabularyItem } from './types.js';
-import { ensureSentenceRewritesDatabaseInitialized } from './sentence-rewrites.js';
+import { getDatabaseManager } from './database-manager.js';
 
 const dummyData: Array<Pick<NewVocabularyItem, 'text' | 'language'>> = [
   { text: 'Hello', language: 'en-US' },
@@ -20,10 +20,8 @@ const dummyData: Array<Pick<NewVocabularyItem, 'text' | 'language'>> = [
   { text: 'Cherry', language: 'en-US' },
 ];
 
-let initializePromise: Promise<void> | null = null;
-
 const getDb = () => {
-  const client = new ManualSqliteClient();
+  const client = ManualSqliteClient.getInstance();
   return client.getDb();
 };
 
@@ -49,16 +47,13 @@ const initializeVocabularyDatabase = async () => {
   }
 };
 
-const ensureDatabaseInitialized = () => {
-  if (!initializePromise) {
-    initializePromise = Promise.all([initializeVocabularyDatabase(), ensureSentenceRewritesDatabaseInitialized()]).then(
-      () => {},
-    );
-  }
-  return initializePromise;
+const ensureDatabaseInitialized = async () => {
+  const dbManager = getDatabaseManager();
+  await dbManager.ensureInitialized();
 };
 
 const getVocabulary = async (page: number, limit: number, language?: string | null): Promise<VocabularyItem[]> => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
   let query = db.selectFrom('vocabulary').selectAll().orderBy('created_at', 'desc');
@@ -74,6 +69,7 @@ const getVocabulary = async (page: number, limit: number, language?: string | nu
 };
 
 const getVocabularyCount = async (language?: string | null): Promise<number> => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return 0;
   let query = db.selectFrom('vocabulary').select(db.fn.count('id').as('count'));
@@ -87,6 +83,7 @@ const getVocabularyCount = async (language?: string | null): Promise<number> => 
 };
 
 const addVocabularyItem = async (item: Pick<NewVocabularyItem, 'text' | 'language'>) => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return;
   const now = new Date().toISOString();
@@ -97,6 +94,7 @@ const addVocabularyItem = async (item: Pick<NewVocabularyItem, 'text' | 'languag
 };
 
 const updateVocabularyItemKnowledgeLevel = async (id: number, level: number) => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return;
   const now = new Date().toISOString();
@@ -108,18 +106,21 @@ const updateVocabularyItemKnowledgeLevel = async (id: number, level: number) => 
 };
 
 const deleteVocabularyItem = async (id: number) => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return;
   await db.deleteFrom('vocabulary').where('id', '=', id).execute();
 };
 
 const deleteVocabularyItems = async (ids: number[]) => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return;
   await db.deleteFrom('vocabulary').where('id', 'in', ids).execute();
 };
 
 const updateVocabularyItemKnowledgeLevels = async (ids: number[], levelChange: 1 | -1) => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return;
   const now = new Date().toISOString();
@@ -135,6 +136,7 @@ const updateVocabularyItemKnowledgeLevels = async (ids: number[], levelChange: 1
 };
 
 const resetVocabularyDatabase = async () => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return;
 
@@ -146,6 +148,7 @@ const resetVocabularyDatabase = async () => {
 };
 
 const populateDummyVocabulary = async () => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return;
 
@@ -167,6 +170,7 @@ const populateDummyVocabulary = async () => {
 // New query functions for AI analytics
 
 const getAllVocabularyForSummary = async (): Promise<VocabularyItem[]> => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
   return await db
@@ -178,6 +182,7 @@ const getAllVocabularyForSummary = async (): Promise<VocabularyItem[]> => {
 };
 
 const getVocabularyByLanguage = async (language: string): Promise<VocabularyItem[]> => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
   return await db
@@ -189,6 +194,7 @@ const getVocabularyByLanguage = async (language: string): Promise<VocabularyItem
 };
 
 const getVocabularyByKnowledgeLevel = async (minLevel: number, maxLevel: number): Promise<VocabularyItem[]> => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
   return await db
@@ -201,6 +207,7 @@ const getVocabularyByKnowledgeLevel = async (minLevel: number, maxLevel: number)
 };
 
 const getRecentVocabulary = async (days: number): Promise<VocabularyItem[]> => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
   const cutoffDate = new Date();
@@ -225,6 +232,7 @@ const getRecentVocabulary = async (days: number): Promise<VocabularyItem[]> => {
 };
 
 const getStrugglingWords = async (): Promise<VocabularyItem[]> => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
   return await db
@@ -236,6 +244,7 @@ const getStrugglingWords = async (): Promise<VocabularyItem[]> => {
 };
 
 const getMasteredWords = async (): Promise<VocabularyItem[]> => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
   return await db
@@ -250,6 +259,7 @@ const filterVocabulary = async (filters: {
   language?: string;
   knowledgeLevel?: { min?: number; max?: number; levels?: number[] };
 }): Promise<VocabularyItem[]> => {
+  await ensureDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
@@ -277,6 +287,7 @@ const filterVocabulary = async (filters: {
 
 // Export all functions
 export {
+  initializeVocabularyDatabase,
   ensureDatabaseInitialized,
   getVocabulary,
   getVocabularyCount,

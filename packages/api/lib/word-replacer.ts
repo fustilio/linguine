@@ -3,6 +3,7 @@
 // Users can select text to add replacements and see replacements applied in real-time
 
 import { addSentenceRewrite } from './sentence-rewrites-api.js';
+import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 
 declare global {
   interface Window {
@@ -33,6 +34,7 @@ type Rewriter = {
 };
 
 export class WordReplacer {
+  private static instance: WordReplacer | null = null;
   private replacements: Map<string, string>;
   private isActive: boolean;
   private highlightColor: string;
@@ -50,7 +52,7 @@ export class WordReplacer {
   private isDragging: boolean;
   private dragOffset: { x: number; y: number };
 
-  constructor() {
+  private constructor() {
     this.replacements = new Map();
     this.isActive = false;
     this.highlightColor = '#fbbf24';
@@ -77,6 +79,50 @@ export class WordReplacer {
 
     // Initialize the extension
     this.init();
+  }
+
+  public static getInstance(): WordReplacer {
+    if (!WordReplacer.instance) {
+      WordReplacer.instance = new WordReplacer();
+    }
+    return WordReplacer.instance;
+  }
+
+  public static resetInstance(): void {
+    if (WordReplacer.instance) {
+      WordReplacer.instance.cleanup();
+      WordReplacer.instance = null;
+    }
+  }
+
+  private cleanup(): void {
+    // Disconnect observer
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+
+    // Clear timeouts
+    if (this.replaceTimeout) {
+      clearTimeout(this.replaceTimeout);
+      this.replaceTimeout = undefined;
+    }
+
+    // Remove event listeners
+    if (this.handleSelection) {
+      document.removeEventListener('mouseup', this.handleSelection);
+      this.handleSelection = null;
+    }
+
+    // Remove floating widget
+    if (this.floatingWidget) {
+      this.floatingWidget.remove();
+      this.floatingWidget = null;
+    }
+
+    // Clear selections
+    this.selectedWords.clear();
+    this.currentHighlight = null;
   }
 
   async init() {
@@ -120,7 +166,7 @@ export class WordReplacer {
       this.rewriterOptions = {
         sharedContext:
           settings.rewriterOptions?.sharedContext ||
-          'I am learning this language. Use simpler vocabulary in its original language so I can understand this text.',
+          DEFAULT_REWRITER_PROMPT,
         tone: settings.rewriterOptions?.tone || 'more-casual',
         format: settings.rewriterOptions?.format || 'plain-text',
         length: settings.rewriterOptions?.length || 'shorter',

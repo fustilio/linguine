@@ -1,9 +1,13 @@
 import { useVocabulary } from '@extension/api';
-import { DebugActions, VocabularyForm, VocabularyList, VocabularyToolbar, cn, themeVariants } from '@extension/ui';
+import { DebugActions, VocabularyForm, VocabularyList, VocabularyToolbar, Pagination, cn, themeVariants } from '@extension/ui';
 
 export const VocabularyAdmin = () => {
   const {
     items,
+    totalItems,
+    currentPage,
+    pageSize,
+    goToPage,
     addVocabularyItem,
     updateVocabularyItemKnowledgeLevel,
     deleteVocabularyItem,
@@ -29,7 +33,7 @@ export const VocabularyAdmin = () => {
         <VocabularyToolbar languageFilter={languageFilter} onLanguageChange={setLanguageFilter} />
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden flex flex-col">
         <div
           className={cn('h-full overflow-y-auto rounded border p-2', themeVariants.card())}>
           <VocabularyList
@@ -39,6 +43,18 @@ export const VocabularyAdmin = () => {
             onToggleItemSelected={toggleItemSelected}
             onUpdateLevel={(id, level) => updateVocabularyItemKnowledgeLevel.mutate({ id, level })}
             onDeleteItem={id => deleteVocabularyItem.mutate(id)}
+          />
+        </div>
+        
+        {/* Pagination */}
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(totalItems / pageSize)}
+            onPageChange={goToPage}
+            showInfo={true}
+            totalItems={totalItems}
+            pageSize={pageSize}
           />
         </div>
       </div>

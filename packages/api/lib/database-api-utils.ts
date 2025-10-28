@@ -20,11 +20,21 @@ export const sendDatabaseMessage = async <T = unknown>(
       data,
     });
 
-    if (response.success) {
-      return response;
+    // Check if response exists and has the expected structure
+    if (response && typeof response === 'object' && 'success' in response) {
+      if (response.success) {
+        return response;
+      } else {
+        console.error(`❌ Failed to execute ${action}:`, response.error);
+        return { success: false, error: response.error };
+      }
     } else {
-      console.error(`❌ Failed to execute ${action}:`, response.error);
-      return { success: false, error: response.error };
+      // Response is null/undefined or doesn't have expected structure
+      console.error(`❌ No valid response received for ${action}. Response:`, response);
+      return { 
+        success: false, 
+        error: 'No valid response received from background script' 
+      };
     }
   } catch (error) {
     console.error(`❌ Error sending message for ${action}:`, error);

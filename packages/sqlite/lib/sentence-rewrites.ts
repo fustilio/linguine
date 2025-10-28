@@ -1,10 +1,9 @@
 import { ManualSqliteClient } from './manual.js';
 import type { SentenceRewrite, NewSentenceRewrite, VocabularyItem } from './types.js';
-
-let initializePromise: Promise<void> | null = null;
+import { getDatabaseManager } from './database-manager.js';
 
 const getDb = () => {
-  const client = new ManualSqliteClient();
+  const client = ManualSqliteClient.getInstance();
   return client.getDb();
 };
 
@@ -61,11 +60,9 @@ const initializeSentenceRewritesDatabase = async () => {
   }
 };
 
-const ensureSentenceRewritesDatabaseInitialized = () => {
-  if (!initializePromise) {
-    initializePromise = initializeSentenceRewritesDatabase();
-  }
-  return initializePromise;
+const ensureSentenceRewritesDatabaseInitialized = async () => {
+  const dbManager = getDatabaseManager();
+  await dbManager.ensureInitialized();
 };
 
 // Readability calculation functions
@@ -346,6 +343,7 @@ const getSentenceRewriteCount = async (filters?: {
   recentDays?: number;
   sourceUrl?: string;
 }): Promise<number> => {
+  await ensureSentenceRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return 0;
 
@@ -379,6 +377,7 @@ const getSentenceRewriteCount = async (filters?: {
 };
 
 const getSentenceRewriteById = async (id: number): Promise<SentenceRewrite | null> => {
+  await ensureSentenceRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return null;
 
@@ -386,6 +385,7 @@ const getSentenceRewriteById = async (id: number): Promise<SentenceRewrite | nul
 };
 
 const getSentenceRewritesByLanguage = async (language: string): Promise<SentenceRewrite[]> => {
+  await ensureSentenceRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
@@ -398,6 +398,7 @@ const getSentenceRewritesByLanguage = async (language: string): Promise<Sentence
 };
 
 const getRecentSentenceRewrites = async (days: number, language?: string): Promise<SentenceRewrite[]> => {
+  await ensureSentenceRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
@@ -419,6 +420,7 @@ const getRecentSentenceRewrites = async (days: number, language?: string): Promi
 };
 
 const getSentenceRewritesByUrl = async (url: string): Promise<SentenceRewrite[]> => {
+  await ensureSentenceRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
@@ -435,6 +437,7 @@ const getSentenceRewritesByReadability = async (
   maxScore: number,
   language?: string,
 ): Promise<SentenceRewrite[]> => {
+  await ensureSentenceRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
@@ -535,6 +538,7 @@ const clearAllSentenceRewrites = async () => {
 };
 
 const resetSentenceRewritesDatabase = async () => {
+  await ensureSentenceRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return;
 
@@ -548,6 +552,7 @@ const resetSentenceRewritesDatabase = async () => {
 // Word association functions
 
 const getVocabularyWordsInSentence = async (sentenceId: number): Promise<VocabularyItem[]> => {
+  await ensureSentenceRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
@@ -580,6 +585,7 @@ const getVocabularyWordsInSentence = async (sentenceId: number): Promise<Vocabul
 };
 
 const getSentencesContainingWord = async (vocabularyId: number): Promise<SentenceRewrite[]> => {
+  await ensureSentenceRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
@@ -608,6 +614,7 @@ const getSentencesContainingWord = async (vocabularyId: number): Promise<Sentenc
 
 // Export all functions
 export { 
+  initializeSentenceRewritesDatabase,
   calculateReadabilityScore,
   ensureSentenceRewritesDatabaseInitialized,
   getSentenceRewrites,

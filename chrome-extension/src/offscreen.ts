@@ -30,13 +30,15 @@ import {
   getSentencesContainingWord,
   resetSentenceRewritesDatabase,
 } from '@extension/sqlite';
+import { getDatabaseManager } from '@extension/sqlite/lib/database-manager.js';
 
 console.log('Offscreen document loaded');
 
 // Initialize database on startup
 async function initializeDatabase() {
   try {
-    await ensureDatabaseInitialized();
+    const dbManager = getDatabaseManager();
+    await dbManager.ensureInitialized();
     console.log('✅ Database initialized in offscreen document');
   } catch (error) {
     console.error('❌ Failed to initialize database:', error);

@@ -2,7 +2,7 @@ import './Popup.css';
 
 import { t } from '@extension/i18n';
 import { PROJECT_URL_OBJECT, useStorage, withErrorBoundary, withSuspense } from '@extension/shared';
-import { exampleThemeStorage } from '@extension/storage';
+import { exampleThemeStorage, wordReplacerStorage, DEFAULT_REWRITER_OPTIONS, DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 import { cn, ErrorDisplay, LoadingSpinner, ToggleButton } from '@extension/ui';
 import { useEffect, useState } from 'react';
 
@@ -13,28 +13,20 @@ const notificationOptions = {
   message: 'You cannot inject script here!',
 } as const;
 
-interface RewriterOptions {
-  sharedContext: string;
-  tone: string;
-  format: string;
-  length: string;
-}
-
 const Popup = () => {
   const logo = 'popup/pasta-illustration-2.svg';
 
-  // State management
-  const [isActive, setIsActive] = useState(false);
+  // Use storage hook for word replacer state
+  const wordReplacerState = useStorage(wordReplacerStorage);
+  
+  // Local state for UI
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentTab, setCurrentTab] = useState<chrome.tabs.Tab | null>(null);
   const [saveStatus, setSaveStatus] = useState('');
-  const [rewriterOptions, setRewriterOptions] = useState<RewriterOptions>({
-    sharedContext:
-      'I am learning this language. Use simpler vocabulary in its original language so I can understand this text.',
-    tone: 'as-is',
-    format: 'as-is',
-    length: 'shorter',
-  });
+
+  // Get safe values with fallbacks
+  const isActive = wordReplacerState?.isActive ?? false;
+  const rewriterOptions = wordReplacerState?.rewriterOptions ?? DEFAULT_REWRITER_OPTIONS;
 
   // Load state on mount
   useEffect(() => {
@@ -46,20 +38,6 @@ const Popup = () => {
           currentWindow: true,
         });
         setCurrentTab(tab);
-
-        // Load settings from storage
-        const result = await chrome.storage.sync.get(['wordReplacer']);
-        const settings = result.wordReplacer || {};
-
-        setIsActive(settings.isActive || false);
-
-        // Load rewriter options with defaults
-        if (settings.rewriterOptions) {
-          setRewriterOptions(prev => ({
-            ...prev,
-            ...settings.rewriterOptions,
-          }));
-        }
 
         // Check if content script is loaded
         await checkContentScript(tab);
@@ -92,61 +70,44 @@ const Popup = () => {
     }
   };
 
-  // Save state to storage and notify content script
-  const saveState = async (newOptions?: RewriterOptions, newIsActive?: boolean) => {
-    try {
-      const stateToSave = {
-        isActive: newIsActive ?? isActive,
-        rewriterOptions: newOptions ?? rewriterOptions,
-      };
-
-      // Save to storage first
-      await chrome.storage.sync.set({
-        wordReplacer: stateToSave,
-      });
-
-      // Then notify content script with the complete state
-      if (currentTab?.id) {
-        try {
-          await chrome.tabs.sendMessage(currentTab.id, {
-            action: 'updateState',
-            state: stateToSave,
-          });
-        } catch (error) {
-          console.error('Error sending message to content script:', error);
-        }
+  // Notify content script of state changes
+  const notifyContentScript = async () => {
+    if (currentTab?.id) {
+      try {
+        await chrome.tabs.sendMessage(currentTab.id, {
+          action: 'updateState',
+          state: {
+            isActive,
+            rewriterOptions,
+          },
+        });
+      } catch (error) {
+        console.error('Error sending message to content script:', error);
       }
-      return { success: true };
-    } catch (error) {
-      console.error('Error saving state:', error);
-      return { success: false, error };
     }
   };
 
   // Toggle extension active state
   const toggleActive = async () => {
-    const newState = !isActive;
-
-    // Save state - this handles both storage and content script notification
-    const result = await saveState(rewriterOptions, newState);
-
-    if (result.success) {
-      setIsActive(newState); // Only update UI state if save succeeded
-    } else {
-      // Show error to user
-      console.error('Failed to toggle active state');
+    try {
+      await wordReplacerStorage.toggleActive();
+      await notifyContentScript();
+    } catch (error) {
+      console.error('Failed to toggle active state:', error);
     }
   };
 
   // Save rewriter options
   const handleSaveSettings = async () => {
-    const result = await saveState(rewriterOptions, isActive);
-
-    if (result.success) {
+    try {
+      await wordReplacerStorage.updateRewriterOptions(rewriterOptions);
+      await notifyContentScript();
+      
       // Show save confirmation
       setSaveStatus('✓ Saved!');
       setTimeout(() => setSaveStatus(''), 2000);
-    } else {
+    } catch (error) {
+      console.error('Failed to save settings:', error);
       setSaveStatus('✗ Save failed');
       setTimeout(() => setSaveStatus(''), 2000);
     }
@@ -307,13 +268,12 @@ const Popup = () => {
                     id="sharedContext"
                     value={rewriterOptions.sharedContext}
                     onChange={e =>
-                      setRewriterOptions(prev => ({
-                        ...prev,
+                      wordReplacerStorage.updateRewriterOptions({
                         sharedContext: e.target.value,
-                      }))
+                      })
                     }
                     className="min-h-[60px] w-full resize-y rounded border border-[#d1d5db] p-2 text-xs"
-                    placeholder="e.g., I am learning this language. Use simpler vocabulary in its original language so I can understand this text."
+                    placeholder={`e.g., ${DEFAULT_REWRITER_PROMPT}`}
                   />
                 </div>
 
@@ -326,10 +286,9 @@ const Popup = () => {
                     id="tone"
                     value={rewriterOptions.tone}
                     onChange={e =>
-                      setRewriterOptions(prev => ({
-                        ...prev,
+                      wordReplacerStorage.updateRewriterOptions({
                         tone: e.target.value,
-                      }))
+                      })
                     }
                     className="w-full cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs">
                     <option value="as-is">As-is (keep original)</option>
@@ -348,10 +307,9 @@ const Popup = () => {
                     id="format"
                     value={rewriterOptions.format}
                     onChange={e =>
-                      setRewriterOptions(prev => ({
-                        ...prev,
+                      wordReplacerStorage.updateRewriterOptions({
                         format: e.target.value,
-                      }))
+                      })
                     }
                     className="w-full cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs">
                     <option value="as-is">As-is (keep original)</option>
@@ -369,10 +327,9 @@ const Popup = () => {
                     id="length"
                     value={rewriterOptions.length}
                     onChange={e =>
-                      setRewriterOptions(prev => ({
-                        ...prev,
+                      wordReplacerStorage.updateRewriterOptions({
                         length: e.target.value,
-                      }))
+                      })
                     }
                     className="w-full cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs">
                     <option value="as-is">As-is (keep original)</option>

@@ -7,5 +7,5 @@ void sampleFunction();
 
 // Initialize the word replacer when the script loads
 console.log('[CEB] Initializing word replacer');
-new WordReplacer();
+const wordReplacer = WordReplacer.getInstance();
 console.log('[CEB] Word replacer initialized');

@@ -37,20 +37,7 @@ async function ensureOffscreenDocument() {
 
 async function main() {
   await ensureOffscreenDocument();
-  console.log('offscreen document ensured');
-
-  // console.log("ensuring database is initialized");
-  // await ensureDatabaseInitialized();
-  // console.log("database is initialized");
-
-  // const vocab = await getAllVocabularyForSummary();
-  // console.log("vocab", vocab);
-
-  // const newVocab = await addVocabularyItem({
-  //   text: "test",
-  //   language: "en-US",
-  // });
-  // console.log("newVocab", newVocab);
+  console.log('✅ Offscreen document ensured');
 }
 
 console.log('starting main');
@@ -64,22 +51,115 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Background received message:', message);
 
   // Handle async operations
-  const handleAsyncMessage = async () => {
+  const handleAsyncMessage = async (): Promise<void> => {
     try {
-      // Ensure offscreen document exists
-      await ensureOffscreenDocument();
+      // Check if this is a database-related message
+      const databaseActions = [
+        'getAllVocabularyForSummary',
+        'addVocabularyItem',
+        'deleteVocabularyItem',
+        'deleteVocabularyItems',
+        'updateVocabularyItemKnowledgeLevel',
+        'updateVocabularyItemKnowledgeLevels',
+        'getVocabulary',
+        'getVocabularyCount',
+        'resetVocabularyDatabase',
+        'populateDummyVocabulary',
+        'ensureDatabaseInitialized',
+        'addSentenceRewrite',
+        'getSentenceRewrites',
+        'getSentenceRewriteCount',
+        'deleteSentenceRewrite',
+        'deleteSentenceRewrites',
+        'clearAllSentenceRewrites',
+        'getSentenceRewriteById',
+        'getSentenceRewritesByLanguage',
+        'getRecentSentenceRewrites',
+        'getSentenceRewritesByUrl',
+        'getSentenceRewritesByReadability',
+        'getVocabularyWordsInSentence',
+        'getSentencesContainingWord',
+        'resetSentenceRewritesDatabase'
+      ];
 
-      // Forward all database-related messages to offscreen document
-      const response = await chrome.runtime.sendMessage(message);
+      if (databaseActions.includes(message.action)) {
+        // Ensure offscreen document exists
+        await ensureOffscreenDocument();
 
-      if (response.success) {
-        sendResponse(response);
+        // Forward database-related messages to offscreen document
+        const response = await chrome.runtime.sendMessage(message);
+
+        if (response && response.success) {
+          sendResponse(response);
+        } else {
+          console.error('❌ Offscreen document error:', response?.error || 'No response');
+          sendResponse({ success: false, error: response?.error || 'No response from offscreen document' });
+        }
       } else {
-        console.error('❌ Offscreen document error:', response.error);
-        sendResponse({ success: false, error: response.error });
+        // Handle non-database messages
+        switch (message.action) {
+          case 'wordSelected':
+            // Handle word selection from content script
+            console.log(`Word selected: "${message.original}" -> "${message.replacement}"`);
+            sendResponse({ success: true });
+            break;
+
+          case 'getTabId':
+            // Return the current tab ID
+            if (sender.tab) {
+              sendResponse({ success: true, tabId: sender.tab.id });
+            } else {
+              sendResponse({ success: false, error: 'No tab ID available' });
+            }
+            break;
+
+          case 'ping':
+            // Health check
+            sendResponse({ success: true, pong: true });
+            break;
+
+          case 'exportSettings':
+            // Export settings to JSON file
+            chrome.storage.sync.get(['wordReplacer'], result => {
+              const settings = result.wordReplacer || {};
+              const dataStr = JSON.stringify(settings, null, 2);
+              const blob = new Blob([dataStr], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+
+              chrome.downloads.download(
+                {
+                  url: url,
+                  filename: 'word-replacer-settings.json',
+                  saveAs: true,
+                },
+                downloadId => {
+                  URL.revokeObjectURL(url);
+                  sendResponse({ success: true, downloadId: downloadId });
+                },
+              );
+            });
+            return; // Keep the message channel open
+
+          case 'importSettings':
+            // This would be handled by the popup reading a file
+            sendResponse({
+              success: false,
+              error: 'Import should be handled by popup',
+            });
+            break;
+
+          default:
+            // Forward other messages to content script
+            if (sender.tab && sender.tab.id) {
+              chrome.tabs.sendMessage(sender.tab.id, message, sendResponse);
+              return; // Keep the message channel open
+            } else {
+              sendResponse({ success: false, error: 'No active tab' });
+            }
+        }
       }
     } catch (error) {
-      console.error('❌ Error forwarding message to offscreen:', error);
+      console.error('❌ Error handling message:', error);
       sendResponse({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -96,276 +176,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true; // Keep the message channel open for async operations
 });
 
-// chrome.runtime.onInstalled.addListener(() => {
-//   console.log('Word Replacer extension installed');
+chrome.runtime.onInstalled.addListener(() => {
+  console.log('Word Replacer extension installed');
+});
 
-//   // Initialize default settings
-//   chrome.storage.sync.get(['wordReplacer'], result => {
-//     if (!result.wordReplacer) {
-//       const defaultSettings = {
-//         isActive: false,
-//         mode: 'replace',
-//         highlightColor: '#fbbf24',
-//         replacements: [],
-//       };
+// Handle extension icon click
+chrome.action.onClicked.addListener(tab => {
+  // Open popup (this is handled automatically by manifest.json)
+  console.log('Extension icon clicked on tab:', tab.id);
+});
 
-//       chrome.storage.sync.set({ wordReplacer: defaultSettings });
-//     }
-//   });
-// });
-
-// // Handle messages from popup and content scripts
-// chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-//   console.log('Background received message:', message);
-
-//   // Handle async operations
-//   const handleAsyncMessage = async () => {
-//     switch (message.action) {
-//       case 'wordSelected':
-//         // Handle word selection from content script
-//         console.log(`Word selected: "${message.original}" -> "${message.replacement}"`);
-//         sendResponse({ success: true });
-//         break;
-
-//       case 'getTabId':
-//         // Return the current tab ID
-//         if (sender.tab) {
-//           sendResponse({ success: true, tabId: sender.tab.id });
-//         } else {
-//           sendResponse({ success: false, error: 'No tab ID available' });
-//         }
-//         break;
-
-//       case 'ping':
-//         // Health check
-//         sendResponse({ success: true, pong: true });
-//         break;
-
-//       case 'exportSettings':
-//         // Export settings to JSON file
-//         chrome.storage.sync.get(['wordReplacer'], result => {
-//           const settings = result.wordReplacer || {};
-//           const dataStr = JSON.stringify(settings, null, 2);
-//           const blob = new Blob([dataStr], { type: 'application/json' });
-//           const url = URL.createObjectURL(blob);
-
-//           chrome.downloads.download(
-//             {
-//               url: url,
-//               filename: 'word-replacer-settings.json',
-//               saveAs: true,
-//             },
-//             downloadId => {
-//               URL.revokeObjectURL(url);
-//               sendResponse({ success: true, downloadId: downloadId });
-//             },
-//           );
-//         });
-//         return true; // Keep the message channel open
-
-//       case 'importSettings':
-//         // This would be handled by the popup reading a file
-//         sendResponse({
-//           success: false,
-//           error: 'Import should be handled by popup',
-//         });
-//         break;
-
-//       case 'addSentenceRewrite':
-//         // Handle sentence rewrite via offscreen document
-//         try {
-//           await ensureOffscreenDocument();
-//           console.log('ensuring database is initialized');
-//           const rewriteData = message.rewriteData as {
-//             original_text: string;
-//             rewritten_text: string;
-//             language: string;
-//             rewriter_settings: string;
-//             source_url: string;
-//             url_fragment: string;
-//           };
-
-//           console.log('going to write data', rewriteData);
-
-//           // Send message to offscreen document
-//           const response = await chrome.runtime.sendMessage({
-//             action: 'addSentenceRewrite',
-//             data: rewriteData,
-//           });
-
-//           console.log("response from offscreen document", response);
-
-//           if (response.success) {
-//             console.log('✅ Sentence rewrite saved via offscreen document');
-//             sendResponse({ success: true });
-//           } else {
-//             console.error('❌ Failed to save sentence rewrite:', response.error);
-//             sendResponse({ success: false, error: response.error });
-//           }
-//         } catch (error) {
-//           console.error('❌ Failed to save sentence rewrite:', error);
-//           sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
-//         }
-//         break;
-
-//       case 'getSentenceRewrites':
-//         // Handle getting sentence rewrites via offscreen document
-//         try {
-//           await ensureOffscreenDocument();
-//           const { page = 1, limit = 10, filters = {} } = message;
-
-//           const response = await chrome.runtime.sendMessage({
-//             action: 'getSentenceRewrites',
-//             data: { page, limit, filters },
-//           });
-
-//           if (response.success) {
-//             sendResponse({ success: true, data: response.data });
-//           } else {
-//             sendResponse({ success: false, error: response.error });
-//           }
-//         } catch (error) {
-//           console.error('❌ Failed to get sentence rewrites:', error);
-//           sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
-//         }
-//         break;
-
-//       case 'deleteSentenceRewrite':
-//         // Handle deleting a single sentence rewrite via offscreen document
-//         try {
-//           await ensureOffscreenDocument();
-
-//           const response = await chrome.runtime.sendMessage({
-//             action: 'deleteSentenceRewrite',
-//             data: { id: message.id },
-//           });
-
-//           if (response.success) {
-//             sendResponse({ success: true });
-//           } else {
-//             sendResponse({ success: false, error: response.error });
-//           }
-//         } catch (error) {
-//           console.error('❌ Failed to delete sentence rewrite:', error);
-//           sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
-//         }
-//         break;
-
-//       case 'deleteSentenceRewrites':
-//         // Handle deleting multiple sentence rewrites via offscreen document
-//         try {
-//           await ensureOffscreenDocument();
-
-//           const response = await chrome.runtime.sendMessage({
-//             action: 'deleteSentenceRewrites',
-//             data: { ids: message.ids },
-//           });
-
-//           if (response.success) {
-//             sendResponse({ success: true });
-//           } else {
-//             sendResponse({ success: false, error: response.error });
-//           }
-//         } catch (error) {
-//           console.error('❌ Failed to delete sentence rewrites:', error);
-//           sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
-//         }
-//         break;
-
-//       case 'clearAllSentenceRewrites':
-//         // Handle clearing all sentence rewrites via offscreen document
-//         try {
-//           await ensureOffscreenDocument();
-
-//           const response = await chrome.runtime.sendMessage({
-//             action: 'clearAllSentenceRewrites',
-//             data: {},
-//           });
-
-//           if (response.success) {
-//             sendResponse({ success: true });
-//           } else {
-//             sendResponse({ success: false, error: response.error });
-//           }
-//         } catch (error) {
-//           console.error('❌ Failed to clear all sentence rewrites:', error);
-//           sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
-//         }
-//         break;
-
-//       default:
-//         // Forward other messages to content script
-//         if (sender.tab && sender.tab.id) {
-//           chrome.tabs.sendMessage(sender.tab.id, message, sendResponse);
-//           return true; // Keep the message channel open
-//         } else {
-//           sendResponse({ success: false, error: 'No active tab' });
-//         }
-//     }
-//     return; // Explicit return for async function
-//   };
-
-//   // Execute async handler
-//   handleAsyncMessage().catch(error => {
-//     console.error('Error in message handler:', error);
-//     sendResponse({ success: false, error: 'Internal error' });
-//   });
-
-//   return true; // Keep the message channel open for async operations
-// });
-
-// // Handle extension icon click
-// chrome.action.onClicked.addListener(tab => {
-//   // Open popup (this is handled automatically by manifest.json)
-//   console.log('Extension icon clicked on tab:', tab.id);
-// });
-
-// // Handle tab updates to reinject content script if needed
-// chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-//   if (
-//     changeInfo.status === 'complete' &&
-//     tab.url &&
-//     (tab.url.startsWith('http://') || tab.url.startsWith('https://'))
-//   ) {
-//     // Check if content script needs to be reinjected
-//     chrome.tabs.sendMessage(tabId, { action: 'ping' }, response => {
-//       if (chrome.runtime.lastError) {
-//         // Content script not loaded, inject it
-//         chrome.scripting
-//           .executeScript({
-//             target: { tabId: tabId },
-//             files: ['content.js'],
-//           })
-//           .catch(error => {
-//             console.log('Could not inject content script:', error);
-//           });
-//       }
-//     });
-//   }
-// });
-
-// // Handle storage changes
-// chrome.storage.onChanged.addListener((changes, namespace) => {
-//   if (namespace === 'sync' && changes.wordReplacer) {
-//     console.log('Word Replacer settings changed:', changes.wordReplacer);
-
-//     // Notify all tabs about the settings change
-//     chrome.tabs.query({}, tabs => {
-//       tabs.forEach(tab => {
-//         if (tab.id && tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
-//           chrome.tabs
-//             .sendMessage(tab.id, {
-//               action: 'settingsChanged',
-//               settings: changes.wordReplacer.newValue,
-//             })
-//             .catch(() => {
-//               // Ignore errors for tabs without content script
-//             });
-//         }
-//       });
-//     });
-//   }
-// });
+// Handle tab updates to reinject content script if needed
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (
+    changeInfo.status === 'complete' &&
+    tab.url &&
+    (tab.url.startsWith('http://') || tab.url.startsWith('https://'))
+  ) {
+    // Check if content script needs to be reinjected
+    chrome.tabs.sendMessage(tabId, { action: 'ping' }, response => {
+      if (chrome.runtime.lastError) {
+        // Content script not loaded, inject it
+        chrome.scripting
+          .executeScript({
+            target: { tabId: tabId },
+            files: ['content.js'],
+          })
+          .catch(error => {
+            console.log('Could not inject content script:', error);
+          });
+      }
+    });
+  }
+});
 
 // const menuId = 'addSentenceRewrite';
 
@@ -409,6 +252,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 //           url_fragment: '',
 //         };
 
+//         // Use the same message passing pattern as the API
 //         const response = await chrome.runtime.sendMessage({
 //           action: 'addSentenceRewrite',
 //           data: rewriteData,

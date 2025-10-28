@@ -3,7 +3,6 @@ import {
   resetVocabularyDatabase as apiResetVocabularyDatabase,
   deleteVocabularyItem as apiDeleteVocabularyItem,
   deleteVocabularyItems as apiDeleteVocabularyItems,
-  ensureVocabularyDatabaseInitialized as apiEnsureDatabaseInitialized,
   getVocabulary as apiGetVocabulary,
   getVocabularyCount as apiGetVocabularyCount,
   populateDummyVocabulary as apiPopulateDummyVocabulary,
@@ -27,7 +26,6 @@ export const useVocabulary = () => {
   const { data: vocabularyData } = useQuery({
     queryKey,
     queryFn: async () => {
-      await apiEnsureDatabaseInitialized();
       const [items, totalItems] = await Promise.all([
         apiGetVocabulary(currentPage, PAGE_SIZE, languageFilter),
         apiGetVocabularyCount(languageFilter),

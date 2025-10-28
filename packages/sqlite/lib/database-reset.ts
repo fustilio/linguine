@@ -1,5 +1,6 @@
 import { resetVocabularyDatabase } from './vocabulary.js';
 import { resetSentenceRewritesDatabase } from './sentence-rewrites.js';
+import { getDatabaseManager } from './database-manager.js';
 
 /**
  * Completely resets the entire database by dropping and recreating all tables
@@ -14,6 +15,10 @@ export const resetEntireDatabase = async () => {
       resetVocabularyDatabase(),
       resetSentenceRewritesDatabase()
     ]);
+    
+    // Reset the database manager singleton state
+    const dbManager = getDatabaseManager();
+    dbManager.reset();
     
     console.log('Database reset completed successfully');
   } catch (error) {

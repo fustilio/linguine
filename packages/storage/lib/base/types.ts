@@ -61,3 +61,18 @@ export type LanguageStorageType = BaseStorageType<LanguageStateType> & {
   setNativeLanguage: (language: string) => Promise<void>;
   setTargetLanguage: (language: string) => Promise<void>;
 };
+
+export interface WordReplacerStateType {
+  isActive: boolean;
+  rewriterOptions: {
+    sharedContext: string;
+    tone: string;
+    format: string;
+    length: string;
+  };
+}
+
+export type WordReplacerStorageType = BaseStorageType<WordReplacerStateType> & {
+  toggleActive: () => Promise<void>;
+  updateRewriterOptions: (options: Partial<WordReplacerStateType['rewriterOptions']>) => Promise<void>;
+};

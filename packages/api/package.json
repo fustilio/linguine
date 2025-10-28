@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@extension/shared": "workspace:*",
+    "@extension/storage": "workspace:*",
     "@tanstack/react-query": "^5.90.5",
     "zod": "^4.1.12"
   },

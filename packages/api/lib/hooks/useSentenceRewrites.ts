@@ -3,7 +3,6 @@ import {
   clearAllSentenceRewrites as apiClearAllSentenceRewrites,
   deleteSentenceRewrite as apiDeleteSentenceRewrite,
   deleteSentenceRewrites as apiDeleteSentenceRewrites,
-  ensureDatabaseInitialized as apiEnsureDatabaseInitialized,
   getSentenceRewrites as apiGetSentenceRewrites,
   getSentenceRewriteCount as apiGetSentenceRewriteCount,
 } from '../sentence-rewrites-api.js';
@@ -29,7 +28,6 @@ export const useSentenceRewrites = (filters?: {
   const { data: sentenceRewritesData } = useQuery({
     queryKey,
     queryFn: async () => {
-      await apiEnsureDatabaseInitialized();
       const [items, totalItems] = await Promise.all([
         apiGetSentenceRewrites(currentPage, PAGE_SIZE, filters),
         apiGetSentenceRewriteCount(filters),

@@ -13,6 +13,7 @@ export interface VocabularyItem {
   text: string;
   language: string;
   knowledge_level: number;
+  last_reviewed_at: string;
   created_at: string;
 }
 
