@@ -305,9 +305,6 @@ importers:
       '@extension/shared':
         specifier: workspace:*
         version: link:../shared
-      '@tanstack/react-query':
-        specifier: ^5.90.5
-        version: 5.90.5(react@19.1.1)
       kysely:
         specifier: ^0.28.8
         version: 0.28.8
@@ -338,18 +335,12 @@ importers:
 
   packages/ui:
     dependencies:
-      '@extension/api':
-        specifier: workspace:*
-        version: link:../api
       '@extension/i18n':
         specifier: workspace:*
         version: link:../i18n
       '@extension/shared':
         specifier: workspace:*
         version: link:../shared
-      '@extension/sqlite':
-        specifier: workspace:*
-        version: link:../sqlite
       '@extension/storage':
         specifier: workspace:*
         version: link:../storage
@@ -360,6 +351,12 @@ importers:
         specifier: ^3.3.0
         version: 3.3.1
     devDependencies:
+      '@extension/api':
+        specifier: workspace:*
+        version: link:../api
+      '@extension/sqlite':
+        specifier: workspace:*
+        version: link:../sqlite
       '@extension/tailwindcss-config':
         specifier: workspace:*
         version: link:../tailwindcss-config
@@ -572,6 +569,9 @@ importers:
 
   pages/popup:
     dependencies:
+      '@extension/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@extension/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
@@ -597,15 +597,15 @@ importers:
 
   pages/side-panel:
     dependencies:
+      '@extension/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@extension/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
       '@extension/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@extension/sqlite':
-        specifier: workspace:*
-        version: link:../../packages/sqlite
       '@extension/storage':
         specifier: workspace:*
         version: link:../../packages/storage

@@ -6,6 +6,5 @@ export * from './error-display/ErrorDisplay';
 export * from './VocabularyForm';
 export * from './VocabularyList';
 export * from './VocabularyToolbar';
-export * from './VocabularyAnalytics';
 export * from './QueryInterface';
 export * from './TextEvaluator';

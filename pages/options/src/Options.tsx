@@ -1,10 +1,11 @@
 import '@src/Options.css';
 import { Sidebar } from './Sidebar';
 import { VocabularyAdmin } from './VocabularyAdmin';
+import { VocabularyAnalytics } from './VocabularyAnalytics';
 import { t } from '@extension/i18n';
 import { PROJECT_URL_OBJECT, useStorage, withErrorBoundary, withSuspense } from '@extension/shared';
 import { exampleThemeStorage } from '@extension/storage';
-import { cn, ErrorDisplay, LoadingSpinner, ToggleButton, VocabularyAnalytics } from '@extension/ui';
+import { cn, ErrorDisplay, LoadingSpinner, ToggleButton } from '@extension/ui';
 import { useState } from 'react';
 
 const Options = () => {

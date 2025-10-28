@@ -1,9 +1,6 @@
-import { LoadingSpinner } from './LoadingSpinner.js';
-import { QueryInterface } from './QueryInterface.js';
-import { TextEvaluator } from './TextEvaluator.js';
-import { cn } from '@/lib/utils';
 import { summarizeVocabulary, analyzeText, formatVocabularyForAI } from '@extension/api';
 import { getAllVocabularyForSummary, getVocabularyByLanguage } from '@extension/sqlite';
+import { LoadingSpinner, QueryInterface, TextEvaluator, cn } from '@extension/ui';
 import { useState } from 'react';
 import type { AIResponse, TextEvaluationResult } from '@extension/api';
 
@@ -118,4 +115,3 @@ export const VocabularyAnalytics = ({ isLight }: VocabularyAnalyticsProps) => {
     </div>
   );
 };
-

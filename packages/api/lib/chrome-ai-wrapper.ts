@@ -1,67 +1,28 @@
+/// <reference types="dom-chromium-ai" />
+
 /**
  * Base wrapper around Chrome AI APIs
  * Provides low-level access to Chrome's built-in AI capabilities
  */
 
-import type {
-  AISummarizer,
-  AITranslator,
-  AILanguageModel,
-  AIAvailability as ChromeAIAvailability,
-} from './chrome-extended-types.js';
-
-export type AIAvailability = ChromeAIAvailability;
-
-/**
- * Check if Chrome AI API is available
- */
-export const checkAIAvailability = async (): Promise<AIAvailability> => {
-  try {
-    if (typeof window === 'undefined') {
-      return 'unavailable';
-    }
-
-    // Chrome AI APIs are available at window.vai (variable AI)
-    const windowWithAI = window as unknown as Record<string, unknown>;
-
-    if (!windowWithAI.vai) {
-      return 'unavailable';
-    }
-
-    // Check for language model capabilities
-    if (typeof chrome !== 'undefined' && chrome.ai) {
-      // Check if Rewriter API is available
-      if (typeof window.Rewriter !== 'undefined') {
-        const result = await window.Rewriter.availability();
-        return result;
-      }
-    }
-
-    // Fallback: if window.vai exists, consider it available
-    return 'available';
-  } catch (error) {
-    console.error('Failed to check AI availability:', error);
-    return 'unavailable';
-  }
-};
 
 /**
  * Initialize Chrome languageModel API (Prompt API)
  */
-export const createLanguageModel = async (): Promise<AILanguageModel> => {
+export const createLanguageModel = async () => {
   try {
-    if (!chrome?.ai) {
-      throw new Error('Chrome AI API is not available');
-    }
-
-    if (!chrome.ai.languageModel) {
+ 
+    if (typeof LanguageModel === 'undefined') {
       throw new Error('Language Model API not available. Enable #prompt-api-for-gemini-nano flag');
     }
 
-    const model = await chrome.ai.languageModel.create({
-      // Using default Gemini model
-    });
-    return model;
+    const availability = await LanguageModel.availability();
+
+    if (availability === 'unavailable') {
+      throw new Error('Language Model API not available. Enable #prompt-api-for-gemini-nano flag');
+    }
+
+    return await LanguageModel.create({});
   } catch (error) {
     console.error('Failed to initialize language model:', error);
     throw error;
@@ -71,33 +32,9 @@ export const createLanguageModel = async (): Promise<AILanguageModel> => {
 /**
  * Initialize Chrome Translator API
  */
-export const createTranslator = async (sourceLanguage: string, targetLanguage: string): Promise<AITranslator> => {
+export const createTranslator = async (sourceLanguage: string, targetLanguage: string) => {
   try {
     if (typeof Translator === 'undefined') {
-      // Fallback to window.vai if available
-      const windowWithAI = window as unknown as {
-        vai?: {
-          translator?: {
-            availability: (opts: { sourceLanguage: string; targetLanguage: string }) => Promise<ChromeAIAvailability>;
-            create: (opts: { sourceLanguage: string; targetLanguage: string }) => Promise<AITranslator>;
-          };
-        };
-      };
-      if (windowWithAI.vai?.translator) {
-        const availability = await windowWithAI.vai.translator.availability({
-          sourceLanguage,
-          targetLanguage,
-        });
-
-        if (availability === 'unavailable') {
-          throw new Error('Translation unavailable for this language pair');
-        }
-
-        return await windowWithAI.vai.translator.create({
-          sourceLanguage,
-          targetLanguage,
-        });
-      }
       throw new Error('Translator API not available. Enable #translator-api flag');
     }
 
@@ -124,7 +61,7 @@ export const createTranslator = async (sourceLanguage: string, targetLanguage: s
 /**
  * Initialize Chrome Summarizer API
  */
-export const createSummarizer = async (): Promise<AISummarizer> => {
+export const createSummarizer = async () => {
   try {
     if (typeof Summarizer === 'undefined') {
       throw new Error('Summarizer API not available. Enable #summarization-api-for-gemini-nano flag');
@@ -140,11 +77,11 @@ export const createSummarizer = async (): Promise<AISummarizer> => {
 /**
  * Translate text using Chrome Translator API
  */
-export const translateText = async (text: string, sourceLanguage: string, targetLanguage: string): Promise<string> => {
+export const translateText = async (text: string, sourceLanguage: string, targetLanguage: string) => {
   const translator = await createTranslator(sourceLanguage, targetLanguage);
 
   // Wait for translator to be ready
-  await translator.ready;
+  // await translator.ready;
 
   const translated = await translator.translate(text);
 
@@ -157,11 +94,11 @@ export const translateText = async (text: string, sourceLanguage: string, target
 /**
  * Summarize text using Chrome Summarizer API
  */
-export const summarizeText = async (text: string, context?: string): Promise<string> => {
+export const summarizeText = async (text: string, context?: string) => {
   const summarizer = await createSummarizer();
 
   // Wait for summarizer to be ready
-  await summarizer.ready;
+  // await summarizer.ready;
 
   const summary = await summarizer.summarize(text, context ? { context } : undefined);
 
@@ -174,11 +111,11 @@ export const summarizeText = async (text: string, context?: string): Promise<str
 /**
  * Stream summarize text using Chrome Summarizer API
  */
-export const streamSummarizeText = async (text: string, context?: string): Promise<AsyncIterable<string>> => {
+export const streamSummarizeText = async (text: string, context?: string) => {
   const summarizer = await createSummarizer();
 
   // Wait for summarizer to be ready
-  await summarizer.ready;
+  // await summarizer.ready;
 
   return summarizer.summarizeStreaming(text, context ? { context } : undefined);
 };

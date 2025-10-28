@@ -1,6 +1,6 @@
 import '@src/index.css';
+import { QueryClient, QueryClientProvider } from '@extension/api';
 import SidePanel from '@src/SidePanel';
-import { QueryClient, QueryClientProvider } from '@extension/sqlite';
 import { createRoot } from 'react-dom/client';
 
 const init = () => {

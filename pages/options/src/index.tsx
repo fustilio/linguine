@@ -1,5 +1,5 @@
 import '@src/index.css';
-import { QueryClient, QueryClientProvider } from '@extension/sqlite';
+import { QueryClient, QueryClientProvider } from '@extension/api';
 import Options from '@src/Options';
 import { createRoot } from 'react-dom/client';
 
