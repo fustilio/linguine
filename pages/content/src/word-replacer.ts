@@ -44,6 +44,9 @@ export class WordReplacer {
   private isDownloading: boolean;
   private replaceTimeout?: ReturnType<typeof setTimeout>;
   private handleSelection?: ((event: MouseEvent) => void) | null;
+  private floatingWidget: HTMLElement | null;
+  private isDragging: boolean;
+  private dragOffset: { x: number; y: number };
 
   constructor() {
     this.replacements = new Map();
@@ -65,6 +68,11 @@ export class WordReplacer {
     this.downloadProgress = 0;
     this.isDownloading = false;
 
+    // Floating widget state
+    this.floatingWidget = null;
+    this.isDragging = false;
+    this.dragOffset = { x: 0, y: 0 };
+
     // Initialize the extension
     this.init();
   }
@@ -85,8 +93,10 @@ export class WordReplacer {
     // Set up or remove selection mode based on active state
     if (this.isActive) {
       this.setupSelectionMode();
+      this.createFloatingWidget();
     } else {
       this.removeSelectionMode(); // Ensure it's cleaned up if inactive
+      this.removeFloatingWidget();
     }
 
     // Initial replacement if active
@@ -173,10 +183,12 @@ export class WordReplacer {
         if (this.isActive && !wasActive) {
           this.setupSelectionMode();
           this.replaceWordsInPage();
+          this.createFloatingWidget();
         } else if (!this.isActive && wasActive) {
           this.removeHighlights();
           this.removeCurrentHighlight();
           this.removeSelectionMode();
+          this.removeFloatingWidget();
         }
 
         this.saveSettings();
@@ -1018,6 +1030,163 @@ export class WordReplacer {
     } catch (error) {
       console.error('❌ Error rewriting selected text:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Draggable floating widget
+   */
+  createFloatingWidget() {
+    // Remove existing widget if any
+    this.removeFloatingWidget();
+
+    // Create the widget
+    const widget = document.createElement('div');
+    widget.id = 'linguine-floating-widget';
+    widget.innerHTML = '✨';
+    widget.title = 'Click to rewrite selected text';
+
+    // Style the widget
+    widget.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      cursor: move;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 999999;
+      user-select: none;
+      transition: transform 0.2s, box-shadow 0.2s;
+    `;
+
+    // Add hover effect
+    widget.addEventListener('mouseenter', () => {
+      widget.style.transform = 'scale(1.1)';
+      widget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2)';
+    });
+
+    widget.addEventListener('mouseleave', () => {
+      if (!this.isDragging) {
+        widget.style.transform = 'scale(1)';
+        widget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+      }
+    });
+
+    // Handle drag start
+    widget.addEventListener('mousedown', (e: MouseEvent) => {
+      this.isDragging = true;
+      const rect = widget.getBoundingClientRect();
+      this.dragOffset = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
+      widget.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+
+    // Handle dragging
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!this.isDragging || !this.floatingWidget) return;
+
+      const x = e.clientX - this.dragOffset.x;
+      const y = e.clientY - this.dragOffset.y;
+
+      // Keep widget within viewport
+      const maxX = window.innerWidth - this.floatingWidget.offsetWidth;
+      const maxY = window.innerHeight - this.floatingWidget.offsetHeight;
+
+      const boundedX = Math.max(0, Math.min(x, maxX));
+      const boundedY = Math.max(0, Math.min(y, maxY));
+
+      this.floatingWidget.style.left = `${boundedX}px`;
+      this.floatingWidget.style.top = `${boundedY}px`;
+      this.floatingWidget.style.bottom = 'auto';
+      this.floatingWidget.style.right = 'auto';
+    };
+
+    // Handle drag end
+    const handleMouseUp = () => {
+      if (this.isDragging && this.floatingWidget) {
+        this.isDragging = false;
+        this.floatingWidget.style.cursor = 'move';
+        this.floatingWidget.style.transform = 'scale(1)';
+        this.floatingWidget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+      }
+    };
+
+    // Handle click (rewrite selected text)
+    widget.addEventListener('click', async () => {
+      // Only trigger rewrite if not dragging
+      if (this.isDragging) return;
+
+      const selection = window.getSelection();
+      if (!selection || selection.toString().trim().length === 0) {
+        // Show a brief message
+        widget.innerHTML = '❌';
+        widget.title = 'Please select some text first';
+        setTimeout(() => {
+          widget.innerHTML = '✨';
+          widget.title = 'Click to rewrite selected text';
+        }, 1500);
+        return;
+      }
+
+      try {
+        // Show loading state
+        widget.innerHTML = '⏳';
+        widget.title = 'Rewriting...';
+        widget.style.cursor = 'wait';
+
+        // Trigger the rewrite
+        await this.rewriteSelectedText();
+
+        // Show success
+        widget.innerHTML = '✅';
+        widget.title = 'Rewrite complete!';
+        setTimeout(() => {
+          widget.innerHTML = '✨';
+          widget.title = 'Click to rewrite selected text';
+          widget.style.cursor = 'move';
+        }, 1500);
+      } catch (error) {
+        console.error('Error rewriting from widget:', error);
+        widget.innerHTML = '❌';
+        widget.title = 'Rewrite failed';
+        setTimeout(() => {
+          widget.innerHTML = '✨';
+          widget.title = 'Click to rewrite selected text';
+          widget.style.cursor = 'move';
+        }, 1500);
+      }
+    });
+
+    // Attach event listeners to document
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    // Store cleanup function
+    widget.dataset.cleanup = 'true';
+
+    // Add to DOM
+    document.body.appendChild(widget);
+    this.floatingWidget = widget;
+  }
+
+  /**
+   * Remove the floating widget
+   */
+  removeFloatingWidget() {
+    if (this.floatingWidget && this.floatingWidget.parentNode) {
+      this.floatingWidget.parentNode.removeChild(this.floatingWidget);
+      this.floatingWidget = null;
     }
   }
 }
