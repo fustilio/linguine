@@ -1,3 +1,5 @@
+import './Popup.css';
+
 import { t } from '@extension/i18n';
 import { PROJECT_URL_OBJECT, useStorage, withErrorBoundary, withSuspense } from '@extension/shared';
 import { exampleThemeStorage } from '@extension/storage';
