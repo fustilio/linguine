@@ -241,3 +241,32 @@ export const getMasteredWords = async (): Promise<VocabularyItem[]> => {
     .orderBy('last_reviewed_at', 'desc')
     .execute();
 };
+
+export const filterVocabulary = async (filters: {
+  language?: string;
+  knowledgeLevel?: { min?: number; max?: number; levels?: number[] };
+}): Promise<VocabularyItem[]> => {
+  const db = getDb();
+  if (!db) return [];
+
+  let query = db.selectFrom('vocabulary').selectAll();
+
+  // Filter by language
+  if (filters.language) {
+    query = query.where('language', '=', filters.language);
+  }
+
+  // Filter by knowledge level
+  if (filters.knowledgeLevel?.levels && filters.knowledgeLevel.levels.length > 0) {
+    query = query.where('knowledge_level', 'in', filters.knowledgeLevel.levels);
+  } else if (filters.knowledgeLevel?.min !== undefined || filters.knowledgeLevel?.max !== undefined) {
+    if (filters.knowledgeLevel.min !== undefined) {
+      query = query.where('knowledge_level', '>=', filters.knowledgeLevel.min);
+    }
+    if (filters.knowledgeLevel.max !== undefined) {
+      query = query.where('knowledge_level', '<=', filters.knowledgeLevel.max);
+    }
+  }
+
+  return await query.orderBy('knowledge_level', 'desc').orderBy('language', 'asc').execute();
+};

@@ -1,3 +1,4 @@
+import { button } from './common-styles';
 import { cn } from '@/lib/utils';
 
 interface DebugActionsProps {
@@ -15,17 +16,10 @@ export const DebugActions = ({ populateDummyVocabulary, clearAllVocabulary, isLi
 
   return (
     <div className="my-4 flex justify-center gap-2">
-      <button
-        onClick={populateDummyVocabulary}
-        className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600">
+      <button onClick={populateDummyVocabulary} className={button({ variant: 'success' })}>
         Populate with Dummy Data
       </button>
-      <button
-        onClick={handleClear}
-        className={cn(
-          'rounded px-4 py-2 text-white',
-          isLight ? 'bg-red-500 hover:bg-red-600' : 'bg-red-600 hover:bg-red-700',
-        )}>
+      <button onClick={handleClear} className={button({ variant: 'danger' })}>
         Clear All Data
       </button>
     </div>

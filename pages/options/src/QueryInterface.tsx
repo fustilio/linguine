@@ -1,37 +1,30 @@
-import { cn } from '@/lib/utils';
+import { cn } from '@extension/ui';
 import { useState } from 'react';
 
 interface QueryInterfaceProps {
   isLight: boolean;
-  onQuery: (query: string, language?: string) => void;
+  onQuery: (query: string) => void;
   isLoading?: boolean;
-  availableLanguages?: Array<{ value: string; label: string }>;
 }
 
 const EXAMPLE_QUERIES = [
+  'Summarize my vocabulary progress',
   'What words am I struggling with?',
-  'Summarize my progress',
-  'Give me study recommendations',
-  'Which words should I focus on?',
-  'What are my strengths?',
+  'Show me my recently learned words',
+  "What's my English proficiency level?",
+  'Give me a breakdown by language',
 ];
 
-export const QueryInterface = ({
-  isLight,
-  onQuery,
-  isLoading = false,
-  availableLanguages = [],
-}: QueryInterfaceProps) => {
+export const QueryInterface = ({ isLight, onQuery, isLoading = false }: QueryInterfaceProps) => {
   const [query, setQuery] = useState('');
   const [localHistory, setLocalHistory] = useState<string[]>([]);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('all');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || isLoading) return;
 
     setLocalHistory(prev => [query, ...prev.slice(0, 9)]);
-    onQuery(query, selectedLanguage === 'all' ? undefined : selectedLanguage);
+    onQuery(query);
     setQuery('');
   };
 
@@ -42,25 +35,6 @@ export const QueryInterface = ({
   return (
     <div className="space-y-4">
       <form onSubmit={handleSubmit} className="space-y-3">
-        {availableLanguages.length > 0 && (
-          <select
-            value={selectedLanguage}
-            onChange={e => setSelectedLanguage(e.target.value)}
-            disabled={isLoading}
-            className={cn(
-              'rounded-lg border px-4 py-2 transition-colors focus:outline-none focus:ring-2',
-              isLight
-                ? 'border-gray-300 bg-white text-gray-900 focus:ring-blue-500'
-                : 'border-gray-600 bg-gray-800 text-gray-100 focus:ring-blue-500',
-            )}>
-            <option value="all">All Languages</option>
-            {availableLanguages.map(lang => (
-              <option key={lang.value} value={lang.value}>
-                {lang.label}
-              </option>
-            ))}
-          </select>
-        )}
         <div className="flex gap-2">
           <input
             type="text"
@@ -127,3 +101,4 @@ export const QueryInterface = ({
     </div>
   );
 };
+

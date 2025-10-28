@@ -4,13 +4,21 @@
  */
 
 import { createLanguageModel, translateText } from './chrome-ai-wrapper.js';
-import type { VocabularyAnalysisResult, TextEvaluationResult, CEFRLevel, AIResponse } from './types.js';
+import { FunctionCallingPromptAPI } from './function-calling/function-calling-api.js';
+import { z } from 'zod';
+import type {
+  VocabularyAnalysisResult,
+  TextEvaluationResult,
+  CEFRLevel,
+  AIResponse,
+  VocabularyFilterSpec,
+} from './types.js';
 import type { VocabularyItem } from '@extension/sqlite';
 
 /**
  * Analyze a chunk of text against known vocabulary
  */
-export const analyzeText = (text: string, knownWords: VocabularyItem[]): TextEvaluationResult => {
+const analyzeText = (text: string, knownWords: VocabularyItem[]): TextEvaluationResult => {
   const words = text.toLowerCase().split(/\s+/);
 
   const breakdown: VocabularyAnalysisResult[] = [];
@@ -73,14 +81,108 @@ export const analyzeText = (text: string, knownWords: VocabularyItem[]): TextEva
   };
 };
 
+// Schema for vocabulary filter parameters
+const VocabularyFilterSchema = z.object({
+  language: z.enum(['en-US', 'ja-JP', 'es-ES', 'fr-FR', 'de-DE', 'ko-KR']).optional(),
+  knowledgeLevel: z
+    .object({
+      min: z.number().min(1).max(5).optional(),
+      max: z.number().min(1).max(5).optional(),
+      levels: z.array(z.number().min(1).max(5)).optional(),
+    })
+    .optional(),
+});
+
+type VocabularyFilterParams = z.infer<typeof VocabularyFilterSchema>;
+
+/**
+ * Create and configure a vocabulary query parser using function calling
+ */
+let vocabularyQueryParser: FunctionCallingPromptAPI | null = null;
+
+const createVocabularyQueryParser = (): FunctionCallingPromptAPI => {
+  if (vocabularyQueryParser) return vocabularyQueryParser;
+
+  const parser = new FunctionCallingPromptAPI({
+    enableLogging: false,
+    maxRetries: 2,
+  });
+
+  // Register the filter function
+  parser.registerFunction({
+    name: 'apply_vocabulary_filter',
+    description:
+      'Apply filters to vocabulary data based on language and knowledge level. Knowledge levels: 1-2=Struggling, 3=Learning, 4-5=Mastered. Available languages: en-US, ja-JP, es-ES, fr-FR, de-DE, ko-KR',
+    parameters: VocabularyFilterSchema,
+    returns: z.any(),
+    execute: (params: VocabularyFilterParams) => {
+      const filterSpec: VocabularyFilterSpec = {
+        query: 'filtered vocabulary',
+      };
+
+      if (params.language) {
+        filterSpec.language = params.language;
+      }
+
+      if (params.knowledgeLevel) {
+        filterSpec.knowledgeLevel = params.knowledgeLevel;
+      }
+
+      return filterSpec;
+    },
+  });
+
+  vocabularyQueryParser = parser;
+  return parser;
+};
+
+/**
+ * Parse user query and return filter specifications for vocabulary data
+ * Uses function calling for more reliable structured output
+ */
+const parseVocabularyQuery = async (prompt: string): Promise<VocabularyFilterSpec> => {
+  try {
+    const parser = createVocabularyQueryParser();
+
+    // Initialize session if needed (only first time)
+    if (!vocabularyQueryParser) {
+      await parser.initializeSession(
+        () => {},
+        'You are a helpful assistant that helps users filter vocabulary data. Call the apply_vocabulary_filter function when the user wants to filter vocabulary.',
+      );
+    }
+
+    // Generate response
+    const message = await parser.generate(prompt);
+
+    // Check if a function was called
+    if (message.parsed?.function === 'apply_vocabulary_filter' && message.parsed.functionResult) {
+      return message.parsed.functionResult as VocabularyFilterSpec;
+    }
+
+    // If no function was called, return the query as is
+    return { query: prompt };
+  } catch (error) {
+    console.error('Failed to parse vocabulary query:', error);
+    return { query: prompt };
+  }
+};
+
 /**
  * Summarize vocabulary data using AI (Language Model / Prompt API)
  */
-export const summarizeVocabulary = async (prompt: string, vocabularyData: string): Promise<AIResponse> => {
+const summarizeVocabulary = async (prompt: string, vocabularyData: string): Promise<AIResponse> => {
   try {
     const model = await createLanguageModel();
 
-    const fullPrompt = `${prompt}\n\nVocabulary data:\n${vocabularyData}`;
+    const systemInstructions = `You are a vocabulary analysis assistant. Keep responses concise, structured, and actionable.
+- Use bullet points when listing items
+- Highlight key insights in 1-2 sentences
+- Focus on practical recommendations
+- Be specific with numbers and examples
+- Avoid lengthy introductions or redundant information`;
+
+    const fullPrompt = `${systemInstructions}\n\nQuestion: ${prompt}\n\nVocabulary data:\n${vocabularyData}`;
 
     const response = await model.prompt(fullPrompt, {});
 
@@ -97,7 +199,7 @@ export const summarizeVocabulary = async (prompt: string, vocabularyData: string
 /**
  * Estimate CEFR level based on vocabulary
  */
-export const estimateCEFRLevel = async (vocabularyData: string): Promise<CEFRLevel> => {
+const estimateCEFRLevel = async (vocabularyData: string): Promise<CEFRLevel> => {
   try {
     const model = await createLanguageModel();
 
@@ -176,7 +278,7 @@ Respond in this exact JSON format:
 /**
  * Format vocabulary data for AI consumption
  */
-export const formatVocabularyForAI = (vocabulary: VocabularyItem[]): string => {
+const formatVocabularyForAI = (vocabulary: VocabularyItem[]): string => {
   const byLanguage = new Map<string, VocabularyItem[]>();
 
   // Group by language
@@ -188,6 +290,14 @@ export const formatVocabularyForAI = (vocabulary: VocabularyItem[]): string => {
   }
 
   const parts: string[] = [];
+
+  // Helper to format word lists with limits
+  const formatWordList = (words: string[], maxWords = 10): string => {
+    if (words.length <= maxWords) {
+      return words.join(', ');
+    }
+    return `${words.slice(0, maxWords).join(', ')}... (${words.length} total)`;
+  };
 
   for (const [language, items] of Array.from(byLanguage.entries())) {
     // Group by knowledge level
@@ -207,13 +317,13 @@ export const formatVocabularyForAI = (vocabulary: VocabularyItem[]): string => {
 
     parts.push(`Language: ${language}`);
     if (level1to2.length > 0) {
-      parts.push(`Level 1-2 (Struggling, ${level1to2.length} words): ${level1to2.join(', ')}`);
+      parts.push(`Struggling (${level1to2.length}): ${formatWordList(level1to2)}`);
     }
     if (level3.length > 0) {
-      parts.push(`Level 3 (Learning, ${level3.length} words): ${level3.join(', ')}`);
+      parts.push(`Learning (${level3.length}): ${formatWordList(level3)}`);
     }
     if (level4to5.length > 0) {
-      parts.push(`Level 4-5 (Mastered, ${level4to5.length} words): ${level4to5.join(', ')}`);
+      parts.push(`Mastered (${level4to5.length}): ${formatWordList(level4to5)}`);
     }
     parts.push(`Total: ${items.length} words\n`);
   }
@@ -225,7 +335,7 @@ export const formatVocabularyForAI = (vocabulary: VocabularyItem[]): string => {
  * Translate word definitions using Chrome Translator API
  * Returns a wrapper with AIResponse format
  */
-export const translateVocabularyDefinition = async (
+const translateVocabularyDefinition = async (
   text: string,
   sourceLanguage: string,
   targetLanguage: string,
@@ -240,4 +350,14 @@ export const translateVocabularyDefinition = async (
       error: error instanceof Error ? error.message : 'Failed to translate text',
     };
   }
+};
+
+// Export all functions at the end
+export {
+  analyzeText,
+  parseVocabularyQuery,
+  summarizeVocabulary,
+  estimateCEFRLevel,
+  formatVocabularyForAI,
+  translateVocabularyDefinition,
 };

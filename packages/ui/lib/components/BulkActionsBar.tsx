@@ -1,3 +1,6 @@
+import { button } from './common-styles';
+import { cn } from '@/lib/utils';
+
 interface BulkActionsBarProps {
   selectedItemsCount: number;
   onLevelUp: () => void;
@@ -6,16 +9,16 @@ interface BulkActionsBarProps {
 }
 
 export const BulkActionsBar = ({ selectedItemsCount, onLevelUp, onLevelDown, onDelete }: BulkActionsBarProps) => (
-  <div className="mb-4 flex items-center justify-between rounded bg-gray-700 p-2">
-    <span className="text-white">{selectedItemsCount} items selected</span>
+  <div className={cn('mb-4 flex items-center justify-between rounded-lg p-3', 'bg-gray-100 dark:bg-gray-800')}>
+    <span className="dark:text-white">{selectedItemsCount} items selected</span>
     <div className="flex gap-2">
-      <button onClick={onLevelDown} className="rounded bg-yellow-500 px-3 py-1 text-white hover:bg-yellow-600">
+      <button onClick={onLevelDown} className={button({ variant: 'warning', size: 'sm' })}>
         Level Down
       </button>
-      <button onClick={onLevelUp} className="rounded bg-yellow-500 px-3 py-1 text-white hover:bg-yellow-600">
+      <button onClick={onLevelUp} className={button({ variant: 'warning', size: 'sm' })}>
         Level Up
       </button>
-      <button onClick={onDelete} className="rounded bg-red-500 px-3 py-1 text-white hover:bg-red-600">
+      <button onClick={onDelete} className={button({ variant: 'danger', size: 'sm' })}>
         Delete Selected
       </button>
     </div>

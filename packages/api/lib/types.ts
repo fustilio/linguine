@@ -27,3 +27,16 @@ export interface AIResponse {
   text: string;
   error?: string;
 }
+
+export interface VocabularyFilterSpec {
+  language?: string;
+  knowledgeLevel?: {
+    min?: number;
+    max?: number;
+    levels?: number[];
+  };
+  recent?: {
+    days?: number;
+  };
+  query?: string;
+}

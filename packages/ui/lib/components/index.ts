@@ -8,3 +8,7 @@ export * from './VocabularyList';
 export * from './VocabularyToolbar';
 export * from './QueryInterface';
 export * from './TextEvaluator';
+export * from './Tabs';
+export * from './VocabularyFilterView';
+export * from './VocabularyStats';
+export * from './common-styles';

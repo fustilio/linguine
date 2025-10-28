@@ -5,13 +5,12 @@
  * Provides low-level access to Chrome's built-in AI capabilities
  */
 
-
 /**
  * Initialize Chrome languageModel API (Prompt API)
+ * @param systemPrompt Optional system prompt for the language model
  */
-export const createLanguageModel = async () => {
+export const createLanguageModel = async (systemPrompt?: string) => {
   try {
- 
     if (typeof LanguageModel === 'undefined') {
       throw new Error('Language Model API not available. Enable #prompt-api-for-gemini-nano flag');
     }
@@ -22,7 +21,12 @@ export const createLanguageModel = async () => {
       throw new Error('Language Model API not available. Enable #prompt-api-for-gemini-nano flag');
     }
 
-    return await LanguageModel.create({});
+    const options: LanguageModelCreateOptions = {};
+    if (systemPrompt) {
+      options.initialPrompts = [{ role: 'system', content: systemPrompt }];
+    }
+
+    return await LanguageModel.create(options);
   } catch (error) {
     console.error('Failed to initialize language model:', error);
     throw error;

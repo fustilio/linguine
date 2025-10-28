@@ -1,3 +1,4 @@
+import { button, input, select } from './common-styles';
 import { cn } from '@/lib/utils';
 import { LANGUAGES } from '@extension/shared/const';
 import { useState } from 'react';
@@ -22,30 +23,21 @@ export const VocabularyForm = ({ onAddItem, isLight }: VocabularyFormProps) => {
       <input
         type="text"
         placeholder="New word or phrase"
-        className={cn(
-          'flex-1 rounded border px-3 py-2',
-          isLight ? 'border-gray-300 bg-white text-gray-900' : 'border-gray-600 bg-gray-700 text-gray-100',
-        )}
+        className={cn('flex-1', input())}
         value={newItemText}
         onChange={e => setNewItemText(e.target.value)}
         onKeyDown={e => {
           if (e.key === 'Enter') handleAddItem();
         }}
       />
-      <select
-        className={cn(
-          'w-32 rounded border px-3 py-2',
-          isLight ? 'border-gray-300 bg-white text-gray-900' : 'border-gray-600 bg-gray-700 text-gray-100',
-        )}
-        value={newItemLanguage}
-        onChange={e => setNewItemLanguage(e.target.value)}>
+      <select className={cn('w-32', select())} value={newItemLanguage} onChange={e => setNewItemLanguage(e.target.value)}>
         {LANGUAGES.map(lang => (
           <option key={lang.value} value={lang.value}>
             {lang.label}
           </option>
         ))}
       </select>
-      <button onClick={handleAddItem} className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
+      <button onClick={handleAddItem} className={button()}>
         Add
       </button>
     </div>

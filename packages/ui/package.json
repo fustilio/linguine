@@ -26,6 +26,7 @@
     "@extension/shared": "workspace:*",
     "@extension/storage": "workspace:*",
     "clsx": "^2.1.1",
+    "cva": "1.0.0-beta.4",
     "tailwind-merge": "^3.3.0"
   },
   "devDependencies": {
