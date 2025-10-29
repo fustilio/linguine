@@ -14,21 +14,21 @@ import {
   populateDummyVocabulary,
   ensureDatabaseInitialized,
   
-  // Sentence rewrites operations
-  addSentenceRewrite,
-  getSentenceRewrites,
-  getSentenceRewriteCount,
-  deleteSentenceRewrite,
-  deleteSentenceRewrites,
-  clearAllSentenceRewrites,
-  getSentenceRewriteById,
-  getSentenceRewritesByLanguage,
-  getRecentSentenceRewrites,
-  getSentenceRewritesByUrl,
-  getSentenceRewritesByReadability,
-  getVocabularyWordsInSentence,
-  getSentencesContainingWord,
-  resetSentenceRewritesDatabase,
+  // Text rewrites operations
+  addTextRewrite,
+  getTextRewrites,
+  getTextRewriteCount,
+  deleteTextRewrite,
+  deleteTextRewrites,
+  clearAllTextRewrites,
+  getTextRewriteById,
+  getTextRewritesByLanguage,
+  getRecentTextRewrites,
+  getTextRewritesByUrl,
+  getTextRewritesByReadability,
+  getVocabularyWordsInText,
+  getTextRewritesContainingWord,
+  resetTextRewritesDatabase,
   migrateLanguageCodes,
 
   getDatabaseManager
@@ -123,74 +123,74 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: true });
           break;
 
-        // Sentence rewrites operations
-        case 'addSentenceRewrite':
-          const newRewrite = await addSentenceRewrite(message.data);
+        // Text rewrites operations
+        case 'addTextRewrite':
+          const newRewrite = await addTextRewrite(message.data);
           sendResponse({ success: true, data: newRewrite });
           break;
 
-        case 'getSentenceRewrites':
-          const rewrites = await getSentenceRewrites(message.data.page, message.data.limit, message.data.filters);
+        case 'getTextRewrites':
+          const rewrites = await getTextRewrites(message.data.page, message.data.limit, message.data.filters);
           sendResponse({ success: true, data: rewrites });
           break;
 
-        case 'getSentenceRewriteCount':
-          const rewriteCount = await getSentenceRewriteCount(message.data.filters);
+        case 'getTextRewriteCount':
+          const rewriteCount = await getTextRewriteCount(message.data.filters);
           sendResponse({ success: true, data: rewriteCount });
           break;
 
-        case 'deleteSentenceRewrite':
-          await deleteSentenceRewrite(message.data.id);
+        case 'deleteTextRewrite':
+          await deleteTextRewrite(message.data.id);
           sendResponse({ success: true });
           break;
 
-        case 'deleteSentenceRewrites':
-          await deleteSentenceRewrites(message.data.ids);
+        case 'deleteTextRewrites':
+          await deleteTextRewrites(message.data.ids);
           sendResponse({ success: true });
           break;
 
-        case 'clearAllSentenceRewrites':
-          await clearAllSentenceRewrites();
+        case 'clearAllTextRewrites':
+          await clearAllTextRewrites();
           sendResponse({ success: true });
           break;
 
-        case 'getSentenceRewriteById':
-          const rewriteById = await getSentenceRewriteById(message.data.id);
+        case 'getTextRewriteById':
+          const rewriteById = await getTextRewriteById(message.data.id);
           sendResponse({ success: true, data: rewriteById });
           break;
 
-        case 'getSentenceRewritesByLanguage':
-          const rewritesByLang = await getSentenceRewritesByLanguage(message.data.language);
+        case 'getTextRewritesByLanguage':
+          const rewritesByLang = await getTextRewritesByLanguage(message.data.language);
           sendResponse({ success: true, data: rewritesByLang });
           break;
 
-        case 'getRecentSentenceRewrites':
-          const recentRewrites = await getRecentSentenceRewrites(message.data.days, message.data.language);
+        case 'getRecentTextRewrites':
+          const recentRewrites = await getRecentTextRewrites(message.data.days, message.data.language);
           sendResponse({ success: true, data: recentRewrites });
           break;
 
-        case 'getSentenceRewritesByUrl':
-          const rewritesByUrl = await getSentenceRewritesByUrl(message.data.url);
+        case 'getTextRewritesByUrl':
+          const rewritesByUrl = await getTextRewritesByUrl(message.data.url);
           sendResponse({ success: true, data: rewritesByUrl });
           break;
 
-        case 'getSentenceRewritesByReadability':
-          const rewritesByReadability = await getSentenceRewritesByReadability(message.data.minScore, message.data.maxScore, message.data.language);
+        case 'getTextRewritesByReadability':
+          const rewritesByReadability = await getTextRewritesByReadability(message.data.minScore, message.data.maxScore, message.data.language);
           sendResponse({ success: true, data: rewritesByReadability });
           break;
 
-        case 'getVocabularyWordsInSentence':
-          const vocabInSentence = await getVocabularyWordsInSentence(message.data.sentenceId);
-          sendResponse({ success: true, data: vocabInSentence });
+        case 'getVocabularyWordsInText':
+          const vocabInText = await getVocabularyWordsInText(message.data.textId);
+          sendResponse({ success: true, data: vocabInText });
           break;
 
-        case 'getSentencesContainingWord':
-          const sentencesWithWord = await getSentencesContainingWord(message.data.vocabularyId);
-          sendResponse({ success: true, data: sentencesWithWord });
+        case 'getTextRewritesContainingWord':
+          const textRewritesWithWord = await getTextRewritesContainingWord(message.data.vocabularyId);
+          sendResponse({ success: true, data: textRewritesWithWord });
           break;
 
-        case 'resetSentenceRewritesDatabase':
-          await resetSentenceRewritesDatabase();
+        case 'resetTextRewritesDatabase':
+          await resetTextRewritesDatabase();
           sendResponse({ success: true });
           break;
 

@@ -211,22 +211,90 @@ Currently: English, Spanish, French, German, Japanese, Korean
 
 Languages are added via the vocabulary Admin interface.
 
+## Message Passing Flow for Vocabulary Operations
+
+The vocabulary analytics system uses the extension's message passing architecture to communicate with the database:
+
+### Message Flow Architecture
+
+```
+UI Component (Vocabulary Analytics)
+  ↓ chrome.runtime.sendMessage({ action: 'getAllVocabularyForSummary' })
+Background Script (Service Worker)
+  ↓ Validates action is database-related
+  ↓ Ensures offscreen document exists
+  ↓ Forwards message to offscreen document
+Offscreen Document
+  ↓ Receives message
+  ↓ Calls getAllVocabularyForSummary() from packages/sqlite
+  ↓ Returns { success: true, data: vocabularyData }
+Background Script
+  ↓ Forwards response
+UI Component
+  ↓ Receives vocabulary data
+  ↓ Formats data for AI analysis
+  ↓ Sends to Chrome AI APIs
+```
+
+### Database Operations Used
+
+The vocabulary analytics system uses these database operations:
+
+- **`getAllVocabularyForSummary`**: Retrieves all vocabulary for AI analysis
+- **`getVocabularyByLanguage`**: Filters vocabulary by specific language
+- **`getVocabularyByKnowledgeLevel`**: Filters by knowledge level ranges
+- **`getRecentVocabulary`**: Gets recently added/reviewed words
+- **`getStrugglingWords`**: Gets words with knowledge level 1-2
+- **`getMasteredWords`**: Gets words with knowledge level 5
+- **`filterVocabulary`**: Advanced filtering with multiple criteria
+
+### API Integration
+
+The analytics system integrates with the API layer:
+
+```typescript
+// packages/api/lib/linguini-ai.ts
+import { getAllVocabularyForSummary } from '@extension/api';
+
+const summarizeVocabulary = async (prompt: string, vocabularyData: string): Promise<AIResponse> => {
+  // Get all vocabulary data via message passing
+  const allVocabulary = await getAllVocabularyForSummary();
+  
+  // Format for AI consumption
+  const formattedData = formatVocabularyForAI(allVocabulary);
+  
+  // Send to Chrome AI APIs
+  const model = await createLanguageModel();
+  const response = await model.prompt(fullPrompt, {});
+  
+  return { text: response };
+};
+```
+
 ## Related Features
 
-### Sentence Rewrites
+### Text Rewrites
 
-The vocabulary analytics system integrates with the [Sentence Rewrites feature](sentence-rewrites.md) to provide comprehensive learning insights:
+The vocabulary analytics system integrates with the [Text Rewrites feature](text-rewrites.md) to provide comprehensive learning insights:
 
-- **Cross-Reference Analysis**: Find vocabulary words used in simplified sentences
+- **Cross-Reference Analysis**: Find vocabulary words used in simplified text
 - **Context Learning**: See vocabulary words in easier-to-understand contexts
 - **Progress Tracking**: Combine vocabulary growth with text comprehension improvements
-- **Learning Reinforcement**: Connect vocabulary learning with sentence simplification
+- **Learning Reinforcement**: Connect vocabulary learning with text simplification
 
 **Key Integration Points:**
-- `getVocabularyWordsInSentence(sentenceId)` - Find vocabulary words in specific sentences
-- `getSentencesContainingWord(vocabularyId)` - Find sentences containing specific vocabulary
+- `getVocabularyWordsInText(textId)` - Find vocabulary words in specific text
+- `getTextRewritesContainingWord(vocabularyId)` - Find text rewrites containing specific vocabulary
 - Shared language filtering across both systems
 - Combined analytics for comprehensive learning insights
+
+## Related Architecture Documentation
+
+- [Architecture Overview](architecture-overview.md) - High-level system architecture
+- [Message Passing System](message-passing-system.md) - Detailed message passing documentation
+- [Packages API](packages-api.md) - API layer documentation
+- [Packages SQLite](packages-sqlite.md) - Database layer documentation
+- [Packages Shared](packages-shared.md) - Shared utilities and constants
 
 ## Future Enhancements
 
@@ -236,7 +304,7 @@ The vocabulary analytics system integrates with the [Sentence Rewrites feature](
 - [ ] Export analytics as reports
 - [ ] Multi-language text analysis
 - [ ] Progress charts and visualizations
-- [ ] Sentence rewrite analytics integration
+- [ ] Text rewrite analytics integration
 - [ ] Cross-system learning progress tracking
 
 

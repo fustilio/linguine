@@ -2,7 +2,7 @@ import '@src/Options.css';
 import { Sidebar } from './Sidebar';
 import { VocabularyAdmin } from './VocabularyAdmin';
 import { VocabularyAnalytics } from './VocabularyAnalytics';
-import { SentenceRewritesAdmin } from './SentenceRewritesAdmin';
+import { TextRewritesAdmin } from './TextRewritesAdmin';
 import { t } from '@extension/i18n';
 import { PROJECT_URL_OBJECT, useStorage, withErrorBoundary, withSuspense, LANGUAGES } from '@extension/shared';
 import { exampleThemeStorage, languageStorage } from '@extension/storage';
@@ -16,7 +16,7 @@ const Options = () => {
   const [activeTab, setActiveTab] = useURLParam('tab', 'vocabulary-admin');
 
   // Validate tab and fallback to default if invalid
-  const validTabs = ['settings', 'vocabulary-admin', 'vocabulary-analytics', 'sentence-rewrites'];
+  const validTabs = ['settings', 'vocabulary-admin', 'vocabulary-analytics', 'text-rewrites'];
   const currentTab = validTabs.includes(activeTab) ? activeTab : 'vocabulary-admin';
 
   return (
@@ -26,7 +26,7 @@ const Options = () => {
         <div className="flex flex-1 flex-col">
           {currentTab === 'vocabulary-admin' && <VocabularyAdmin />}
           {currentTab === 'vocabulary-analytics' && <VocabularyAnalytics />}
-          {currentTab === 'sentence-rewrites' && <SentenceRewritesAdmin />}
+          {currentTab === 'text-rewrites' && <TextRewritesAdmin />}
           {currentTab === 'settings' && (
             <div className={cn('text-gray-700 dark:text-gray-300')}>
               <h2 className="mb-4 text-2xl font-bold">Settings</h2>

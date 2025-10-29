@@ -1,5 +1,5 @@
 import { ManualSqliteClient } from './manual.js';
-import type { SentenceRewrite, NewSentenceRewrite, VocabularyItem } from './types.js';
+import type { TextRewrite, NewTextRewrite, VocabularyItem } from './types.js';
 import { getDatabaseManager } from './database-manager.js';
 import { normalizeLanguageCode } from '@extension/shared';
 
@@ -8,17 +8,17 @@ const getDb = () => {
   return client.getDb();
 };
 
-const initializeSentenceRewritesDatabase = async () => {
+const initializeTextRewritesDatabase = async () => {
   const db = getDb();
   if (!db) return;
 
   const tableExists = await db.introspection
     .getTables()
-    .then((tables: { name: string }[]) => tables.some((table: { name: string }) => table.name === 'sentence_rewrites'));
+    .then((tables: { name: string }[]) => tables.some((table: { name: string }) => table.name === 'text_rewrites'));
 
   if (!tableExists) {
     await db.schema
-      .createTable('sentence_rewrites')
+      .createTable('text_rewrites')
       .ifNotExists()
       .addColumn('id', 'integer', col => col.primaryKey().autoIncrement())
       .addColumn('original_text', 'text', col => col.notNull())
@@ -33,35 +33,35 @@ const initializeSentenceRewritesDatabase = async () => {
       .execute();
 
     // Create indexes for common queries
-    await db.schema.createIndex('idx_sentence_rewrites_language').on('sentence_rewrites').column('language').execute();
+    await db.schema.createIndex('idx_text_rewrites_language').on('text_rewrites').column('language').execute();
 
     await db.schema
-      .createIndex('idx_sentence_rewrites_created_at')
-      .on('sentence_rewrites')
+      .createIndex('idx_text_rewrites_created_at')
+      .on('text_rewrites')
       .column('created_at')
       .execute();
 
     await db.schema
-      .createIndex('idx_sentence_rewrites_original_readability_score')
-      .on('sentence_rewrites')
+      .createIndex('idx_text_rewrites_original_readability_score')
+      .on('text_rewrites')
       .column('original_readability_score')
       .execute();
 
     await db.schema
-      .createIndex('idx_sentence_rewrites_rewritten_readability_score')
-      .on('sentence_rewrites')
+      .createIndex('idx_text_rewrites_rewritten_readability_score')
+      .on('text_rewrites')
       .column('rewritten_readability_score')
       .execute();
 
     await db.schema
-      .createIndex('idx_sentence_rewrites_source_url')
-      .on('sentence_rewrites')
+      .createIndex('idx_text_rewrites_source_url')
+      .on('text_rewrites')
       .column('source_url')
       .execute();
   }
 };
 
-const ensureSentenceRewritesDatabaseInitialized = async () => {
+const ensureTextRewritesDatabaseInitialized = async () => {
   const dbManager = getDatabaseManager();
   await dbManager.ensureInitialized();
 };
@@ -293,7 +293,7 @@ const calculateReadabilityScore = (text: string, language: string): number => {
 
 // Database operations
 
-const getSentenceRewrites = async (
+const getTextRewrites = async (
   page: number,
   limit: number,
   filters?: {
@@ -303,14 +303,14 @@ const getSentenceRewrites = async (
     recentDays?: number;
     sourceUrl?: string;
   },
-): Promise<SentenceRewrite[]> => {
-  await ensureSentenceRewritesDatabaseInitialized();
+): Promise<TextRewrite[]> => {
+  await ensureTextRewritesDatabaseInitialized();
   
   const db = getDb();
   if (!db) return [];
 
   try {
-    let query = db.selectFrom('sentence_rewrites').selectAll().orderBy('created_at', 'desc')
+    let query = db.selectFrom('text_rewrites').selectAll().orderBy('created_at', 'desc')
 
     if (filters?.language) {
       query = query.where('language', '=', filters.language);
@@ -340,23 +340,23 @@ const getSentenceRewrites = async (
       .limit(limit)
       .execute();
   } catch (error) {
-    console.error('Error getting sentence rewrites:', error);
+    console.error('Error getting text rewrites:', error);
     throw error;
   }
 };
 
-const getSentenceRewriteCount = async (filters?: {
+const getTextRewriteCount = async (filters?: {
   language?: string;
   minReadability?: number;
   maxReadability?: number;
   recentDays?: number;
   sourceUrl?: string;
 }): Promise<number> => {
-  await ensureSentenceRewritesDatabaseInitialized();
+  await ensureTextRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return 0;
 
-  let query = db.selectFrom('sentence_rewrites').select(db.fn.count('id').as('count'));
+  let query = db.selectFrom('text_rewrites').select(db.fn.count('id').as('count'));
 
   if (filters?.language) {
     query = query.where('language', '=', filters.language);
@@ -385,29 +385,29 @@ const getSentenceRewriteCount = async (filters?: {
   return (result?.count as number) || 0;
 };
 
-const getSentenceRewriteById = async (id: number): Promise<SentenceRewrite | null> => {
-  await ensureSentenceRewritesDatabaseInitialized();
+const getTextRewriteById = async (id: number): Promise<TextRewrite | null> => {
+  await ensureTextRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return null;
 
-  return (await db.selectFrom('sentence_rewrites').selectAll().where('id', '=', id).executeTakeFirst()) || null;
+  return (await db.selectFrom('text_rewrites').selectAll().where('id', '=', id).executeTakeFirst()) || null;
 };
 
-const getSentenceRewritesByLanguage = async (language: string): Promise<SentenceRewrite[]> => {
-  await ensureSentenceRewritesDatabaseInitialized();
+const getTextRewritesByLanguage = async (language: string): Promise<TextRewrite[]> => {
+  await ensureTextRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
   return await db
-    .selectFrom('sentence_rewrites')
+    .selectFrom('text_rewrites')
     .selectAll()
     .where('language', '=', language)
     .orderBy('created_at', 'desc')
     .execute();
 };
 
-const getRecentSentenceRewrites = async (days: number, language?: string): Promise<SentenceRewrite[]> => {
-  await ensureSentenceRewritesDatabaseInitialized();
+const getRecentTextRewrites = async (days: number, language?: string): Promise<TextRewrite[]> => {
+  await ensureTextRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
@@ -416,7 +416,7 @@ const getRecentSentenceRewrites = async (days: number, language?: string): Promi
   const cutoffISO = cutoffDate.toISOString();
 
   let query = db
-    .selectFrom('sentence_rewrites')
+    .selectFrom('text_rewrites')
     .selectAll()
     .where('created_at', '>=', cutoffISO)
     .orderBy('created_at', 'desc');
@@ -428,30 +428,30 @@ const getRecentSentenceRewrites = async (days: number, language?: string): Promi
   return await query.execute();
 };
 
-const getSentenceRewritesByUrl = async (url: string): Promise<SentenceRewrite[]> => {
-  await ensureSentenceRewritesDatabaseInitialized();
+const getTextRewritesByUrl = async (url: string): Promise<TextRewrite[]> => {
+  await ensureTextRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
   return await db
-    .selectFrom('sentence_rewrites')
+    .selectFrom('text_rewrites')
     .selectAll()
     .where('source_url', '=', url)
     .orderBy('created_at', 'desc')
     .execute();
 };
 
-const getSentenceRewritesByReadability = async (
+const getTextRewritesByReadability = async (
   minScore: number,
   maxScore: number,
   language?: string,
-): Promise<SentenceRewrite[]> => {
-  await ensureSentenceRewritesDatabaseInitialized();
+): Promise<TextRewrite[]> => {
+  await ensureTextRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
   let query = db
-    .selectFrom('sentence_rewrites')
+    .selectFrom('text_rewrites')
     .selectAll()
     .where('rewritten_readability_score', '>=', minScore)
     .where('rewritten_readability_score', '<=', maxScore)
@@ -464,12 +464,12 @@ const getSentenceRewritesByReadability = async (
   return await query.execute();
 };
 
-const addSentenceRewrite = async (
-  rewrite: Omit<NewSentenceRewrite, 'id' | 'original_readability_score' | 'rewritten_readability_score' | 'created_at'>,
+const addTextRewrite = async (
+  rewrite: Omit<NewTextRewrite, 'id' | 'original_readability_score' | 'rewritten_readability_score' | 'created_at'>,
 ) => {
-    console.log("add sentence rewrite")
+    console.log("add text rewrite")
   // Ensure database is initialized before attempting to insert
-  await ensureSentenceRewritesDatabaseInitialized();
+  await ensureTextRewritesDatabaseInitialized();
 
   console.log("db is initilized")
   
@@ -484,7 +484,7 @@ const addSentenceRewrite = async (
     const rewrittenReadabilityScore = calculateReadabilityScore(rewrite.rewritten_text, rewrite.language);
 
     await db
-      .insertInto('sentence_rewrites')
+      .insertInto('text_rewrites')
       .values({
         ...rewrite,
         original_readability_score: originalReadabilityScore,
@@ -493,13 +493,13 @@ const addSentenceRewrite = async (
       })
       .execute();
   } catch (error) {
-    console.error('Error adding sentence rewrite:', error);
+    console.error('Error adding text rewrite:', error);
     throw error;
   }
 };
 
-const deleteSentenceRewrite = async (id: number) => {
-  await ensureSentenceRewritesDatabaseInitialized();
+const deleteTextRewrite = async (id: number) => {
+  await ensureTextRewritesDatabaseInitialized();
   
   const db = getDb();
   if (!db) {
@@ -507,15 +507,15 @@ const deleteSentenceRewrite = async (id: number) => {
   }
 
   try {
-    await db.deleteFrom('sentence_rewrites').where('id', '=', id).execute();
+    await db.deleteFrom('text_rewrites').where('id', '=', id).execute();
   } catch (error) {
-    console.error('Error deleting sentence rewrite:', error);
+    console.error('Error deleting text rewrite:', error);
     throw error;
   }
 };
 
-const deleteSentenceRewrites = async (ids: number[]) => {
-  await ensureSentenceRewritesDatabaseInitialized();
+const deleteTextRewrites = async (ids: number[]) => {
+  await ensureTextRewritesDatabaseInitialized();
   
   const db = getDb();
   if (!db) {
@@ -523,15 +523,15 @@ const deleteSentenceRewrites = async (ids: number[]) => {
   }
 
   try {
-    await db.deleteFrom('sentence_rewrites').where('id', 'in', ids).execute();
+    await db.deleteFrom('text_rewrites').where('id', 'in', ids).execute();
   } catch (error) {
-    console.error('Error deleting sentence rewrites:', error);
+    console.error('Error deleting text rewrites:', error);
     throw error;
   }
 };
 
-const clearAllSentenceRewrites = async () => {
-  await ensureSentenceRewritesDatabaseInitialized();
+const clearAllTextRewrites = async () => {
+  await ensureTextRewritesDatabaseInitialized();
   
   const db = getDb();
   if (!db) {
@@ -539,43 +539,43 @@ const clearAllSentenceRewrites = async () => {
   }
 
   try {
-    await db.deleteFrom('sentence_rewrites').execute();
+    await db.deleteFrom('text_rewrites').execute();
   } catch (error) {
-    console.error('Error clearing all sentence rewrites:', error);
+    console.error('Error clearing all text rewrites:', error);
     throw error;
   }
 };
 
-const resetSentenceRewritesDatabase = async () => {
-  await ensureSentenceRewritesDatabaseInitialized();
+const resetTextRewritesDatabase = async () => {
+  await ensureTextRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return;
 
   // Drop the table if it exists
-  await db.schema.dropTable('sentence_rewrites').ifExists().execute();
+  await db.schema.dropTable('text_rewrites').ifExists().execute();
   
   // Recreate the table with current schema
-  await initializeSentenceRewritesDatabase();
+  await initializeTextRewritesDatabase();
 };
 
 // Word association functions
 
-const getVocabularyWordsInSentence = async (sentenceId: number): Promise<VocabularyItem[]> => {
-  await ensureSentenceRewritesDatabaseInitialized();
+const getVocabularyWordsInText = async (textId: number): Promise<VocabularyItem[]> => {
+  await ensureTextRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
-  // Get the sentence
-  const sentence = await getSentenceRewriteById(sentenceId);
-  if (!sentence) return [];
+  // Get the text
+  const text = await getTextRewriteById(textId);
+  if (!text) return [];
 
   // Tokenize both original and rewritten text
-  const originalWords = sentence.original_text
+  const originalWords = text.original_text
     .toLowerCase()
     .split(/\s+/)
     .map(word => word.replace(/[^\w]/g, ''))
     .filter(word => word.length > 0);
-  const rewrittenWords = sentence.rewritten_text
+  const rewrittenWords = text.rewritten_text
     .toLowerCase()
     .split(/\s+/)
     .map(word => word.replace(/[^\w]/g, ''))
@@ -586,15 +586,15 @@ const getVocabularyWordsInSentence = async (sentenceId: number): Promise<Vocabul
   const vocabularyWords = await db
     .selectFrom('vocabulary')
     .selectAll()
-    .where('language', '=', sentence.language)
+    .where('language', '=', text.language)
     .where('text', 'in', allWords)
     .execute();
 
   return vocabularyWords;
 };
 
-const getSentencesContainingWord = async (vocabularyId: number): Promise<SentenceRewrite[]> => {
-  await ensureSentenceRewritesDatabaseInitialized();
+const getTextRewritesContainingWord = async (vocabularyId: number): Promise<TextRewrite[]> => {
+  await ensureTextRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) return [];
 
@@ -609,9 +609,9 @@ const getSentencesContainingWord = async (vocabularyId: number): Promise<Sentenc
 
   const searchTerm = vocabularyWord.text.toLowerCase();
 
-  // Find sentences containing this word
+  // Find text rewrites containing this word
   return await db
-    .selectFrom('sentence_rewrites')
+    .selectFrom('text_rewrites')
     .selectAll()
     .where('language', '=', vocabularyWord.language)
     .where(eb =>
@@ -622,11 +622,11 @@ const getSentencesContainingWord = async (vocabularyId: number): Promise<Sentenc
 };
 
 /**
- * Migration function to normalize language codes in existing sentence rewrites
+ * Migration function to normalize language codes in existing text rewrites
  * This fixes inconsistent language labels in the database
  */
 const migrateLanguageCodes = async (): Promise<{ updated: number; errors: number }> => {
-  await ensureSentenceRewritesDatabaseInitialized();
+  await ensureTextRewritesDatabaseInitialized();
   const db = getDb();
   if (!db) {
     throw new Error('Database not available');
@@ -636,13 +636,13 @@ const migrateLanguageCodes = async (): Promise<{ updated: number; errors: number
   let errors = 0;
 
   try {
-    // Get all sentence rewrites
+    // Get all text rewrites
     const rewrites = await db
-      .selectFrom('sentence_rewrites')
+      .selectFrom('text_rewrites')
       .selectAll()
       .execute();
 
-    console.log(`Found ${rewrites.length} sentence rewrites to check for language normalization`);
+    console.log(`Found ${rewrites.length} text rewrites to check for language normalization`);
 
     for (const rewrite of rewrites) {
       try {
@@ -651,7 +651,7 @@ const migrateLanguageCodes = async (): Promise<{ updated: number; errors: number
         // Only update if the language code has changed
         if (normalizedLanguage !== rewrite.language) {
           await db
-            .updateTable('sentence_rewrites')
+            .updateTable('text_rewrites')
             .set({ language: normalizedLanguage })
             .where('id', '=', rewrite.id)
             .execute();
@@ -676,22 +676,22 @@ const migrateLanguageCodes = async (): Promise<{ updated: number; errors: number
 
 // Export all functions
 export { 
-  initializeSentenceRewritesDatabase,
+  initializeTextRewritesDatabase,
   calculateReadabilityScore,
-  ensureSentenceRewritesDatabaseInitialized,
-  getSentenceRewrites,
-  getSentenceRewriteCount,
-  getSentenceRewriteById,
-  getSentenceRewritesByLanguage,
-  getRecentSentenceRewrites,
-  getSentenceRewritesByUrl,
-  getSentenceRewritesByReadability,
-  addSentenceRewrite,
-  deleteSentenceRewrite,
-  deleteSentenceRewrites,
-  clearAllSentenceRewrites,
-  resetSentenceRewritesDatabase,
-  getVocabularyWordsInSentence,
-  getSentencesContainingWord,
+  ensureTextRewritesDatabaseInitialized,
+  getTextRewrites,
+  getTextRewriteCount,
+  getTextRewriteById,
+  getTextRewritesByLanguage,
+  getRecentTextRewrites,
+  getTextRewritesByUrl,
+  getTextRewritesByReadability,
+  addTextRewrite,
+  deleteTextRewrite,
+  deleteTextRewrites,
+  clearAllTextRewrites,
+  resetTextRewritesDatabase,
+  getVocabularyWordsInText,
+  getTextRewritesContainingWord,
   migrateLanguageCodes
 };

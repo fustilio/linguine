@@ -1,5 +1,5 @@
 import { resetVocabularyDatabase } from './vocabulary.js';
-import { resetSentenceRewritesDatabase } from './sentence-rewrites.js';
+import { resetTextRewritesDatabase } from './text-rewrites.js';
 import { getDatabaseManager } from './database-manager.js';
 
 /**
@@ -13,7 +13,7 @@ export const resetEntireDatabase = async () => {
     // Reset both tables
     await Promise.all([
       resetVocabularyDatabase(),
-      resetSentenceRewritesDatabase()
+      resetTextRewritesDatabase()
     ]);
     
     // Reset the database manager singleton state
@@ -28,16 +28,16 @@ export const resetEntireDatabase = async () => {
 };
 
 /**
- * Resets only the sentence rewrites table
+ * Resets only the text rewrites table
  */
-export const resetSentenceRewritesOnly = async () => {
-  console.log('Resetting sentence rewrites table...');
+export const resetTextRewritesOnly = async () => {
+  console.log('Resetting text rewrites table...');
   
   try {
-    await resetSentenceRewritesDatabase();
-    console.log('Sentence rewrites table reset completed successfully');
+    await resetTextRewritesDatabase();
+    console.log('Text rewrites table reset completed successfully');
   } catch (error) {
-    console.error('Error resetting sentence rewrites table:', error);
+    console.error('Error resetting text rewrites table:', error);
     throw error;
   }
 };

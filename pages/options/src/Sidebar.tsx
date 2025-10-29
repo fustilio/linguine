@@ -12,7 +12,7 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
     { id: 'settings', label: 'Settings' },
     { id: 'vocabulary-admin', label: 'Vocabulary Admin' },
     { id: 'vocabulary-analytics', label: 'Vocabulary Analytics' },
-    { id: 'sentence-rewrites', label: 'Sentence Rewrites' },
+    { id: 'text-rewrites', label: 'Text Rewrites' },
   ];
 
   return (

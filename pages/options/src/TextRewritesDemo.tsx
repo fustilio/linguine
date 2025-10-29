@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { addSentenceRewrite } from '@extension/api';
+import { addTextRewrite } from '@extension/api';
 import { themeVariants, button, input, select, cn } from '@extension/ui';
 import { normalizeLanguageCode, getLanguageDisplayName } from '@extension/shared';
 
-export const SentenceRewritesDemo = () => {
+export const TextRewritesDemo = () => {
   
   const [originalText, setOriginalText] = useState('');
   const [rewrittenText, setRewrittenText] = useState('');
@@ -28,7 +28,7 @@ export const SentenceRewritesDemo = () => {
         length: "shorter",
       });
 
-      await addSentenceRewrite({
+      await addTextRewrite({
         original_text: originalText.trim(),
         rewritten_text: rewrittenText.trim(),
         language: normalizeLanguageCode(language),
@@ -37,12 +37,12 @@ export const SentenceRewritesDemo = () => {
         url_fragment: '#:~:text=demo%20text',
       });
 
-      setSaveResult('✅ Sentence rewrite saved successfully!');
+      setSaveResult('✅ Text rewrite saved successfully!');
       setOriginalText('');
       setRewrittenText('');
     } catch (error) {
       console.error('Error saving rewrite:', error);
-      setSaveResult('❌ Error saving sentence rewrite. Check console for details.');
+      setSaveResult('❌ Error saving text rewrite. Check console for details.');
     } finally {
       setIsSaving(false);
     }
@@ -76,7 +76,7 @@ export const SentenceRewritesDemo = () => {
     <div className={cn(themeVariants.card(), 'mb-6')}>
       <h3 className={cn(themeVariants.subheading(), 'mb-4')}>Live Demo</h3>
       <p className={cn(themeVariants.muted(), 'text-sm mb-4')}>
-        Test the sentence rewrites functionality by manually adding a rewrite record.
+        Test the text rewrites functionality by manually adding a rewrite record.
       </p>
 
       {/* Example Texts */}

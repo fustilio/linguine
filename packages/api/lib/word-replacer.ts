@@ -2,7 +2,7 @@
 // This script runs on every webpage and handles both word replacement and selection
 // Users can select text to add replacements and see replacements applied in real-time
 
-import { addSentenceRewrite } from './sentence-rewrites-api.js';
+import { addTextRewrite } from './text-rewrites-api.js';
 import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 import { normalizeLanguageCode } from '@extension/shared';
 
@@ -1401,7 +1401,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         console.log('💾 trying to write', originalText, rewrittenText);
         
         // Save rewrite via background script
-        const success = await addSentenceRewrite({
+        const success = await addTextRewrite({
           original_text: originalText,
           rewritten_text: rewrittenText,
           language: normalizeLanguageCode(navigator.language || 'en-US'),
@@ -1411,7 +1411,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         });
 
         if (success) {
-          console.log('💾 Sentence rewrite saved to database');
+          console.log('💾 Text rewrite saved to database');
         } else {
           console.warn('⚠️ Failed to save rewrite to database');
         }

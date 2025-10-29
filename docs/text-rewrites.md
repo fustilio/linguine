@@ -1,28 +1,28 @@
-# Sentence Rewrites Feature
+# Text Rewrites Feature
 
 ## Overview
 
-The Sentence Rewrites feature tracks AI-rewritten sentences with their original text, rewriter settings, source URLs, readability scores, and links to vocabulary words. This enables users to build a personal library of simplified text examples and track their learning progress.
+The Text Rewrites feature tracks AI-rewritten text with their original content, rewriter settings, source URLs, readability scores, and links to vocabulary words. This enables users to build a personal library of simplified text examples and track their learning progress.
 
 ## Purpose
 
 - **Learning Archive**: Store simplified versions of complex text for future reference
 - **Progress Tracking**: Monitor readability improvements over time
-- **Vocabulary Integration**: Link rewritten sentences to known vocabulary words
+- **Vocabulary Integration**: Link rewritten text to known vocabulary words
 - **Context Preservation**: Maintain source URLs and text fragments for easy navigation back to original content
 
 ## Database Schema
 
-### `sentence_rewrites` Table
+### `text_rewrites` Table
 
 ```typescript
-interface SentenceRewritesTable {
+interface TextRewritesTable {
   id: Generated<number>;           // Auto-increment primary key
-  original_text: string;           // Original sentence before rewriting
-  rewritten_text: string;          // AI-rewritten sentence
+  original_text: string;           // Original text before rewriting
+  rewritten_text: string;          // AI-rewritten text
   language: string;                // BCP 47 language code (e.g., "en-US")
   rewriter_settings: string;       // JSON string of RewriterOptions
-  source_url: string;              // Full URL where sentence was found
+  source_url: string;              // Full URL where text was found
   url_fragment: string | null;     // URL fragment for text anchor (e.g., "#:~:text=...")
   original_readability_score: number; // Calculated readability score of original text (0-100)
   rewritten_readability_score: number; // Calculated readability score of rewritten text (0-100)
@@ -33,8 +33,8 @@ interface SentenceRewritesTable {
 ### Field Descriptions
 
 - **`id`**: Unique identifier for each rewrite record
-- **`original_text`**: The complete original sentence as it appeared on the webpage
-- **`rewritten_text`**: The AI-simplified version of the sentence
+- **`original_text`**: The complete original text as it appeared on the webpage
+- **`rewritten_text`**: The AI-simplified version of the text
 - **`language`**: BCP 47 language code (en-US, es-ES, fr-FR, de-DE, ja-JP, ko-KR)
 - **`rewriter_settings`**: JSON-serialized RewriterOptions used for the rewrite
 - **`source_url`**: Complete URL where the original text was found
@@ -47,19 +47,19 @@ interface SentenceRewritesTable {
 
 For optimal query performance, the following indexes are created:
 
-- **`idx_sentence_rewrites_language`**: On `language` column for language filtering
-- **`idx_sentence_rewrites_created_at`**: On `created_at` column for date-based queries
-- **`idx_sentence_rewrites_original_readability_score`**: On `original_readability_score` column for readability filtering
-- **`idx_sentence_rewrites_rewritten_readability_score`**: On `rewritten_readability_score` column for readability filtering
-- **`idx_sentence_rewrites_source_url`**: On `source_url` column for URL-based queries
+- **`idx_text_rewrites_language`**: On `language` column for language filtering
+- **`idx_text_rewrites_created_at`**: On `created_at` column for date-based queries
+- **`idx_text_rewrites_original_readability_score`**: On `original_readability_score` column for readability filtering
+- **`idx_text_rewrites_rewritten_readability_score`**: On `rewritten_readability_score` column for readability filtering
+- **`idx_text_rewrites_source_url`**: On `source_url` column for URL-based queries
 
 ## Query Functions
 
 ### Basic Retrieval
 
-- **`getSentenceRewrites(page, limit, filters?)`**: Paginated retrieval with optional filters
-- **`getSentenceRewriteCount(filters?)`**: Count rewrites with optional filters
-- **`getSentenceRewriteById(id)`**: Get single rewrite by ID
+- **`getTextRewrites(page, limit, filters?)`**: Paginated retrieval with optional filters
+- **`getTextRewriteCount(filters?)`**: Count rewrites with optional filters
+- **`getTextRewriteById(id)`**: Get single rewrite by ID
 
 ### Filtering Options
 
@@ -70,22 +70,22 @@ For optimal query performance, the following indexes are created:
 
 ### Specialized Queries
 
-- **`getSentenceRewritesByLanguage(language)`**: Get all rewrites for a specific language
-- **`getRecentSentenceRewrites(days, language?)`**: Get recent rewrites with optional language filter
-- **`getSentenceRewritesByUrl(url)`**: Get all rewrites from a specific webpage
-- **`getSentenceRewritesByReadability(minScore, maxScore, language?)`**: Filter by readability range
+- **`getTextRewritesByLanguage(language)`**: Get all rewrites for a specific language
+- **`getRecentTextRewrites(days, language?)`**: Get recent rewrites with optional language filter
+- **`getTextRewritesByUrl(url)`**: Get all rewrites from a specific webpage
+- **`getTextRewritesByReadability(minScore, maxScore, language?)`**: Filter by readability range
 
 ## Mutation Functions
 
 ### Adding Rewrites
 
-- **`addSentenceRewrite(rewrite)`**: Insert new rewrite record with automatic readability calculation
+- **`addTextRewrite(rewrite)`**: Insert new rewrite record with automatic readability calculation
 
 ### Deleting Rewrites
 
-- **`deleteSentenceRewrite(id)`**: Delete single rewrite by ID
-- **`deleteSentenceRewrites(ids)`**: Bulk delete multiple rewrites
-- **`clearAllSentenceRewrites()`**: Clear all rewrite records
+- **`deleteTextRewrite(id)`**: Delete single rewrite by ID
+- **`deleteTextRewrites(ids)`**: Bulk delete multiple rewrites
+- **`clearAllTextRewrites()`**: Clear all rewrite records
 
 ## Readability Scoring
 
@@ -130,21 +130,137 @@ All languages use a 0-100 scale where:
 - **30-59**: Difficult
 - **0-29**: Very difficult
 
-## Word-Sentence Associations
+## Message Passing Flow for Text Rewrite Operations
 
-### Association Strategy
+The text rewrites system uses the extension's message passing architecture to communicate with the database:
+
+### Message Flow Architecture
+
+```
+UI Component (Content Script/Options Page)
+  ↓ chrome.runtime.sendMessage({ action: 'addTextRewrite', data: rewriteData })
+Background Script (Service Worker)
+  ↓ Validates action is database-related
+  ↓ Ensures offscreen document exists
+  ↓ Forwards message to offscreen document
+Offscreen Document
+  ↓ Receives message
+  ↓ Calls addTextRewrite() from packages/sqlite
+  ↓ Calculates readability scores automatically
+  ↓ Returns { success: true, data: newRewrite }
+Background Script
+  ↓ Forwards response
+UI Component
+  ↓ Receives confirmation
+  ↓ Updates UI state
+```
+
+### Database Operations Used
+
+The text rewrites system uses these database operations:
+
+- **`addTextRewrite`**: Adds new text rewrite with automatic readability scoring
+- **`getTextRewrites`**: Retrieves paginated text rewrites with filtering
+- **`getTextRewriteCount`**: Gets count for pagination
+- **`deleteTextRewrite`**: Deletes single text rewrite
+- **`deleteTextRewrites`**: Bulk delete multiple rewrites
+- **`clearAllTextRewrites`**: Clears all text rewrites
+- **`getTextRewriteById`**: Gets single rewrite by ID
+- **`getTextRewritesByLanguage`**: Filters by specific language
+- **`getRecentTextRewrites`**: Gets recent rewrites by days
+- **`getTextRewritesByUrl`**: Filters by source URL
+- **`getTextRewritesByReadability`**: Filters by readability score range
+
+### API Integration
+
+The text rewrites system integrates with the API layer:
+
+```typescript
+// packages/api/lib/text-rewrites-api.ts
+import { LanguageCodeSchema } from '@extension/shared';
+
+export const addTextRewrite = async (rewriteData: TextRewriteData): Promise<TextRewrite | null> => {
+  // Validate input data with Zod schemas
+  const validatedData = TextRewriteDataSchema.parse(rewriteData);
+  
+  // Send to database via message passing
+  const result = await sendDatabaseMessageForItem<TextRewrite>('addTextRewrite', validatedData);
+  
+  return result;
+};
+
+// Zod validation schema
+export const TextRewriteDataSchema = z.object({
+  original_text: z.string().min(1),
+  rewritten_text: z.string().min(1),
+  language: LanguageCodeSchema, // Validates against supported languages
+  rewriter_settings: z.string(),
+  source_url: z.string().url(),
+  url_fragment: z.string().nullable().optional(),
+});
+```
+
+### React Hook Integration
+
+The system provides React hooks for state management:
+
+```typescript
+// packages/api/lib/hooks/useTextRewrites.ts
+export const useTextRewrites = (filters?: {
+  language?: string;
+  minReadability?: number;
+  maxReadability?: number;
+  recentDays?: number;
+  sourceUrl?: string;
+}) => {
+  const queryClient = useQueryClient();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+
+  // TanStack Query for automatic caching and synchronization
+  const { data: textRewritesData } = useQuery({
+    queryKey: ['textRewrites', currentPage, filters],
+    queryFn: async () => {
+      const [items, totalItems] = await Promise.all([
+        apiGetTextRewrites(currentPage, PAGE_SIZE, filters),
+        apiGetTextRewriteCount(filters),
+      ]);
+      return { items, totalItems };
+    },
+  });
+
+  return {
+    items,
+    totalItems,
+    currentPage,
+    pageSize: PAGE_SIZE,
+    goToPage,
+    selectedItems,
+    toggleItemSelected,
+    toggleSelectAll,
+    addTextRewrite,
+    deleteTextRewrite,
+    bulkDelete,
+    clearAllTextRewrites,
+  };
+};
+```
+
+## Integration with Vocabulary System
+
+### Cross-Referencing
 
 Instead of creating a separate junction table, the system uses dynamic querying:
 
-1. **Retrieve Sentence**: Get the sentence rewrite record
+1. **Retrieve Text**: Get the text rewrite record
 2. **Tokenize Text**: Parse both `original_text` and `rewritten_text` into words
 3. **Match Vocabulary**: Find vocabulary words that match the tokenized text
-4. **Return Results**: Provide matched vocabulary items with the sentence
+4. **Return Results**: Provide matched vocabulary items with the text
 
 ### Query Functions
 
-- **`getVocabularyWordsInSentence(sentenceId)`**: Get all vocabulary words found in a sentence
-- **`getSentencesContainingWord(vocabularyId)`**: Get sentences containing a specific vocabulary word
+- **`getVocabularyWordsInText(textId)`**: Get all vocabulary words found in a text
+- **`getTextRewritesContainingWord(vocabularyId)`**: Get text rewrites containing a specific vocabulary word
 
 ### Matching Strategy
 
@@ -153,16 +269,24 @@ Instead of creating a separate junction table, the system uses dynamic querying:
 - **Language Specific**: Only matches vocabulary words in the same language
 - **Exact Matching**: Uses exact word boundaries for precise matching
 
+## Related Architecture Documentation
+
+- [Architecture Overview](architecture-overview.md) - High-level system architecture
+- [Message Passing System](message-passing-system.md) - Detailed message passing documentation
+- [Packages API](packages-api.md) - API layer documentation
+- [Packages SQLite](packages-sqlite.md) - Database layer documentation
+- [Packages Shared](packages-shared.md) - Shared utilities and constants
+
 ## React Hook Usage
 
-### `useSentenceRewrites` Hook
+### `useTextRewrites` Hook
 
 ```typescript
-import { useSentenceRewrites } from '@extension/api';
+import { useTextRewrites } from '@extension/api';
 
 const MyComponent = () => {
   const {
-    items,           // Array of sentence rewrites
+    items,           // Array of text rewrites
     totalItems,      // Total count for pagination
     currentPage,     // Current page number
     pageSize,        // Items per page (default: 10)
@@ -170,11 +294,11 @@ const MyComponent = () => {
     selectedItems,   // Set of selected item IDs
     toggleItemSelected, // Function to toggle selection
     toggleSelectAll,    // Function to select/deselect all
-    addSentenceRewrite, // Mutation to add new rewrite
-    deleteSentenceRewrite, // Mutation to delete single rewrite
+    addTextRewrite, // Mutation to add new rewrite
+    deleteTextRewrite, // Mutation to delete single rewrite
     bulkDelete,      // Mutation to delete selected items
-    clearAllSentenceRewrites, // Mutation to clear all
-  } = useSentenceRewrites({
+    clearAllTextRewrites, // Mutation to clear all
+  } = useTextRewrites({
     language: 'en-US',        // Optional language filter
     minReadability: 60,       // Optional minimum readability
     maxReadability: 90,       // Optional maximum readability
@@ -201,19 +325,19 @@ const MyComponent = () => {
 
 ```typescript
 // Filter by language only
-const englishRewrites = useSentenceRewrites({ language: 'en-US' });
+const englishRewrites = useTextRewrites({ language: 'en-US' });
 
 // Filter by readability range
-const easyRewrites = useSentenceRewrites({ 
+const easyRewrites = useTextRewrites({ 
   minReadability: 80, 
   maxReadability: 100 
 });
 
 // Filter by recent activity
-const recentRewrites = useSentenceRewrites({ recentDays: 30 });
+const recentRewrites = useTextRewrites({ recentDays: 30 });
 
 // Combined filters
-const filteredRewrites = useSentenceRewrites({
+const filteredRewrites = useTextRewrites({
   language: 'es-ES',
   minReadability: 50,
   recentDays: 14,
@@ -238,7 +362,7 @@ The system generates Chrome Text Fragment API anchors for direct linking:
 
 ```typescript
 // Example URL fragment
-const fragment = "#:~:text=This%20is%20a%20complex%20sentence";
+const fragment = "#:~:text=This%20is%20a%20complex%20text";
 const fullUrl = "https://example.com/article" + fragment;
 ```
 
@@ -260,11 +384,11 @@ const serialized = JSON.stringify(settings);
 
 ## Use Cases
 
-### Language Learning
+### Text Analysis
 
 - **Comprehension Practice**: Save simplified versions of difficult texts
 - **Progress Tracking**: Monitor readability improvements over time
-- **Vocabulary Building**: Link simplified sentences to known vocabulary words
+- **Vocabulary Building**: Link simplified texts to known vocabulary words
 
 ### Content Analysis
 
@@ -276,19 +400,19 @@ const serialized = JSON.stringify(settings);
 
 - **Reference Collection**: Build a personal library of simplified texts
 - **Quick Access**: Use URL fragments to quickly return to original content
-- **Cross-Reference**: Find related vocabulary words and sentences
+- **Cross-Reference**: Find related vocabulary words and text
 
 ## Integration with Vocabulary System
 
 ### Cross-Referencing
 
-- **Word Discovery**: Find sentences containing specific vocabulary words
+- **Word Discovery**: Find texts containing specific vocabulary words
 - **Context Examples**: See vocabulary words used in simplified contexts
-- **Learning Reinforcement**: Connect vocabulary learning with sentence comprehension
+- **Learning Reinforcement**: Connect vocabulary learning with text comprehension
 
 ### Analytics Integration
 
-- **Learning Insights**: Combine sentence rewrites with vocabulary analytics
+- **Learning Insights**: Combine text rewrites with vocabulary analytics
 - **Progress Metrics**: Track both vocabulary growth and text comprehension
 - **Personalized Recommendations**: Suggest content based on readability and vocabulary
 

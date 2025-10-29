@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { useSentenceRewrites } from '@extension/api';
-import { SentenceRewritesTestData } from './SentenceRewritesTestData';
-import { SentenceRewritesDemo } from './SentenceRewritesDemo';
+import { useTextRewrites } from '@extension/api';
+import { TextRewritesTestData } from './TextRewritesTestData';
+import { TextRewritesDemo } from './TextRewritesDemo';
 import { DatabaseReset } from './DatabaseReset';
-import { SentenceRewriteDetailModal } from './SentenceRewriteDetailModal';
+import { TextRewriteDetailModal } from './TextRewriteDetailModal';
 import { 
   Card, 
   CardContent, 
@@ -28,15 +28,15 @@ import {
   themeVariants,
   cn
 } from '@extension/ui';
-import type { SentenceRewrite } from '@extension/sqlite';
+import type { TextRewrite } from '@extension/sqlite';
 import { migrateLanguageCodes } from '@extension/api';
 
-export const SentenceRewritesAdmin = () => {
+export const TextRewritesAdmin = () => {
   
   const [languageFilter, setLanguageFilter] = useState<string>('');
   const [readabilityRange, setReadabilityRange] = useState<{ min: number; max: number }>({ min: 0, max: 100 });
   const [recentDays, setRecentDays] = useState<number | undefined>(undefined);
-  const [selectedRewrite, setSelectedRewrite] = useState<SentenceRewrite | null>(null);
+  const [selectedRewrite, setSelectedRewrite] = useState<TextRewrite | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationResult, setMigrationResult] = useState<{ updated: number; errors: number } | null>(null);
@@ -57,10 +57,10 @@ export const SentenceRewritesAdmin = () => {
     selectedItems,
     toggleItemSelected,
     toggleSelectAll,
-    deleteSentenceRewrite,
+    deleteTextRewrite,
     bulkDelete,
-    clearAllSentenceRewrites,
-  } = useSentenceRewrites(filters);
+    clearAllTextRewrites,
+  } = useTextRewrites(filters);
 
   const totalPages = Math.ceil(totalItems / pageSize);
 
@@ -71,13 +71,13 @@ export const SentenceRewritesAdmin = () => {
   };
 
   const handleClearAll = () => {
-    if (confirm('Are you sure you want to clear all sentence rewrites? This action cannot be undone.')) {
-      clearAllSentenceRewrites.mutate();
+    if (confirm('Are you sure you want to clear all text rewrites? This action cannot be undone.')) {
+      clearAllTextRewrites.mutate();
     }
   };
 
   const handleMigrateLanguageCodes = async () => {
-    if (confirm('This will normalize language codes in your sentence rewrites. Continue?')) {
+    if (confirm('This will normalize language codes in your text rewrites. Continue?')) {
       setIsMigrating(true);
       setMigrationResult(null);
       
@@ -98,7 +98,7 @@ export const SentenceRewritesAdmin = () => {
     }
   };
 
-  const handleViewDetails = (rewrite: SentenceRewrite) => {
+  const handleViewDetails = (rewrite: TextRewrite) => {
     setSelectedRewrite(rewrite);
     setIsDetailModalOpen(true);
   };
@@ -111,9 +111,9 @@ export const SentenceRewritesAdmin = () => {
   return (
     <div className={cn(themeVariants.container(), 'p-6 space-y-6')}>
       <div>
-        <h1 className={cn(themeVariants.heading(), 'text-2xl mb-2')}>Sentence Rewrites Explorer</h1>
+        <h1 className={cn(themeVariants.heading(), 'text-2xl mb-2')}>Text Rewrites Explorer</h1>
         <p className={cn(themeVariants.muted())}>
-          Manage your AI-rewritten sentences with readability scores and source links.
+          Manage your AI-rewritten text with readability scores and source links.
         </p>
       </div>
 
@@ -121,10 +121,10 @@ export const SentenceRewritesAdmin = () => {
       <DatabaseReset />
 
       {/* Test Data Generator */}
-      <SentenceRewritesTestData />
+      <TextRewritesTestData />
 
       {/* Live Demo */}
-      <SentenceRewritesDemo />
+      <TextRewritesDemo />
 
       {/* Filters */}
       <Card>
@@ -224,10 +224,10 @@ export const SentenceRewritesAdmin = () => {
               
               <button
                 onClick={handleClearAll}
-                disabled={clearAllSentenceRewrites.isPending}
-                className={button({ variant: 'danger', size: 'sm', disabled: clearAllSentenceRewrites.isPending })}
+                disabled={clearAllTextRewrites.isPending}
+                className={button({ variant: 'danger', size: 'sm', disabled: clearAllTextRewrites.isPending })}
               >
-                {clearAllSentenceRewrites.isPending ? 'Clearing...' : 'Clear All'}
+                {clearAllTextRewrites.isPending ? 'Clearing...' : 'Clear All'}
               </button>
               
               <button
@@ -375,8 +375,8 @@ export const SentenceRewritesAdmin = () => {
                         View Details
                       </button>
                       <button
-                        onClick={() => deleteSentenceRewrite.mutate(rewrite.id)}
-                        disabled={deleteSentenceRewrite.isPending}
+                        onClick={() => deleteTextRewrite.mutate(rewrite.id)}
+                        disabled={deleteTextRewrite.isPending}
                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
                       >
                         Delete
@@ -403,7 +403,7 @@ export const SentenceRewritesAdmin = () => {
         <Card>
           <CardContent>
             <div className="text-center py-12">
-              <div className={cn(themeVariants.muted(), 'text-lg mb-2')}>No sentence rewrites found</div>
+              <div className={cn(themeVariants.muted(), 'text-lg mb-2')}>No text rewrites found</div>
               <div className={cn(themeVariants.muted(), 'text-sm')}>
                 Start highlighting and rewriting text on web pages to see your rewrites here.
               </div>
@@ -413,7 +413,7 @@ export const SentenceRewritesAdmin = () => {
       )}
 
       {/* Detail Modal */}
-      <SentenceRewriteDetailModal
+      <TextRewriteDetailModal
         rewrite={selectedRewrite}
         isOpen={isDetailModalOpen}
         onClose={handleCloseDetailModal}

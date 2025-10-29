@@ -1,14 +1,14 @@
 import React from 'react';
-import type { SentenceRewrite } from '@extension/sqlite';
+import type { TextRewrite } from '@extension/sqlite';
 import { themeVariants, getReadabilityStyles, getLanguageDisplayName, cn } from '@extension/ui';
 
-interface SentenceRewriteDetailModalProps {
-  rewrite: SentenceRewrite | null;
+interface TextRewriteDetailModalProps {
+  rewrite: TextRewrite | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const SentenceRewriteDetailModal = ({ rewrite, isOpen, onClose }: SentenceRewriteDetailModalProps) => {
+export const TextRewriteDetailModal = ({ rewrite, isOpen, onClose }: TextRewriteDetailModalProps) => {
 
   if (!isOpen || !rewrite) return null;
 
@@ -22,7 +22,7 @@ export const SentenceRewriteDetailModal = ({ rewrite, isOpen, onClose }: Sentenc
         {/* Header */}
         <div className={themeVariants.modalHeader()}>
           <div className="flex items-center justify-between">
-            <h3 className={cn(themeVariants.heading(), 'text-lg')}>Sentence Rewrite Details</h3>
+            <h3 className={cn(themeVariants.heading(), 'text-lg')}>Text Rewrite Details</h3>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"

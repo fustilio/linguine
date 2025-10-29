@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { resetEntireDatabase, resetSentenceRewritesOnly, resetVocabularyOnly } from '@extension/sqlite';
+import { resetEntireDatabase, resetTextRewritesOnly, resetVocabularyOnly } from '@extension/sqlite';
 import { button, Modal, ModalHeader, ModalBody, ModalFooter, cn } from '@extension/ui';
 
 export const DatabaseReset = () => {
   
   const [isResetting, setIsResetting] = useState(false);
-  const [resetType, setResetType] = useState<'entire' | 'sentence-rewrites' | 'vocabulary'>('entire');
+  const [resetType, setResetType] = useState<'entire' | 'text-rewrites' | 'vocabulary'>('entire');
   const [resetResult, setResetResult] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
@@ -20,9 +20,9 @@ export const DatabaseReset = () => {
           await resetEntireDatabase();
           setResetResult('✅ Entire database reset successfully! All tables have been recreated.');
           break;
-        case 'sentence-rewrites':
-          await resetSentenceRewritesOnly();
-          setResetResult('✅ Sentence rewrites table reset successfully!');
+        case 'text-rewrites':
+          await resetTextRewritesOnly();
+          setResetResult('✅ Text rewrites table reset successfully!');
           break;
         case 'vocabulary':
           await resetVocabularyOnly();
@@ -42,8 +42,8 @@ export const DatabaseReset = () => {
   };
 
   const resetOptions = [
-    { value: 'entire', label: 'Reset Entire Database', description: 'Drops and recreates all tables (vocabulary + sentence rewrites)' },
-    { value: 'sentence-rewrites', label: 'Reset Sentence Rewrites Only', description: 'Drops and recreates only the sentence rewrites table' },
+    { value: 'entire', label: 'Reset Entire Database', description: 'Drops and recreates all tables (vocabulary + text rewrites)' },
+    { value: 'text-rewrites', label: 'Reset Text Rewrites Only', description: 'Drops and recreates only the text rewrites table' },
     { value: 'vocabulary', label: 'Reset Vocabulary Only', description: 'Drops and recreates only the vocabulary table' },
   ];
 
@@ -123,7 +123,7 @@ export const DatabaseReset = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   You are about to permanently delete all data in the{' '}
                   {resetType === 'entire' ? 'entire database' : 
-                   resetType === 'sentence-rewrites' ? 'sentence rewrites table' : 
+                   resetType === 'text-rewrites' ? 'text rewrites table' : 
                    'vocabulary table'}. This will remove all your saved data and cannot be recovered.
                 </p>
               </div>

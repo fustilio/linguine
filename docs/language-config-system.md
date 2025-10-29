@@ -14,8 +14,8 @@ This document describes the new single source of truth language configuration sy
 ### 🔒 **Zod Schema Validation**
 - `LanguageCodeSchema` - Validates supported language codes
 - `LanguageStringSchema` - Validates any language string
-- `SentenceRewriteDataSchema` - Validates sentence rewrite data
-- `SentenceRewriteFiltersSchema` - Validates filter parameters
+- `TextRewriteDataSchema` - Validates text rewrite data
+- `TextRewriteFiltersSchema` - Validates filter parameters
 
 ### 🌍 **Comprehensive Language Support**
 - **12 Primary Languages**: English, Spanish, French, German, Japanese, Korean, Chinese, Italian, Portuguese, Russian, Arabic, Hindi
@@ -94,10 +94,10 @@ const isValid = LanguageCodeSchema.safeParse('en-US').success; // true
 ### API Validation
 
 ```typescript
-import { SentenceRewriteDataSchema } from '@extension/api';
+import { TextRewriteDataSchema } from '@extension/api';
 
-// Validate sentence rewrite data
-const validatedData = SentenceRewriteDataSchema.parse({
+// Validate text rewrite data
+const validatedData = TextRewriteDataSchema.parse({
   original_text: "Hello world",
   rewritten_text: "Hi there",
   language: "en-US", // Automatically validated
@@ -167,7 +167,69 @@ LANGUAGE_FAMILY_MAPPING = {
 - ✅ `packages/shared/const.ts` - Now re-exports from config
 - ✅ `packages/shared/lib/utils/language-utils.ts` - Re-exports from config
 - ✅ `packages/api/lib/linguini-ai.ts` - Uses new schema
-- ✅ `packages/api/lib/sentence-rewrites-api.ts` - Added validation
+- ✅ `packages/api/lib/text-rewrites-api.ts` - Added validation
 - ✅ `packages/shared/package.json` - Added zod dependency
+
+## Package Architecture Integration
+
+The language configuration system is deeply integrated with the extension's package architecture:
+
+### Integration with Packages API
+
+The API layer uses language configuration for validation and normalization:
+
+```typescript
+// packages/api/lib/text-rewrites-api.ts
+import { LanguageCodeSchema } from '@extension/shared';
+
+export const TextRewriteDataSchema = z.object({
+  original_text: z.string().min(1),
+  rewritten_text: z.string().min(1),
+  language: LanguageCodeSchema, // Validates against supported languages
+  rewriter_settings: z.string(),
+  source_url: z.string().url(),
+});
+```
+
+### Integration with Packages SQLite
+
+The database layer uses language normalization for consistency:
+
+```typescript
+// packages/sqlite/lib/text-rewrites.ts
+import { normalizeLanguageCode } from '@extension/shared';
+
+const calculateReadabilityScore = (text: string, language: string): number => {
+  const normalizedLang = normalizeLanguageCode(language);
+  // Language-specific readability algorithms
+};
+```
+
+### Integration with UI Components
+
+UI components use language configuration for dropdowns and display:
+
+```typescript
+// UI components
+import { LANGUAGES, getLanguageDisplayName } from '@extension/shared';
+
+const LanguageSelector = () => (
+  <select>
+    {LANGUAGES.map(lang => (
+      <option key={lang.value} value={lang.value}>
+        {lang.label}
+      </option>
+    ))}
+  </select>
+);
+```
+
+## Related Architecture Documentation
+
+- [Architecture Overview](architecture-overview.md) - High-level system architecture
+- [Packages Shared](packages-shared.md) - Shared utilities and constants
+- [Packages API](packages-api.md) - API layer documentation
+- [Packages SQLite](packages-sqlite.md) - Database layer documentation
+- [Message Passing System](message-passing-system.md) - Message passing architecture
 
 This system provides a robust, type-safe, and maintainable foundation for all language-related functionality in the application.

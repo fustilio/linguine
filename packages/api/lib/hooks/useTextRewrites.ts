@@ -1,18 +1,18 @@
 import { 
-  addSentenceRewrite as apiAddSentenceRewrite,
-  clearAllSentenceRewrites as apiClearAllSentenceRewrites,
-  deleteSentenceRewrite as apiDeleteSentenceRewrite,
-  deleteSentenceRewrites as apiDeleteSentenceRewrites,
-  getSentenceRewrites as apiGetSentenceRewrites,
-  getSentenceRewriteCount as apiGetSentenceRewriteCount,
-} from '../sentence-rewrites-api.js';
+  addTextRewrite as apiAddTextRewrite,
+  clearAllTextRewrites as apiClearAllTextRewrites,
+  deleteTextRewrite as apiDeleteTextRewrite,
+  deleteTextRewrites as apiDeleteTextRewrites,
+  getTextRewrites as apiGetTextRewrites,
+  getTextRewriteCount as apiGetTextRewriteCount,
+} from '../text-rewrites-api.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import type { SentenceRewriteData } from '../sentence-rewrites-api.js';
+import type { TextRewriteData } from '../text-rewrites-api.js';
 
 const PAGE_SIZE = 10;
 
-export const useSentenceRewrites = (filters?: {
+export const useTextRewrites = (filters?: {
   language?: string;
   minReadability?: number;
   maxReadability?: number;
@@ -23,54 +23,54 @@ export const useSentenceRewrites = (filters?: {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
 
-  const queryKey = ['sentenceRewrites', currentPage, filters];
+  const queryKey = ['textRewrites', currentPage, filters];
 
-  const { data: sentenceRewritesData } = useQuery({
+  const { data: textRewritesData } = useQuery({
     queryKey,
     queryFn: async () => {
       const [items, totalItems] = await Promise.all([
-        apiGetSentenceRewrites(currentPage, PAGE_SIZE, filters),
-        apiGetSentenceRewriteCount(filters),
+        apiGetTextRewrites(currentPage, PAGE_SIZE, filters),
+        apiGetTextRewriteCount(filters),
       ]);
       return { items, totalItems };
     },
   });
 
-  const { items = [], totalItems = 0 } = sentenceRewritesData || {};
+  const { items = [], totalItems = 0 } = textRewritesData || {};
 
   const mutationOptions = {
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sentenceRewrites'] });
+      queryClient.invalidateQueries({ queryKey: ['textRewrites'] });
       setSelectedItems(new Set());
     },
   };
 
-  const addSentenceRewrite = useMutation({
-    mutationFn: (rewrite: Omit<SentenceRewriteData, 'id' | 'original_readability_score' | 'rewritten_readability_score' | 'created_at'>) => 
-      apiAddSentenceRewrite(rewrite),
+  const addTextRewrite = useMutation({
+    mutationFn: (rewrite: Omit<TextRewriteData, 'id' | 'original_readability_score' | 'rewritten_readability_score' | 'created_at'>) => 
+      apiAddTextRewrite(rewrite),
     ...mutationOptions,
     onSuccess: () => {
       setCurrentPage(1);
-      queryClient.invalidateQueries({ queryKey: ['sentenceRewrites'] });
+      queryClient.invalidateQueries({ queryKey: ['textRewrites'] });
     },
   });
 
-  const deleteSentenceRewrite = useMutation({
-    mutationFn: (id: number) => apiDeleteSentenceRewrite(id),
+  const deleteTextRewrite = useMutation({
+    mutationFn: (id: number) => apiDeleteTextRewrite(id),
     ...mutationOptions,
   });
 
   const bulkDelete = useMutation({
-    mutationFn: () => apiDeleteSentenceRewrites(Array.from(selectedItems)),
+    mutationFn: () => apiDeleteTextRewrites(Array.from(selectedItems)),
     ...mutationOptions,
   });
 
-  const clearAllSentenceRewrites = useMutation({
-    mutationFn: apiClearAllSentenceRewrites,
+  const clearAllTextRewrites = useMutation({
+    mutationFn: apiClearAllTextRewrites,
     ...mutationOptions,
     onSuccess: () => {
       setCurrentPage(1);
-      queryClient.invalidateQueries({ queryKey: ['sentenceRewrites'] });
+      queryClient.invalidateQueries({ queryKey: ['textRewrites'] });
     },
   });
 
@@ -109,9 +109,9 @@ export const useSentenceRewrites = (filters?: {
     selectedItems,
     toggleItemSelected,
     toggleSelectAll,
-    addSentenceRewrite,
-    deleteSentenceRewrite,
+    addTextRewrite,
+    deleteTextRewrite,
     bulkDelete,
-    clearAllSentenceRewrites,
+    clearAllTextRewrites,
   };
 };

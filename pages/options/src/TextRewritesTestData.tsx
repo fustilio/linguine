@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { addSentenceRewrite } from '@extension/sqlite';
+import { addTextRewrite } from '@extension/sqlite';
 import { themeVariants, button, cn } from '@extension/ui';
 
-export const SentenceRewritesTestData = () => {
+export const TextRewritesTestData = () => {
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedCount, setGeneratedCount] = useState(0);
@@ -94,7 +94,7 @@ export const SentenceRewritesTestData = () => {
           length: "shorter",
         });
 
-        await addSentenceRewrite({
+        await addTextRewrite({
           original_text: item.original_text,
           rewritten_text: item.rewritten_text,
           language: item.language,
@@ -118,7 +118,7 @@ export const SentenceRewritesTestData = () => {
     <div className={cn(themeVariants.card(), 'mb-6')}>
       <h3 className={cn(themeVariants.subheading(), 'mb-4')}>Test Data Generator</h3>
       <p className={cn(themeVariants.muted(), 'text-sm mb-4')}>
-        Generate sample sentence rewrites to test the functionality. This will create {testData.length} example rewrites across different languages.
+        Generate sample text rewrites to test the functionality. This will create {testData.length} example rewrites across different languages.
       </p>
       
       <div className="flex items-center gap-4">

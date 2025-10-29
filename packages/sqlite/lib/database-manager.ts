@@ -1,7 +1,7 @@
 // Database Manager - Singleton for centralized database initialization and management
 import { ManualSqliteClient } from './manual.js';
 import { initializeVocabularyDatabase } from './vocabulary.js';
-import { initializeSentenceRewritesDatabase } from './sentence-rewrites.js';
+import { initializeTextRewritesDatabase } from './text-rewrites.js';
 
 export class DatabaseManager {
   private static instance: DatabaseManager | null = null;
@@ -44,7 +44,7 @@ export class DatabaseManager {
       // Initialize both database tables in parallel
       await Promise.all([
         initializeVocabularyDatabase(),
-        initializeSentenceRewritesDatabase()
+        initializeTextRewritesDatabase()
       ]);
       
       console.log('✅ Database initialization completed');
