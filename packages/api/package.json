@@ -25,6 +25,7 @@
     "@extension/shared": "workspace:*",
     "@extension/storage": "workspace:*",
     "@tanstack/react-query": "^5.90.5",
+    "text-fragments-polyfill": "^6.4.1",
     "zod": "^4.1.12"
   },
   "devDependencies": {

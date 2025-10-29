@@ -1,3 +1,5 @@
+/// <reference types="dom-chromium-ai" />
+
 // Word Replacer Content Script
 // This script runs on every webpage and handles both word replacement and selection
 // Users can select text to add replacements and see replacements applied in real-time
@@ -7,33 +9,21 @@ import { addTextRewrite } from './text-rewrites-api.js';
 import { normalizeLanguageCode } from '@extension/shared';
 import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 import type { WidgetSize } from './floating-widget.js';
+import { rewriterManager } from './chrome-ai-wrapper.js';
 
-declare global {
-  interface Window {
-    Rewriter: {
-      availability(): Promise<'available' | 'downloadable' | 'unavailable'>;
-      create(options: RewriterOptions): Promise<Rewriter>;
-    };
-  }
-}
 
 type RewriterOptions = {
   sharedContext?: string;
   expectedInputLanguages?: string[];
   expectedContextLanguages?: string[];
-  tone?: string;
-  format?: string;
-  length?: string;
+  tone?: RewriterTone;
+  format?: RewriterFormat;
+  length?: RewriterLength;
   monitor?: (monitor: DownloadMonitor) => void;
 };
 
 type DownloadMonitor = {
   addEventListener(type: 'downloadprogress', listener: (event: ProgressEvent) => void): void;
-};
-
-type Rewriter = {
-  rewrite(text: string, options?: { context?: string }): Promise<string>;
-  ready: Promise<void>;
 };
 
 export class WordReplacer {
@@ -44,8 +34,6 @@ export class WordReplacer {
   private observer: MutationObserver | null;
   private selectedWords: Set<string>;
   private currentHighlight: HTMLElement | null;
-  private rewriter: Rewriter | null; // Type from Chrome's experimental AI API (not in TS types)
-  private isRewriterReady: boolean;
   private rewriterOptions: RewriterOptions;
   private widgetSize: WidgetSize;
   private downloadProgress: number;
@@ -64,8 +52,6 @@ export class WordReplacer {
     this.currentHighlight = null; // Track the currently highlighted element
 
     // Rewriter API state
-    this.rewriter = null;
-    this.isRewriterReady = false;
     this.rewriterOptions = {
       sharedContext: 'Use simpler vocabulary so I can understand this text.',
       tone: 'as-is',
@@ -207,55 +193,61 @@ export class WordReplacer {
   ): boolean | void {
     const handleAsyncMessage = async () => {
       switch (message.action) {
-        case 'updateState': {
-          // Single handler for all state updates
-          const state = message.state as {
-            isActive?: boolean;
-            widgetSize?: 'small' | 'medium' | 'large';
-            rewriterOptions?: RewriterOptions;
-          };
 
-          const wasActive = this.isActive;
+      case 'updateState': {
+        // Single handler for all state updates
+        const state = message.state as {
+          isActive?: boolean;
+          widgetSize?: 'small' | 'medium' | 'large';
+          rewriterOptions?: RewriterRewriteOptions;
+        };
 
-          // Update state
-          if (state.isActive !== undefined) {
-            this.isActive = state.isActive;
-          }
-          if (state.widgetSize) {
-            this.widgetSize = state.widgetSize;
-            // Recreate widget if it exists to apply new size
-            if (this.floatingWidget) {
-              this.removeFloatingWidget();
-              this.createFloatingWidget();
-            }
-          }
-          if (state.rewriterOptions) {
-            // Shallow merge two objects
-            this.rewriterOptions = {
-              ...this.rewriterOptions,
-              ...state.rewriterOptions,
-            };
-            // Reset rewriter when options change
-            this.isRewriterReady = false;
-            this.rewriter = null;
-          }
+        const wasActive = this.isActive;
 
-          // Handle activation/deactivation
-          if (this.isActive && !wasActive) {
-            this.setupSelectionMode();
-            this.replaceWordsInPage();
-            this.createFloatingWidget();
-          } else if (!this.isActive && wasActive) {
-            this.removeHighlights();
-            this.removeCurrentHighlight();
-            this.removeSelectionMode();
-            this.removeFloatingWidget();
-          }
-
-          this.saveSettings();
-          sendResponse({ success: true });
-          break;
+        // Update state
+        if (state.isActive !== undefined) {
+          this.isActive = state.isActive;
         }
+        if (state.widgetSize) {
+          this.widgetSize = state.widgetSize;
+          // Recreate widget if it exists to apply new size
+          if (this.floatingWidget) {
+            this.removeFloatingWidget();
+            this.createFloatingWidget();
+          }
+        }
+        if (state.rewriterOptions) {
+          // Shallow merge two objects
+          this.rewriterOptions = {
+            ...this.rewriterOptions,
+            ...state.rewriterOptions,
+          };
+          
+          // Reinitialize the rewriter singleton with new options
+          try {
+            await this.reinitializeRewriter();
+          } catch (error) {
+            console.warn('Failed to reinitialize rewriter with new options:', error);
+            // Don't fail the entire operation if rewriter reinit fails
+          }
+        }
+
+        // Handle activation/deactivation
+        if (this.isActive && !wasActive) {
+          this.setupSelectionMode();
+          this.replaceWordsInPage();
+          this.createFloatingWidget();
+        } else if (!this.isActive && wasActive) {
+          this.removeHighlights();
+          this.removeCurrentHighlight();
+          this.removeSelectionMode();
+          this.removeFloatingWidget();
+        }
+
+        this.saveSettings();
+        sendResponse({ success: true });
+        break;
+      }
 
         case 'addReplacement':
           this.replacements.set(message.original as string, message.replacement as string);
@@ -323,9 +315,14 @@ export class WordReplacer {
             ...this.rewriterOptions,
             ...(message.options as Partial<RewriterOptions>),
           };
-          // Reset rewriter when options change
-          this.isRewriterReady = false;
-          this.rewriter = null;
+        // Reinitialize the rewriter singleton with new options
+        try {
+          await this.reinitializeRewriter();
+        } catch (error) {
+          console.warn('Failed to reinitialize rewriter with new options:', error);
+          // Don't fail the entire operation if rewriter reinit fails
+        }
+        
           this.saveSettings();
           sendResponse({ success: true });
           break;
@@ -700,6 +697,10 @@ export class WordReplacer {
 
       // Initialize rewriter
       const rewriter = await this.initRewriter();
+
+      if (!rewriter) {
+        throw new Error('Failed to initialize rewriter');
+      }
 
       // Prepare context-aware prompt - only rewrite the highlighted text
       const rewritePrompt = originalText; // Only the highlighted text to be rewritten
@@ -1094,14 +1095,14 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    */
   async checkRewriterAvailability() {
     try {
-      if (!('Rewriter' in self)) {
+      if (!('Rewriter' in (window as any))) {
         return {
           available: false,
           error: 'Rewriter API not found in browser',
         };
       }
 
-      const availability = await window.Rewriter.availability();
+      const availability = await (window as any).Rewriter.availability();
       return {
         available: true,
         status: availability,
@@ -1119,23 +1120,8 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    * Initialize Rewriter API with configuration options
    */
   async initRewriter() {
-    if (this.isRewriterReady && this.rewriter) {
-      return this.rewriter;
-    }
-
     try {
       console.log('🚀 Initializing Rewriter API...');
-
-      if (!('Rewriter' in self)) {
-        throw new Error('Rewriter API not available');
-      }
-
-      const availability = await window.Rewriter.availability();
-      console.log('📊 Rewriter availability:', availability);
-
-      if (availability === 'unavailable') {
-        throw new Error('Rewriter is not supported on this device');
-      }
 
       // Create rewriter with configurable settings
       const options: RewriterOptions = {
@@ -1154,16 +1140,55 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         },
       };
 
-      this.rewriter = await window.Rewriter.create(options);
-      await this.rewriter.ready;
-      this.isRewriterReady = true;
+      const rewriter = await rewriterManager.getRewriter(options);
       console.log('✅ Rewriter ready!');
 
-      return this.rewriter;
+      return rewriter;
     } catch (error) {
       console.error('❌ Failed to initialize Rewriter:', error);
       throw error;
     }
+  }
+
+  /**
+   * Reinitialize the rewriter singleton with current options
+   * This is called when settings are updated from the popup
+   * The singleton will detect the options change and create a new instance
+   */
+  async reinitializeRewriter(): Promise<void> {
+    try {
+      console.log('🔄 Reinitializing Rewriter with updated options...');
+
+      // Create rewriter with current configurable settings
+      const options: RewriterOptions = {
+        sharedContext: this.rewriterOptions.sharedContext || undefined,
+        expectedInputLanguages: ['en', 'ja', 'es'],
+        expectedContextLanguages: ['en', 'ja', 'es'],
+        tone: this.rewriterOptions.tone !== 'as-is' ? this.rewriterOptions.tone : undefined,
+        format: this.rewriterOptions.format !== 'as-is' ? this.rewriterOptions.format : undefined,
+        length: this.rewriterOptions.length !== 'as-is' ? this.rewriterOptions.length : undefined,
+        monitor: (m: DownloadMonitor) => {
+          console.log('📡 Monitor callback activated (Rewriter)');
+          m.addEventListener('downloadprogress', (e: ProgressEvent) => {
+            this.downloadProgress = Math.round((e.loaded / e.total) * 100);
+            console.log(`📥 Rewriter download: ${this.downloadProgress}%`);
+          });
+        },
+      };
+
+      await rewriterManager.getRewriter(options);
+      console.log('✅ Rewriter reinitialized with new options!');
+    } catch (error) {
+      console.error('❌ Failed to reinitialize Rewriter:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get current rewriter options for debugging
+   */
+  getRewriterOptions(): RewriterOptions {
+    return { ...this.rewriterOptions };
   }
 
   /**
@@ -1560,6 +1585,10 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // Initialize rewriter
       const rewriter = await this.initRewriter();
 
+      if (!rewriter) {
+        throw new Error('Failed to initialize rewriter');
+      }
+
       // Prepare context-aware prompt - only rewrite the selected text
       const rewritePrompt = originalText; // Only the selected text to be rewritten
       let contextPrompt = 'Make this text easier to understand for language learners.';
@@ -1753,7 +1782,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         });
 
         // Generate URL fragment for text anchor
-        const urlFragment = this.generateTextFragment(originalText);
+        const urlFragment = this.generateTextFragment(range);
         console.log('💾 trying to write', originalText, rewrittenText);
 
         // Save rewrite via background script
@@ -1788,13 +1817,77 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
   }
 
   /**
-   * Generate URL fragment for text anchor (similar to Google's text fragments)
+   * Generate URL fragment for text anchor using Google's text fragments polyfill
    */
-  generateTextFragment(text: string): string {
-    // Take first 50 characters and encode for URL
-    const fragment = text.substring(0, 50).trim();
-    const encoded = encodeURIComponent(fragment);
-    return `#:~:text=${encoded}`;
+  generateTextFragment(range: Range): string {
+    try {
+      // Dynamic import for the fragment generation utility from Google's polyfill
+      // Note: This will be resolved at runtime
+      const generateFragment = (window as any).generateFragment || this.fallbackFragmentGeneration;
+      
+      // Use Google's battle-tested algorithm if available
+      if (typeof generateFragment === 'function' && generateFragment !== this.fallbackFragmentGeneration) {
+        const fragment = generateFragment(range);
+        
+        if (fragment.status === 0) { // Success
+          return this.buildFragmentString(fragment.fragment);
+        }
+      }
+      
+      // Fallback to simple implementation if polyfill fails
+      return this.fallbackFragmentGeneration(range);
+    } catch (error) {
+      console.warn('Fragment generation failed, using fallback:', error);
+      return this.fallbackFragmentGeneration(range);
+    }
+  }
+
+  /**
+   * Build fragment string from Google's fragment object
+   */
+  private buildFragmentString(fragment: {
+    textStart: string;
+    textEnd?: string;
+    prefix?: string;
+    suffix?: string;
+  }): string {
+    let result = '#:~:text=';
+    
+    if (fragment.prefix) {
+      result += encodeURIComponent(fragment.prefix) + '-,';
+    }
+    
+    result += encodeURIComponent(fragment.textStart);
+    
+    if (fragment.textEnd) {
+      result += ',' + encodeURIComponent(fragment.textEnd);
+    }
+    
+    if (fragment.suffix) {
+      result += ',-' + encodeURIComponent(fragment.suffix);
+    }
+    
+    return result;
+  }
+
+  /**
+   * Fallback fragment generation for when polyfill fails
+   */
+  private fallbackFragmentGeneration(range: Range): string {
+    const selectedText = range.toString().trim();
+    
+    // For short text (< 20 chars or < 3 words), use entire text
+    const words = selectedText.split(/\s+/);
+    if (selectedText.length <= 20 || words.length <= 3) {
+      return `#:~:text=${encodeURIComponent(selectedText)}`;
+    }
+    
+    // For longer text, split into textStart and textEnd
+    const midpoint = Math.ceil(words.length / 2);
+    const textStart = words.slice(0, midpoint).join(' ');
+    const textEnd = words.slice(-Math.floor(words.length / 2)).join(' ');
+    
+    return `#:~:text=${encodeURIComponent(textStart)},${encodeURIComponent(textEnd)}`;
   }
 
   /**

@@ -3,7 +3,7 @@
  * Uses Chrome AI APIs for vocabulary analysis and insights
  */
 
-import { createLanguageModel, translateText } from './chrome-ai-wrapper.js';
+import { chromeAIManager, translateText } from './chrome-ai-wrapper.js';
 import { FunctionCallingPromptAPI } from './function-calling/function-calling-api.js';
 import { z } from 'zod';
 import { LanguageCodeSchema } from '@extension/shared';
@@ -174,7 +174,8 @@ const parseVocabularyQuery = async (prompt: string): Promise<VocabularyFilterSpe
  */
 const summarizeVocabulary = async (prompt: string, vocabularyData: string): Promise<AIResponse> => {
   try {
-    const model = await createLanguageModel();
+    const session = await chromeAIManager.getMainSession();
+    const model = session.model;
 
     const systemInstructions = `You are a vocabulary analysis assistant. Keep responses concise, structured, and actionable.
 - Use bullet points when listing items
@@ -202,7 +203,8 @@ const summarizeVocabulary = async (prompt: string, vocabularyData: string): Prom
  */
 const estimateCEFRLevel = async (vocabularyData: string): Promise<CEFRLevel> => {
   try {
-    const model = await createLanguageModel();
+    const session = await chromeAIManager.getMainSession();
+    const model = session.model;
 
     const prompt = `Based on the following vocabulary data, estimate the user's CEFR language proficiency level (A1, A2, B1, B2, C1, or C2). Analyze the total number of words, distribution of knowledge levels, and provide a brief explanation.
 

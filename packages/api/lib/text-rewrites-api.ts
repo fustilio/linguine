@@ -62,7 +62,7 @@ export interface TextRewrite {
   language: string;
   rewriter_settings: string;
   source_url: string;
-  url_fragment: string;
+  url_fragment: string | null;
   original_readability_score: number;
   rewritten_readability_score: number;
   created_at: string;
@@ -219,4 +219,12 @@ export const migrateLanguageCodes = async (): Promise<{ updated: number; errors:
     console.log(`✅ Language code migration completed: ${result.updated} updated, ${result.errors} errors`);
   }
   return result || { updated: 0, errors: 0 };
+};
+
+/**
+ * Open a text rewrite in the browser by combining source URL and fragment
+ */
+export const openTextRewriteInBrowser = async (rewrite: TextRewrite): Promise<void> => {
+  const fullUrl = rewrite.source_url + (rewrite.url_fragment || '');
+  await chrome.tabs.create({ url: fullUrl, active: true });
 };

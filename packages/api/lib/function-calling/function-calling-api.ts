@@ -1,6 +1,6 @@
 // original based on https://github.com/nico-martin/benz-gpt/blob/main/src/functionCallingPromptAPI/FunctionCallingPromptAPI.ts
 
-import { createLanguageModel } from '../chrome-ai-wrapper.js';
+import { chromeAIManager } from '../chrome-ai-wrapper.js';
 import { z } from 'zod';
 import type { Message, FunctionCallingConfig, FunctionDefinition } from './types.js';
 
@@ -173,8 +173,9 @@ IMPORTANT:
   public async initializeSession(callback: (status: string) => void = () => {}, systemMessage = ''): Promise<void> {
     const systemPrompt = this.generateSystemPrompt(systemMessage);
 
-    // Use the chrome-ai-wrapper
-    this.session = await createLanguageModel(systemPrompt);
+    // Use the Chrome AI manager to get a session
+    const session = await chromeAIManager.getMainSession(systemPrompt);
+    this.session = session.model;
 
     this.messages = [...this.messages, { role: 'system', content: systemPrompt }];
     this.initialized = true;
@@ -339,9 +340,7 @@ IMPORTANT:
     this.initialized = false;
     this.busy = false;
 
-    if (this.session) {
-      this.session.destroy();
-      this.session = null;
-    }
+    // Don't destroy the singleton session as it might be used elsewhere
+    this.session = null;
   }
 }

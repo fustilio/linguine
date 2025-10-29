@@ -358,15 +358,51 @@ When users rewrite text using the WordReplacer:
 
 ### URL Fragment Generation
 
-The system generates Chrome Text Fragment API anchors for direct linking:
+The system generates Chrome Text Fragment API anchors for direct linking using Google's battle-tested polyfill:
 
 ```typescript
-// Example URL fragment
-const fragment = "#:~:text=This%20is%20a%20complex%20text";
-const fullUrl = "https://example.com/article" + fragment;
+// Enhanced implementation using Google's text-fragments-polyfill
+import { generateFragment } from 'text-fragments-polyfill/dist/fragment-generation-utils.js';
+
+generateTextFragment(range: Range): string {
+  try {
+    // Use Google's battle-tested algorithm
+    const fragment = generateFragment(range);
+    
+    if (fragment.status === 0) { // Success
+      return this.buildFragmentString(fragment.fragment);
+    }
+    
+    // Fallback to simple implementation if polyfill fails
+    return this.fallbackFragmentGeneration(range);
+  } catch (error) {
+    console.warn('Fragment generation failed, using fallback:', error);
+    return this.fallbackFragmentGeneration(range);
+  }
+}
 ```
 
-This enables users to click links and jump directly to the original text on the webpage.
+**Text Fragment API Features:**
+- **textStart** (required): Beginning of target text
+- **textEnd** (optional): Ending of target text for longer selections  
+- **prefix-** (optional): Text before the target for disambiguation
+- **-suffix** (optional): Text after the target for disambiguation
+
+**Example URL fragments:**
+- Short text: `#:~:text=hello%20world`
+- Long text: `#:~:text=This%20is%20a%20long,end%20of%20selection`
+- With context: `#:~:text=previous%20text-,target%20text,-following%20text`
+
+**Benefits of Google's Implementation:**
+- Handles ambiguous matches automatically
+- Proper word boundary detection (Unicode-aware)
+- Handles complex DOM structures (tables, lists, etc.)
+- Handles invisible elements correctly
+- Supports Japanese and other languages
+- Battle-tested with extensive test suite
+- Minimizes fragment length while ensuring uniqueness
+
+This enables users to click links and jump directly to the original text on the webpage with proper highlighting.
 
 ### Settings Serialization
 
@@ -425,6 +461,24 @@ const serialized = JSON.stringify(settings);
 - **Collaborative Features**: Share rewrite collections with other users
 - **AI Insights**: Get AI-powered analysis of rewriting patterns
 - **Integration APIs**: Connect with external learning platforms
+
+### Side Panel Batch Reapplication (Roadmap)
+
+**Planned features for the side panel:**
+
+- **Batch Reapply**: Reapply multiple rewrites on current page
+- **URL Filtering**: Filter rewrites by current URL
+- **One-Click Reapply**: Reapply all rewrites for this page with single click
+- **Visual Indicators**: Show which rewrites are available on current page
+- **Smart Detection**: Automatically detect when user visits a page with saved rewrites
+- **Progress Tracking**: Track which rewrites have been reapplied
+
+**User Workflow:**
+1. User visits a webpage with saved text rewrites
+2. Side panel automatically detects matching rewrites
+3. User can preview which text will be rewritten
+4. One-click to reapply all rewrites on the page
+5. Visual indicators show which text has been rewritten
 
 ### Technical Improvements
 

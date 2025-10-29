@@ -29,7 +29,7 @@ import {
   cn
 } from '@extension/ui';
 import type { TextRewrite } from '@extension/sqlite';
-import { migrateLanguageCodes } from '@extension/api';
+import { migrateLanguageCodes, openTextRewriteInBrowser } from '@extension/api';
 
 export const TextRewritesAdmin = () => {
   
@@ -106,6 +106,16 @@ export const TextRewritesAdmin = () => {
   const handleCloseDetailModal = () => {
     setIsDetailModalOpen(false);
     setSelectedRewrite(null);
+  };
+
+  const handleViewOriginal = async (rewrite: TextRewrite) => {
+    try {
+      await openTextRewriteInBrowser(rewrite);
+    } catch (error) {
+      console.error('Failed to open original page:', error);
+      // Fallback to regular link
+      window.open(rewrite.source_url + (rewrite.url_fragment || ''), '_blank');
+    }
   };
 
   return (
@@ -349,15 +359,13 @@ export const TextRewritesAdmin = () => {
                   </TableCell>
                   
                   <TableCell className="whitespace-nowrap">
-                    <a
-                      href={rewrite.source_url + (rewrite.url_fragment || '')}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 truncate max-w-xs block"
-                      title={rewrite.source_url}
+                    <button
+                      onClick={() => handleViewOriginal(rewrite)}
+                      className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 truncate max-w-xs block text-left"
+                      title={`Open ${rewrite.source_url}${rewrite.url_fragment || ''}`}
                     >
-                      {new URL(rewrite.source_url).hostname}
-                    </a>
+                      🔗 {new URL(rewrite.source_url).hostname}
+                    </button>
                   </TableCell>
                   
                   <TableCell className="whitespace-nowrap text-sm">
