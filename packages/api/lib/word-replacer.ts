@@ -4,6 +4,7 @@
 
 import { addSentenceRewrite } from './sentence-rewrites-api.js';
 import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
+import { normalizeLanguageCode } from '@extension/shared';
 
 declare global {
   interface Window {
@@ -1403,7 +1404,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         const success = await addSentenceRewrite({
           original_text: originalText,
           rewritten_text: rewrittenText,
-          language: navigator.language || 'en-US',
+          language: normalizeLanguageCode(navigator.language || 'en-US'),
           rewriter_settings: rewriterSettings,
           source_url: window.location.href,
           url_fragment: urlFragment,

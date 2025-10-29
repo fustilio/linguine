@@ -240,17 +240,7 @@ export const getReadabilityStyles = (score: number) => {
   };
 };
 
-/**
- * Language display names
- */
-export const getLanguageDisplayName = (lang: string): string => {
-  const languageNames: Record<string, string> = {
-    'en-US': 'English',
-    'es-ES': 'Spanish',
-    'fr-FR': 'French',
-    'de-DE': 'German',
-    'ja-JP': 'Japanese',
-    'ko-KR': 'Korean',
-  };
-  return languageNames[lang] || lang;
-};
+import { getLanguageDisplayName as getSharedLanguageDisplayName } from '@extension/shared';
+
+// Re-export the shared function for backward compatibility
+export const getLanguageDisplayName = getSharedLanguageDisplayName;

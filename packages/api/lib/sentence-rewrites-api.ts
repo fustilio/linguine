@@ -8,6 +8,8 @@ import {
   sendDatabaseMessageForNumber,
 } from './database-api-utils.js';
 import type { VocabularyItem } from './vocabulary-api.js';
+import { LanguageCodeSchema } from '@extension/shared';
+import { z } from 'zod';
 
 export interface SentenceRewriteData {
   original_text: string;
@@ -25,6 +27,24 @@ export interface SentenceRewriteFilters {
   recentDays?: number;
   sourceUrl?: string;
 }
+
+// Zod schemas for validation
+export const SentenceRewriteDataSchema = z.object({
+  original_text: z.string().min(1),
+  rewritten_text: z.string().min(1),
+  language: LanguageCodeSchema,
+  rewriter_settings: z.string(),
+  source_url: z.string().url(),
+  url_fragment: z.string().nullable().optional(),
+});
+
+export const SentenceRewriteFiltersSchema = z.object({
+  language: LanguageCodeSchema.optional(),
+  minReadability: z.number().min(0).max(100).optional(),
+  maxReadability: z.number().min(0).max(100).optional(),
+  recentDays: z.number().positive().optional(),
+  sourceUrl: z.string().url().optional(),
+});
 
 export interface SentenceRewriteResponse {
   success: boolean;
@@ -52,7 +72,10 @@ export interface SentenceRewrite {
  * Add a sentence rewrite via offscreen document
  */
 export const addSentenceRewrite = async (rewriteData: SentenceRewriteData): Promise<SentenceRewrite | null> => {
-  const result = await sendDatabaseMessageForItem<SentenceRewrite>('addSentenceRewrite', rewriteData);
+  // Validate input data
+  const validatedData = SentenceRewriteDataSchema.parse(rewriteData);
+  
+  const result = await sendDatabaseMessageForItem<SentenceRewrite>('addSentenceRewrite', validatedData);
   if (result) {
     console.log('✅ Sentence rewrite saved successfully');
   }
@@ -67,14 +90,20 @@ export const getSentenceRewrites = async (
   limit: number = 10,
   filters: SentenceRewriteFilters = {}
 ): Promise<SentenceRewrite[]> => {
-  return sendDatabaseMessageForArray<SentenceRewrite>('getSentenceRewrites', { page, limit, filters });
+  // Validate filters
+  const validatedFilters = SentenceRewriteFiltersSchema.parse(filters);
+  
+  return sendDatabaseMessageForArray<SentenceRewrite>('getSentenceRewrites', { page, limit, filters: validatedFilters });
 };
 
 /**
  * Get sentence rewrite count via offscreen document
  */
 export const getSentenceRewriteCount = async (filters: SentenceRewriteFilters = {}): Promise<number> => {
-  return sendDatabaseMessageForNumber('getSentenceRewriteCount', { filters });
+  // Validate filters
+  const validatedFilters = SentenceRewriteFiltersSchema.parse(filters);
+  
+  return sendDatabaseMessageForNumber('getSentenceRewriteCount', { filters: validatedFilters });
 };
 
 /**
@@ -179,4 +208,15 @@ export const resetSentenceRewritesDatabase = async (): Promise<boolean> => {
  */
 export const ensureDatabaseInitialized = async (): Promise<boolean> => {
   return sendDatabaseMessageForBoolean('ensureDatabaseInitialized');
+};
+
+/**
+ * Migrate language codes to normalize inconsistent language labels via offscreen document
+ */
+export const migrateLanguageCodes = async (): Promise<{ updated: number; errors: number }> => {
+  const result = await sendDatabaseMessageForItem<{ updated: number; errors: number }>('migrateLanguageCodes');
+  if (result) {
+    console.log(`✅ Language code migration completed: ${result.updated} updated, ${result.errors} errors`);
+  }
+  return result || { updated: 0, errors: 0 };
 };

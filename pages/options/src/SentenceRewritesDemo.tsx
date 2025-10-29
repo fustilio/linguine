@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { addSentenceRewrite } from '@extension/api';
 import { themeVariants, button, input, select, cn } from '@extension/ui';
+import { normalizeLanguageCode, getLanguageDisplayName } from '@extension/shared';
 
 export const SentenceRewritesDemo = () => {
   
@@ -30,7 +31,7 @@ export const SentenceRewritesDemo = () => {
       await addSentenceRewrite({
         original_text: originalText.trim(),
         rewritten_text: rewrittenText.trim(),
-        language: language,
+        language: normalizeLanguageCode(language),
         rewriter_settings: rewriterSettings,
         source_url: 'https://demo.example.com/test-page',
         url_fragment: '#:~:text=demo%20text',
@@ -88,8 +89,7 @@ export const SentenceRewritesDemo = () => {
               onClick={() => loadExample(example)}
               className={cn(themeVariants.badge({ variant: 'primary' }), 'hover:opacity-80')}
             >
-              {example.language === 'en-US' ? 'English' : 
-               example.language === 'es-ES' ? 'Spanish' : 'French'}
+              {getLanguageDisplayName(example.language)}
             </button>
           ))}
         </div>

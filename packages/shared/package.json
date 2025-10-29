@@ -23,7 +23,8 @@
     "postinstall": "pnpm ready"
   },
   "dependencies": {
-    "react-error-boundary": "^6.0.0"
+    "react-error-boundary": "^6.0.0",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@extension/storage": "workspace:*",

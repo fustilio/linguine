@@ -29,6 +29,7 @@ import {
   cn
 } from '@extension/ui';
 import type { SentenceRewrite } from '@extension/sqlite';
+import { migrateLanguageCodes } from '@extension/api';
 
 export const SentenceRewritesAdmin = () => {
   
@@ -37,6 +38,8 @@ export const SentenceRewritesAdmin = () => {
   const [recentDays, setRecentDays] = useState<number | undefined>(undefined);
   const [selectedRewrite, setSelectedRewrite] = useState<SentenceRewrite | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<{ updated: number; errors: number } | null>(null);
 
   const filters = {
     language: languageFilter || undefined,
@@ -70,6 +73,28 @@ export const SentenceRewritesAdmin = () => {
   const handleClearAll = () => {
     if (confirm('Are you sure you want to clear all sentence rewrites? This action cannot be undone.')) {
       clearAllSentenceRewrites.mutate();
+    }
+  };
+
+  const handleMigrateLanguageCodes = async () => {
+    if (confirm('This will normalize language codes in your sentence rewrites. Continue?')) {
+      setIsMigrating(true);
+      setMigrationResult(null);
+      
+      try {
+        const result = await migrateLanguageCodes();
+        setMigrationResult(result);
+        
+        if (result.updated > 0) {
+          // Refresh the data to show updated language labels
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error('Migration failed:', error);
+        setMigrationResult({ updated: 0, errors: 1 });
+      } finally {
+        setIsMigrating(false);
+      }
     }
   };
 
@@ -204,7 +229,23 @@ export const SentenceRewritesAdmin = () => {
               >
                 {clearAllSentenceRewrites.isPending ? 'Clearing...' : 'Clear All'}
               </button>
+              
+              <button
+                onClick={handleMigrateLanguageCodes}
+                disabled={isMigrating}
+                className={button({ variant: 'secondary', size: 'sm', disabled: isMigrating })}
+              >
+                {isMigrating ? 'Migrating...' : 'Fix Language Labels'}
+              </button>
             </div>
+            
+            {migrationResult && (
+              <div className={cn(themeVariants.card(), 'mt-4 p-3')}>
+                <p className={cn(themeVariants.body(), 'text-sm')}>
+                  Migration completed: {migrationResult.updated} language codes updated, {migrationResult.errors} errors
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

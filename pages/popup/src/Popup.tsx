@@ -178,8 +178,8 @@ const Popup = () => {
             {isActive ? 'Extension is active' : 'Extension is inactive'}
           </div>
 
-          <div className="mb-3 flex items-center justify-between rounded-lg bg-[#f8f9fa] p-3">
-            <span className="text-black">Enable Extension</span>
+          <div className="mb-3 flex items-center justify-between rounded-lg bg-[#f8f9fa] dark:bg-gray-700 p-3">
+            <span className="text-black dark:text-gray-200">Enable Extension</span>
             <button
               onClick={toggleActive}
               onKeyDown={e => {
@@ -236,7 +236,7 @@ const Popup = () => {
 
         {/* AI Settings Section */}
         <div className="mb-5">
-          <div className="mt-3 rounded-lg bg-[#f8f9fa] p-3">
+          <div className="mt-3 rounded-lg bg-[#f8f9fa] dark:bg-gray-700 p-3">
             <button
               className="flex w-full cursor-pointer items-center justify-between border-none bg-transparent py-2 hover:opacity-80"
               onClick={() => setIsExpanded(!isExpanded)}
@@ -248,7 +248,7 @@ const Popup = () => {
               }}
               aria-expanded={isExpanded}
               aria-controls="ai-settings-content">
-              <h3 className="m-0 text-sm font-semibold text-[#444]">AI Rewriter Settings</h3>
+              <h3 className="m-0 text-sm font-semibold text-[#444] dark:text-gray-200">AI Rewriter Settings</h3>
               <span className={cn('transition-transform duration-300', isExpanded && 'rotate-90')}>▶</span>
             </button>
 
@@ -261,7 +261,7 @@ const Popup = () => {
               <div className="mt-3">
                 {/* Shared Context */}
                 <div className="mb-3">
-                  <label htmlFor="sharedContext" className="mb-1 block text-xs font-medium text-[#444]">
+                  <label htmlFor="sharedContext" className="mb-1 block text-xs font-medium text-[#444] dark:text-gray-200">
                     Context (Instructions for AI)
                   </label>
                   <textarea
@@ -272,14 +272,14 @@ const Popup = () => {
                         sharedContext: e.target.value,
                       })
                     }
-                    className="min-h-[60px] w-full resize-y rounded border border-[#d1d5db] p-2 text-xs"
+                    className="min-h-[60px] w-full resize-y rounded border border-[#d1d5db] dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 p-2 text-xs"
                     placeholder={`e.g., ${DEFAULT_REWRITER_PROMPT}`}
                   />
                 </div>
 
                 {/* Tone */}
                 <div className="mb-3">
-                  <label htmlFor="tone" className="mb-1 block text-xs font-medium text-[#444]">
+                  <label htmlFor="tone" className="mb-1 block text-xs font-medium text-[#444] dark:text-gray-200">
                     Tone
                   </label>
                   <select
@@ -290,7 +290,7 @@ const Popup = () => {
                         tone: e.target.value,
                       })
                     }
-                    className="w-full cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs">
+                    className="w-full cursor-pointer rounded border border-[#d1d5db] dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 text-xs">
                     <option value="as-is">As-is (keep original)</option>
                     <option value="more-formal">More Formal</option>
                     <option value="more-casual">More Casual</option>
@@ -300,7 +300,7 @@ const Popup = () => {
 
                 {/* Format */}
                 <div className="mb-3">
-                  <label htmlFor="format" className="mb-1 block text-xs font-medium text-[#444]">
+                  <label htmlFor="format" className="mb-1 block text-xs font-medium text-[#444] dark:text-gray-200">
                     Format
                   </label>
                   <select
@@ -311,7 +311,7 @@ const Popup = () => {
                         format: e.target.value,
                       })
                     }
-                    className="w-full cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs">
+                    className="w-full cursor-pointer rounded border border-[#d1d5db] dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 text-xs">
                     <option value="as-is">As-is (keep original)</option>
                     <option value="plain-text">Plain Text</option>
                     <option value="markdown">Markdown</option>
@@ -320,7 +320,7 @@ const Popup = () => {
 
                 {/* Length */}
                 <div className="mb-3">
-                  <label htmlFor="length" className="mb-1 block text-xs font-medium text-[#444]">
+                  <label htmlFor="length" className="mb-1 block text-xs font-medium text-[#444] dark:text-gray-200">
                     Length
                   </label>
                   <select
@@ -331,7 +331,7 @@ const Popup = () => {
                         length: e.target.value,
                       })
                     }
-                    className="w-full cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs">
+                    className="w-full cursor-pointer rounded border border-[#d1d5db] dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 text-xs">
                     <option value="as-is">As-is (keep original)</option>
                     <option value="shorter">Shorter</option>
                     <option value="longer">Longer</option>
@@ -340,7 +340,7 @@ const Popup = () => {
 
                 <button
                   onClick={handleSaveSettings}
-                  className="mt-2 w-full cursor-pointer rounded border-none bg-[#667eea] px-4 py-2 text-[13px] text-white transition-[background] duration-200 hover:bg-[#5a67d8] disabled:cursor-not-allowed disabled:bg-[#ccc]">
+                  className="mt-2 w-full cursor-pointer rounded border-none bg-[#667eea] dark:bg-blue-600 px-4 py-2 text-[13px] text-white transition-[background] duration-200 hover:bg-[#5a67d8] dark:hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-[#ccc] dark:disabled:bg-gray-600">
                   {saveStatus || 'Save Settings'}
                 </button>
               </div>

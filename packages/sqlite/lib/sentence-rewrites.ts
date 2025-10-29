@@ -1,6 +1,7 @@
 import { ManualSqliteClient } from './manual.js';
 import type { SentenceRewrite, NewSentenceRewrite, VocabularyItem } from './types.js';
 import { getDatabaseManager } from './database-manager.js';
+import { normalizeLanguageCode } from '@extension/shared';
 
 const getDb = () => {
   const client = ManualSqliteClient.getInstance();
@@ -164,7 +165,10 @@ const countSyllablesKorean = (text: string): number => {
  * Count syllables based on language
  */
 const countSyllables = (word: string, language: string): number => {
-  switch (language) {
+  // Normalize the language code to ensure consistency
+  const normalizedLang = normalizeLanguageCode(language);
+  
+  switch (normalizedLang) {
     case 'es-ES':
       return countSyllablesSpanish(word);
     case 'fr-FR':
@@ -186,9 +190,11 @@ const countSyllables = (word: string, language: string): number => {
  * Count sentences in text based on language
  */
 const countSentences = (text: string, language: string): number => {
+  // Normalize the language code to ensure consistency
+  const normalizedLang = normalizeLanguageCode(language);
   let sentenceEndings: RegExp;
 
-  switch (language) {
+  switch (normalizedLang) {
     case 'ja-JP':
       // Japanese sentence endings
       sentenceEndings = /[。！？]/g;
@@ -220,16 +226,19 @@ const countKanji = (text: string): number => {
  * Calculate readability score based on language
  */
 const calculateReadabilityScore = (text: string, language: string): number => {
+  // Normalize the language code to ensure consistency
+  const normalizedLang = normalizeLanguageCode(language);
+  
   const words = text
     .trim()
     .split(/\s+/)
     .filter(word => word.length > 0);
   const totalWords = words.length;
-  const totalSentences = countSentences(text, language);
+  const totalSentences = countSentences(text, normalizedLang);
 
   if (totalWords === 0) return 0;
 
-  switch (language) {
+  switch (normalizedLang) {
     case 'ja-JP': {
       // Japanese: Kanji density approach
       const totalChars = text.length;
@@ -241,7 +250,7 @@ const calculateReadabilityScore = (text: string, language: string): number => {
 
     case 'ko-KR': {
       // Korean: Syllable complexity approach
-      const totalSyllables = words.reduce((sum, word) => sum + countSyllables(word, language), 0);
+      const totalSyllables = words.reduce((sum, word) => sum + countSyllables(word, normalizedLang), 0);
       const avgSyllablesPerWord = totalSyllables / totalWords;
       // Higher syllables per word = harder to read
       return Math.max(0, Math.min(100, 100 - avgSyllablesPerWord * 20));
@@ -249,7 +258,7 @@ const calculateReadabilityScore = (text: string, language: string): number => {
 
     case 'es-ES': {
       // Spanish: Flesch-Szigriszt formula
-      const totalSyllables = words.reduce((sum, word) => sum + countSyllables(word, language), 0);
+      const totalSyllables = words.reduce((sum, word) => sum + countSyllables(word, normalizedLang), 0);
       const avgWordsPerSentence = totalWords / totalSentences;
       const avgSyllablesPerWord = totalSyllables / totalWords;
       return Math.max(0, Math.min(100, 206.835 - 1.02 * avgWordsPerSentence - 60 * avgSyllablesPerWord));
@@ -257,7 +266,7 @@ const calculateReadabilityScore = (text: string, language: string): number => {
 
     case 'fr-FR': {
       // French: Flesch-Kandel formula
-      const totalSyllables = words.reduce((sum, word) => sum + countSyllables(word, language), 0);
+      const totalSyllables = words.reduce((sum, word) => sum + countSyllables(word, normalizedLang), 0);
       const avgWordsPerSentence = totalWords / totalSentences;
       const avgSyllablesPerWord = totalSyllables / totalWords;
       return Math.max(0, Math.min(100, 207 - 1.015 * avgWordsPerSentence - 73.6 * avgSyllablesPerWord));
@@ -265,7 +274,7 @@ const calculateReadabilityScore = (text: string, language: string): number => {
 
     case 'de-DE': {
       // German: Simplified Flesch variant
-      const totalSyllables = words.reduce((sum, word) => sum + countSyllables(word, language), 0);
+      const totalSyllables = words.reduce((sum, word) => sum + countSyllables(word, normalizedLang), 0);
       const avgWordsPerSentence = totalWords / totalSentences;
       const avgSyllablesPerWord = totalSyllables / totalWords;
       return Math.max(0, Math.min(100, 180 - avgWordsPerSentence - 58.5 * avgSyllablesPerWord));
@@ -274,7 +283,7 @@ const calculateReadabilityScore = (text: string, language: string): number => {
     case 'en-US':
     default: {
       // English: Flesch Reading Ease
-      const totalSyllables = words.reduce((sum, word) => sum + countSyllables(word, language), 0);
+      const totalSyllables = words.reduce((sum, word) => sum + countSyllables(word, normalizedLang), 0);
       const avgWordsPerSentence = totalWords / totalSentences;
       const avgSyllablesPerWord = totalSyllables / totalWords;
       return Math.max(0, Math.min(100, 206.835 - 1.015 * avgWordsPerSentence - 84.6 * avgSyllablesPerWord));
@@ -612,6 +621,59 @@ const getSentencesContainingWord = async (vocabularyId: number): Promise<Sentenc
     .execute();
 };
 
+/**
+ * Migration function to normalize language codes in existing sentence rewrites
+ * This fixes inconsistent language labels in the database
+ */
+const migrateLanguageCodes = async (): Promise<{ updated: number; errors: number }> => {
+  await ensureSentenceRewritesDatabaseInitialized();
+  const db = getDb();
+  if (!db) {
+    throw new Error('Database not available');
+  }
+
+  let updated = 0;
+  let errors = 0;
+
+  try {
+    // Get all sentence rewrites
+    const rewrites = await db
+      .selectFrom('sentence_rewrites')
+      .selectAll()
+      .execute();
+
+    console.log(`Found ${rewrites.length} sentence rewrites to check for language normalization`);
+
+    for (const rewrite of rewrites) {
+      try {
+        const normalizedLanguage = normalizeLanguageCode(rewrite.language);
+        
+        // Only update if the language code has changed
+        if (normalizedLanguage !== rewrite.language) {
+          await db
+            .updateTable('sentence_rewrites')
+            .set({ language: normalizedLanguage })
+            .where('id', '=', rewrite.id)
+            .execute();
+          
+          updated++;
+          console.log(`Updated rewrite ${rewrite.id}: "${rewrite.language}" → "${normalizedLanguage}"`);
+        }
+      } catch (error) {
+        console.error(`Error updating rewrite ${rewrite.id}:`, error);
+        errors++;
+      }
+    }
+
+    console.log(`Migration completed: ${updated} updated, ${errors} errors`);
+  } catch (error) {
+    console.error('Error during language code migration:', error);
+    throw error;
+  }
+
+  return { updated, errors };
+};
+
 // Export all functions
 export { 
   initializeSentenceRewritesDatabase,
@@ -630,5 +692,6 @@ export {
   clearAllSentenceRewrites,
   resetSentenceRewritesDatabase,
   getVocabularyWordsInSentence,
-  getSentencesContainingWord
+  getSentencesContainingWord,
+  migrateLanguageCodes
 };

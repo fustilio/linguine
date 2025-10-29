@@ -6,6 +6,7 @@
 import { createLanguageModel, translateText } from './chrome-ai-wrapper.js';
 import { FunctionCallingPromptAPI } from './function-calling/function-calling-api.js';
 import { z } from 'zod';
+import { LanguageCodeSchema } from '@extension/shared';
 import type {
   VocabularyAnalysisResult,
   TextEvaluationResult,
@@ -83,7 +84,7 @@ const analyzeText = (text: string, knownWords: VocabularyItem[]): TextEvaluation
 
 // Schema for vocabulary filter parameters
 const VocabularyFilterSchema = z.object({
-  language: z.enum(['en-US', 'ja-JP', 'es-ES', 'fr-FR', 'de-DE', 'ko-KR']).optional(),
+  language: LanguageCodeSchema.optional(),
   knowledgeLevel: z
     .object({
       min: z.number().min(1).max(5).optional(),

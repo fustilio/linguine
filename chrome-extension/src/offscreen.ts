@@ -29,6 +29,7 @@ import {
   getVocabularyWordsInSentence,
   getSentencesContainingWord,
   resetSentenceRewritesDatabase,
+  migrateLanguageCodes,
 
   getDatabaseManager
 } from '@extension/sqlite';
@@ -196,6 +197,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'ensureDatabaseInitialized':
           await ensureDatabaseInitialized();
           sendResponse({ success: true });
+          break;
+
+        case 'migrateLanguageCodes':
+          const migrationResult = await migrateLanguageCodes();
+          sendResponse({ success: true, data: migrationResult });
           break;
 
         default:
