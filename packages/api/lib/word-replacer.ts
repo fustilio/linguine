@@ -2,9 +2,11 @@
 // This script runs on every webpage and handles both word replacement and selection
 // Users can select text to add replacements and see replacements applied in real-time
 
+import { FloatingWidget } from './floating-widget.js';
 import { addTextRewrite } from './text-rewrites-api.js';
 import { normalizeLanguageCode } from '@extension/shared';
 import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
+import type { WidgetSize } from './floating-widget.js';
 
 declare global {
   interface Window {
@@ -45,15 +47,13 @@ export class WordReplacer {
   private rewriter: Rewriter | null; // Type from Chrome's experimental AI API (not in TS types)
   private isRewriterReady: boolean;
   private rewriterOptions: RewriterOptions;
-  private widgetSize: 'small' | 'medium' | 'large';
+  private widgetSize: WidgetSize;
   private downloadProgress: number;
   private isDownloading: boolean;
   private replaceTimeout?: ReturnType<typeof setTimeout>;
   private handleSelection?: ((event: MouseEvent) => void) | null;
-  private floatingWidget: HTMLElement | null;
-  private isDragging: boolean;
+  private floatingWidget: FloatingWidget | null;
   private dragOffset: { x: number; y: number };
-  private dragStartPosition: { x: number; y: number } | null;
 
   private constructor() {
     this.replacements = new Map();
@@ -78,9 +78,7 @@ export class WordReplacer {
 
     // Floating widget state
     this.floatingWidget = null;
-    this.isDragging = false;
     this.dragOffset = { x: 0, y: 0 };
-    this.dragStartPosition = null;
 
     // Initialize the extension
     this.init();
@@ -121,7 +119,7 @@ export class WordReplacer {
 
     // Remove floating widget
     if (this.floatingWidget) {
-      this.floatingWidget.remove();
+      this.floatingWidget.unmount();
       this.floatingWidget = null;
     }
 
@@ -1800,255 +1798,47 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
   }
 
   /**
-   * Draggable floating widget
+   * Create and mount the floating widget
    */
   createFloatingWidget() {
-    // Remove existing widget if any
     this.removeFloatingWidget();
 
-    // Create the widget
-    const widget = document.createElement('div');
-    widget.id = 'linguine-floating-widget';
-    widget.title = 'Click to rewrite selected text';
+    const iconUrl = chrome.runtime.getURL('pasta-icon.webp');
 
-    // Create image element
-    const img = document.createElement('img');
-    img.src = chrome.runtime.getURL('pasta-icon.webp');
-    img.alt = 'Linguine Rewriter';
-    img.style.cssText = `
-        width: 70%;
-        height: 70%;
-        object-fit: contain;
-      `;
-
-    widget.appendChild(img);
-
-    // Determine widget size based on setting
-    const sizeMap = {
-      small: { width: '50px', height: '50px' },
-      medium: { width: '70px', height: '70px' },
-      large: { width: '90px', height: '90px' },
-    };
-    const size = sizeMap[this.widgetSize];
-
-    // Style the widget
-    widget.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: ${size.width};
-        height: ${size.height};
-        background: white;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: move;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        z-index: 999999;
-        user-select: none;
-        transition: transform 0.2s, box-shadow 0.2s;
-        overflow: hidden;
-      `;
-
-    // Add hover effect
-    widget.addEventListener('mouseenter', () => {
-      widget.style.transform = 'scale(1.1)';
-      widget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2)';
+    this.floatingWidget = new FloatingWidget({
+      size: this.widgetSize,
+      iconUrl,
+      title: 'Click to rewrite selected text',
     });
 
-    widget.addEventListener('mouseleave', () => {
-      if (!this.isDragging) {
-        widget.style.transform = 'scale(1)';
-        widget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-      }
-    });
-
-    // Handle drag start
-    widget.addEventListener('mousedown', (e: MouseEvent) => {
-      this.isDragging = false; // Will be set to true only after actual dragging starts
-      this.dragStartPosition = {
-        x: e.clientX,
-        y: e.clientY,
-      };
-      const rect = widget.getBoundingClientRect();
-      this.dragOffset = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      };
-      widget.style.cursor = 'grabbing';
-      e.preventDefault();
-    });
-
-    // Handle dragging
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!this.dragStartPosition || !this.floatingWidget) return;
-
-      // Calculate distance moved from initial mousedown position
-      const deltaX = Math.abs(e.clientX - this.dragStartPosition.x);
-      const deltaY = Math.abs(e.clientY - this.dragStartPosition.y);
-      const dragThreshold = 5; // Minimum pixels to move before considering it a drag
-
-      // Only start dragging if moved beyond threshold
-      if (!this.isDragging && (deltaX > dragThreshold || deltaY > dragThreshold)) {
-        this.isDragging = true;
-      }
-
-      if (!this.isDragging) return;
-
-      const x = e.clientX - this.dragOffset.x;
-      const y = e.clientY - this.dragOffset.y;
-
-      // Keep widget within viewport
-      const maxX = window.innerWidth - this.floatingWidget.offsetWidth;
-      const maxY = window.innerHeight - this.floatingWidget.offsetHeight;
-
-      const boundedX = Math.max(0, Math.min(x, maxX));
-      const boundedY = Math.max(0, Math.min(y, maxY));
-
-      this.floatingWidget.style.left = `${boundedX}px`;
-      this.floatingWidget.style.top = `${boundedY}px`;
-      this.floatingWidget.style.bottom = 'auto';
-      this.floatingWidget.style.right = 'auto';
-    };
-
-    // Handle drag end
-    const handleMouseUp = () => {
-      if (this.floatingWidget) {
-        this.floatingWidget.style.cursor = 'move';
-        this.floatingWidget.style.transform = 'scale(1)';
-        this.floatingWidget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-      }
-
-      // Reset drag state after a small delay to prevent click event from firing
-      setTimeout(() => {
-        this.isDragging = false;
-        this.dragStartPosition = null;
-      }, 10);
-    };
-
-    // Handle click (rewrite selected text)
-    widget.addEventListener('click', async e => {
-      // Only trigger rewrite if not dragging
-      if (this.isDragging) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-
+    // Set up click handler
+    this.floatingWidget.onClick(async () => {
       const selection = window.getSelection();
       if (!selection || selection.toString().trim().length === 0) {
-        // Show error state by changing background color briefly
-        const originalBg = widget.style.background;
-        widget.style.background = '#f87171'; // Softer coral red
-        widget.title = 'Please select some text first';
-
-        // Create tooltip popup
-        const tooltip = document.createElement('div');
-        tooltip.textContent = 'Please select some text first';
-        tooltip.style.cssText = `
-          position: fixed;
-          bottom: 80px;
-          right: 20px;
-          background: #1f2937;
-          color: white;
-          padding: 8px 12px;
-          border-radius: 6px;
-          font-size: 14px;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-          z-index: 1000000;
-          pointer-events: none;
-          animation: fadeIn 0.2s ease-out;
-        `;
-
-        // Add fade-in animation
-        if (!document.getElementById('linguine-tooltip-animation')) {
-          const style = document.createElement('style');
-          style.id = 'linguine-tooltip-animation';
-          style.textContent = `
-            @keyframes fadeIn {
-              from { opacity: 0; transform: translateY(10px); }
-              to { opacity: 1; transform: translateY(0); }
-            }
-          `;
-          document.head.appendChild(style);
-        }
-
-        document.body.appendChild(tooltip);
-
-        setTimeout(() => {
-          widget.style.background = originalBg;
-          widget.title = 'Click to rewrite selected text';
-          tooltip.remove();
-        }, 1500);
+        this.floatingWidget?.showTooltip('Please select some text first');
+        this.floatingWidget?.setState('error', 'Please select some text first');
         return;
       }
 
       try {
-        // Show loading state - make widget spin (keeps the pasta image)
-        widget.style.animation = 'spin 1s linear infinite';
-        widget.title = 'Rewriting...';
-        widget.style.cursor = 'wait';
-
-        // Add keyframe animation if not already added
-        if (!document.getElementById('linguine-spin-animation')) {
-          const style = document.createElement('style');
-          style.id = 'linguine-spin-animation';
-          style.textContent = `
-            @keyframes spin {
-              from { transform: rotate(0deg); }
-              to { transform: rotate(360deg); }
-            }
-          `;
-          document.head.appendChild(style);
-        }
-
-        // Trigger the rewrite
+        this.floatingWidget?.setState('loading', 'Rewriting...');
         await this.rewriteSelectedText();
-
-        // Stop spinning and show success with green background
-        widget.style.animation = '';
-        const originalBg = widget.style.background;
-        widget.style.background = '#4ade80'; // Fresh bright green
-        widget.title = 'Rewrite complete!';
-        setTimeout(() => {
-          widget.style.background = originalBg;
-          widget.title = 'Click to rewrite selected text';
-          widget.style.cursor = 'move';
-        }, 1500);
+        this.floatingWidget?.setState('success', 'Rewrite complete!');
       } catch (error) {
         console.error('Error rewriting from widget:', error);
-        widget.style.animation = ''; // Stop spinning on error
-        const originalBg = widget.style.background;
-        widget.style.background = '#f87171'; // Softer coral red
-        widget.title = 'Rewrite failed';
-        setTimeout(() => {
-          widget.style.background = originalBg;
-          widget.title = 'Click to rewrite selected text';
-          widget.style.cursor = 'move';
-        }, 1500);
+        this.floatingWidget?.setState('error', 'Rewrite failed');
       }
     });
 
-    // Attach event listeners to document
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    // Store cleanup function
-    widget.dataset.cleanup = 'true';
-
-    // Add to DOM
-    document.body.appendChild(widget);
-    this.floatingWidget = widget;
+    this.floatingWidget.mount();
   }
 
   /**
    * Remove the floating widget
    */
   removeFloatingWidget() {
-    if (this.floatingWidget && this.floatingWidget.parentNode) {
-      this.floatingWidget.parentNode.removeChild(this.floatingWidget);
+    if (this.floatingWidget) {
+      this.floatingWidget.unmount();
       this.floatingWidget = null;
     }
   }
