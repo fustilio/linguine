@@ -761,89 +761,114 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       wrapper.textContent = rewrittenText;
 
       // Create button container
-      // const buttonContainer = document.createElement('span');
-      // buttonContainer.className = 'rewriter-buttons';
-      // buttonContainer.style.cssText = `
-      //       display: inline-flex;
-      //       gap: 4px;
-      //       margin-left: 6px;
-      //       vertical-align: middle;
-      //     `;
+      const buttonContainer = document.createElement('span');
+      buttonContainer.className = 'rewriter-buttons';
+      buttonContainer.style.cssText = `
+            display: inline-flex;
+            gap: 4px;
+            margin-left: 6px;
+            vertical-align: middle;
+          `;
 
       // Create button styles
-      // const buttonStyle = `
-      //       padding: 2px 6px;
-      //       font-size: 11px;
-      //       border: 1px solid #d1d5db;
-      //       border-radius: 3px;
-      //       cursor: pointer;
-      //       background: white;
-      //       color: #374151;
-      //       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      //       transition: all 0.15s;
-      //     `;
+      const buttonStyle = `
+            padding: 2px 6px;
+            font-size: 11px;
+            border: 1px solid #d1d5db;
+            border-radius: 3px;
+            cursor: pointer;
+            background: white;
+            color: #374151;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            transition: all 0.15s;
+          `;
 
       // Toggle button (switch between original and rewritten)
-      // let showingRewritten = true;
-      // const toggleBtn = document.createElement('button');
-      // toggleBtn.textContent = '⇄';
-      // toggleBtn.title = 'Toggle between original and rewritten';
-      // toggleBtn.style.cssText =
-      //   buttonStyle +
-      //   `
-      //       color: #2563eb;
-      //       border-color: #93c5fd;
-      //     `;
+      let showingRewritten = true;
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button'; // Prevent form submission
+      toggleBtn.textContent = '⇄';
+      toggleBtn.title = 'Toggle between original and rewritten';
+      toggleBtn.style.cssText =
+        buttonStyle +
+        `
+            color: #2563eb;
+            border-color: #93c5fd;
+          `;
 
-      // toggleBtn.addEventListener('mouseover', () => {
-      //   toggleBtn.style.backgroundColor = '#dbeafe';
-      // });
-      // toggleBtn.addEventListener('mouseout', () => {
-      //   toggleBtn.style.backgroundColor = 'white';
-      // });
-      // toggleBtn.addEventListener('click', () => {
-      //   if (showingRewritten) {
-      //     wrapper.textContent = originalText;
-      //     wrapper.style.backgroundColor = '#fef3c7';
-      //     toggleBtn.title = 'Showing original - click to see rewritten';
-      //     showingRewritten = false;
-      //   } else {
-      //     wrapper.textContent = rewrittenText;
-      //     wrapper.style.backgroundColor = '#e5e7eb';
-      //     toggleBtn.title = 'Showing rewritten - click to see original';
-      //     showingRewritten = true;
-      //   }
-      // });
+      toggleBtn.addEventListener('mouseover', () => {
+        toggleBtn.style.backgroundColor = '#dbeafe';
+      });
+      toggleBtn.addEventListener('mouseout', () => {
+        toggleBtn.style.backgroundColor = 'white';
+      });
+      toggleBtn.addEventListener('click', e => {
+        try {
+          e.preventDefault();
+          e.stopPropagation();
+
+          console.log('🔄 Toggle button clicked, currently showing:', showingRewritten ? 'rewritten' : 'original');
+
+          if (showingRewritten) {
+            wrapper.textContent = originalText;
+            wrapper.style.backgroundColor = '#fef3c7';
+            toggleBtn.title = 'Showing original - click to see rewritten';
+            showingRewritten = false;
+            console.log('✅ Switched to original text');
+          } else {
+            wrapper.textContent = rewrittenText;
+            wrapper.style.backgroundColor = '#e5e7eb';
+            toggleBtn.title = 'Showing rewritten - click to see original';
+            showingRewritten = true;
+            console.log('✅ Switched to rewritten text');
+          }
+        } catch (error) {
+          console.error('❌ Error in toggle button:', error);
+        }
+      });
 
       // Apply button
-      // const applyBtn = document.createElement('button');
-      // applyBtn.textContent = '✓';
-      // applyBtn.title = 'Apply current version';
-      // applyBtn.style.cssText =
-      //   buttonStyle +
-      //   `
-      //       color: #16a34a;
-      //       border-color: #86efac;
-      //     `;
+      const applyBtn = document.createElement('button');
+      applyBtn.type = 'button';
+      applyBtn.textContent = '✓';
+      applyBtn.title = 'Apply current version';
+      applyBtn.style.cssText =
+        buttonStyle +
+        `
+            color: #16a34a;
+            border-color: #86efac;
+          `;
 
-      // applyBtn.addEventListener('mouseover', () => {
-      //   applyBtn.style.backgroundColor = '#dcfce7';
-      // });
-      // applyBtn.addEventListener('mouseout', () => {
-      //   applyBtn.style.backgroundColor = 'white';
-      // });
-      // applyBtn.addEventListener('click', () => {
-      //   // Remove buttons and keep the current text
-      //   buttonContainer.remove();
-      //   wrapper.style.backgroundColor = 'transparent';
-      //   wrapper.style.padding = '0';
-      //   wrapper.classList.remove('rewriter-highlight');
+      applyBtn.addEventListener('mouseover', () => {
+        applyBtn.style.backgroundColor = '#dcfce7';
+      });
+      applyBtn.addEventListener('mouseout', () => {
+        applyBtn.style.backgroundColor = 'white';
+      });
+      applyBtn.addEventListener('click', e => {
+        try {
+          e.preventDefault();
+          e.stopPropagation();
 
-      //   // Clear current highlight reference
-      //   if (this.currentHighlight === highlightSpan) {
-      //     this.currentHighlight = null;
-      //   }
-      // });
+          console.log('✅ Apply button clicked, current text:', wrapper.textContent?.substring(0, 30) + '...');
+
+          // Remove buttons and keep the current text
+          if (buttonContainer && buttonContainer.parentNode) {
+            buttonContainer.remove();
+          }
+          wrapper.style.backgroundColor = 'transparent';
+          wrapper.style.padding = '0';
+          wrapper.classList.remove('rewriter-highlight');
+
+          // Clear current highlight reference (wrapper is now the current highlight)
+          if (this.currentHighlight === wrapper) {
+            this.currentHighlight = null;
+            console.log('🧹 Cleared current highlight reference');
+          }
+        } catch (error) {
+          console.error('❌ Error in apply button:', error);
+        }
+      });
 
       // Save button (add to replacements)
       // const saveBtn = document.createElement('button');
@@ -890,15 +915,15 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // });
 
       // Assemble buttons
-      // buttonContainer.appendChild(toggleBtn);
-      // buttonContainer.appendChild(applyBtn);
+      buttonContainer.appendChild(toggleBtn);
+      buttonContainer.appendChild(applyBtn);
       // buttonContainer.appendChild(saveBtn);
 
       // Replace the highlight span with the new interactive content
       const parent = highlightSpan.parentNode;
       if (parent) {
         parent.insertBefore(wrapper, highlightSpan);
-        // parent.insertBefore(buttonContainer, highlightSpan);
+        parent.insertBefore(buttonContainer, highlightSpan);
         parent.removeChild(highlightSpan);
 
         // Update current highlight reference
@@ -1424,6 +1449,63 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
   }
 
   /**
+   * Replace selected text using replaceSelectedTextInDOM and then wrap with interactive UI
+   */
+  private replaceSelectedTextInDOMWithWrapper(
+    range: Range,
+    newText: string,
+    wrapper: HTMLElement,
+    buttonContainer: HTMLElement,
+  ): void {
+    // Create a unique marker to locate the replaced text
+    const marker = `__LINGUINE_${Date.now()}_${Math.random().toString(36).substr(2, 9)}__`;
+    const markedText = `${marker}${newText}${marker}`;
+
+    // Use the robust replaceSelectedTextInDOM method
+    this.replaceSelectedTextInDOM(range, markedText);
+
+    // Find and replace the marked text with our interactive wrapper
+    const container =
+      range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+        ? (range.commonAncestorContainer as Element)
+        : range.commonAncestorContainer.parentElement;
+
+    if (container) {
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+      let node;
+
+      while ((node = walker.nextNode())) {
+        const textNode = node as Text;
+        if (textNode.nodeValue?.includes(marker)) {
+          const text = textNode.nodeValue;
+          const startPos = text.indexOf(marker);
+          const endPos = text.lastIndexOf(marker) + marker.length;
+
+          if (startPos !== -1 && endPos !== -1) {
+            // Split the text node and insert our wrapper
+            const before = text.substring(0, startPos);
+            const after = text.substring(endPos);
+
+            textNode.nodeValue = before;
+            wrapper.textContent = newText;
+
+            const parent = textNode.parentNode;
+            if (parent) {
+              parent.insertBefore(wrapper, textNode.nextSibling);
+              parent.insertBefore(buttonContainer, wrapper.nextSibling);
+
+              if (after) {
+                parent.insertBefore(document.createTextNode(after), buttonContainer.nextSibling);
+              }
+            }
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  /**
    * Rewrite the selected/highlighted text in an easier to understand way
    */
   async rewriteSelectedText() {
@@ -1525,113 +1607,141 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       console.log('✨ REWRITTEN:', rewrittenText);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-      // Replace the selected text in the DOM with the rewritten version
-      this.replaceSelectedTextInDOM(range, rewrittenText);
+      // Create wrapper for the rewritten content with interactive UI
+      const wrapper = document.createElement('span');
+      wrapper.className = 'rewriter-highlight';
+      wrapper.style.cssText = `
+            background-color: #e5e7eb;
+            padding: 2px 4px;
+            border-radius: 3px;
+            position: relative;
+            display: inline;
+          `;
 
-      // // Create a wrapper span to replace the selected text
-      // const wrapper = document.createElement('span');
-      // wrapper.className = 'rewriter-highlight';
-      // wrapper.style.cssText = `
-      //       background-color: #e5e7eb;
-      //       padding: 2px 4px;
-      //       border-radius: 3px;
-      //       position: relative;
-      //       display: inline;
-      //     `;
+      // Store both texts as data attributes
+      wrapper.dataset.originalText = originalText;
+      wrapper.dataset.rewrittenText = rewrittenText;
+      wrapper.textContent = rewrittenText;
 
-      // // Store original text as data attribute
-      // wrapper.dataset.originalText = originalText;
-      // wrapper.dataset.rewrittenText = rewrittenText;
-      // wrapper.textContent = rewrittenText;
+      // Create button container
+      const buttonContainer = document.createElement('span');
+      buttonContainer.className = 'rewriter-buttons';
+      buttonContainer.style.cssText = `
+            display: inline-flex;
+            gap: 4px;
+            margin-left: 6px;
+            vertical-align: middle;
+          `;
 
-      // // Create button container
-      // const buttonContainer = document.createElement('span');
-      // buttonContainer.className = 'rewriter-buttons';
-      // buttonContainer.style.cssText = `
-      //       display: inline-flex;
-      //       gap: 4px;
-      //       margin-left: 6px;
-      //       vertical-align: middle;
-      //     `;
+      // Create button styles
+      const buttonStyle = `
+            padding: 2px 6px;
+            font-size: 11px;
+            border: 1px solid #d1d5db;
+            border-radius: 3px;
+            cursor: pointer;
+            background: white;
+            color: #374151;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            transition: all 0.15s;
+          `;
 
-      // // Create small buttons
-      // const buttonStyle = `
-      //       padding: 2px 6px;
-      //       font-size: 11px;
-      //       border: 1px solid #d1d5db;
-      //       border-radius: 3px;
-      //       cursor: pointer;
-      //       background: white;
-      //       color: #374151;
-      //       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      //       transition: all 0.15s;
-      //     `;
+      // Toggle button (switch between original and rewritten)
+      let showingRewritten = true;
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button'; // Prevent form submission
+      toggleBtn.textContent = '⇄';
+      toggleBtn.title = 'Toggle between original and rewritten';
+      toggleBtn.style.cssText =
+        buttonStyle +
+        `
+            color: #2563eb;
+            border-color: #93c5fd;
+          `;
 
-      // // Toggle button (switch between original and rewritten)
-      // let showingRewritten = true;
-      // const toggleBtn = document.createElement('button');
-      // toggleBtn.textContent = '⇄';
-      // toggleBtn.title = 'Toggle between original and rewritten';
-      // toggleBtn.style.cssText =
-      //   buttonStyle +
-      //   `
-      //       color: #2563eb;
-      //       border-color: #93c5fd;
-      //     `;
-      // toggleBtn.addEventListener('mouseover', () => {
-      //   toggleBtn.style.backgroundColor = '#dbeafe';
-      // });
-      // toggleBtn.addEventListener('mouseout', () => {
-      //   toggleBtn.style.backgroundColor = 'white';
-      // });
-      // toggleBtn.addEventListener('click', () => {
-      //   if (showingRewritten) {
-      //     wrapper.textContent = originalText;
-      //     wrapper.style.backgroundColor = '#fef3c7';
-      //     toggleBtn.title = 'Showing original - click to see rewritten';
-      //     showingRewritten = false;
-      //   } else {
-      //     wrapper.textContent = rewrittenText;
-      //     wrapper.style.backgroundColor = '#e5e7eb';
-      //     toggleBtn.title = 'Showing rewritten - click to see original';
-      //     showingRewritten = true;
-      //   }
-      // });
+      toggleBtn.addEventListener('mouseover', () => {
+        toggleBtn.style.backgroundColor = '#dbeafe';
+      });
+      toggleBtn.addEventListener('mouseout', () => {
+        toggleBtn.style.backgroundColor = 'white';
+      });
+      toggleBtn.addEventListener('click', e => {
+        try {
+          e.preventDefault();
+          e.stopPropagation();
 
-      // // Apply button
-      // const applyBtn = document.createElement('button');
-      // applyBtn.textContent = '✓';
-      // applyBtn.title = 'Apply current version';
-      // applyBtn.style.cssText =
-      //   buttonStyle +
-      //   `
-      //       color: #16a34a;
-      //       border-color: #86efac;
-      //     `;
-      // applyBtn.addEventListener('mouseover', () => {
-      //   applyBtn.style.backgroundColor = '#dcfce7';
-      // });
-      // applyBtn.addEventListener('mouseout', () => {
-      //   applyBtn.style.backgroundColor = 'white';
-      // });
-      // applyBtn.addEventListener('click', () => {
-      //   // Remove buttons and keep the current text (whatever is showing)
-      //   buttonContainer.remove();
-      //   wrapper.style.backgroundColor = 'transparent';
-      //   wrapper.style.padding = '0';
-      // });
+          console.log('🔄 Toggle button clicked, currently showing:', showingRewritten ? 'rewritten' : 'original');
 
-      // // Assemble buttons
-      // buttonContainer.appendChild(toggleBtn);
-      // buttonContainer.appendChild(applyBtn);
+          if (showingRewritten) {
+            wrapper.textContent = originalText;
+            wrapper.style.backgroundColor = '#fef3c7';
+            toggleBtn.title = 'Showing original - click to see rewritten';
+            showingRewritten = false;
+            console.log('✅ Switched to original text');
+          } else {
+            wrapper.textContent = rewrittenText;
+            wrapper.style.backgroundColor = '#e5e7eb';
+            toggleBtn.title = 'Showing rewritten - click to see original';
+            showingRewritten = true;
+            console.log('✅ Switched to rewritten text');
+          }
+        } catch (error) {
+          console.error('❌ Error in toggle button:', error);
+        }
+      });
 
-      // // Replace the selected text with wrapper
-      // range.deleteContents();
-      // range.insertNode(buttonContainer);
-      // range.insertNode(wrapper);
+      // Apply button
+      const applyBtn = document.createElement('button');
+      applyBtn.type = 'button'; // Prevent form submission
+      applyBtn.textContent = '✓';
+      applyBtn.title = 'Apply current version';
+      applyBtn.style.cssText =
+        buttonStyle +
+        `
+            color: #16a34a;
+            border-color: #86efac;
+          `;
 
-      // // Clear selection
-      // selection.removeAllRanges();
+      applyBtn.addEventListener('mouseover', () => {
+        applyBtn.style.backgroundColor = '#dcfce7';
+      });
+      applyBtn.addEventListener('mouseout', () => {
+        applyBtn.style.backgroundColor = 'white';
+      });
+      applyBtn.addEventListener('click', e => {
+        try {
+          e.preventDefault();
+          e.stopPropagation();
+
+          console.log('✅ Apply button clicked, current text:', wrapper.textContent?.substring(0, 30) + '...');
+
+          // Remove buttons and keep the current text
+          if (buttonContainer && buttonContainer.parentNode) {
+            buttonContainer.remove();
+          }
+          wrapper.style.backgroundColor = 'transparent';
+          wrapper.style.padding = '0';
+          wrapper.classList.remove('rewriter-highlight');
+
+          // Clear current highlight reference if this is the current highlight
+          if (this.currentHighlight === wrapper) {
+            this.currentHighlight = null;
+            console.log('🧹 Cleared current highlight reference');
+          }
+        } catch (error) {
+          console.error('❌ Error in apply button:', error);
+        }
+      });
+
+      // Assemble buttons
+      buttonContainer.appendChild(toggleBtn);
+      buttonContainer.appendChild(applyBtn);
+
+      // Use replaceSelectedTextInDOM for robust text replacement, then wrap the result
+      this.replaceSelectedTextInDOMWithWrapper(range, rewrittenText, wrapper, buttonContainer);
+
+      // Update current highlight reference
+      this.currentHighlight = wrapper;
 
       console.log('rewriting text: ', originalText);
 
