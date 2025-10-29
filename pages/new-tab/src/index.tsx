@@ -1,4 +1,5 @@
 import '@src/index.css';
+import { ThemeProvider } from '@extension/ui';
 import NewTab from '@src/NewTab';
 import { createRoot } from 'react-dom/client';
 
@@ -9,7 +10,11 @@ const init = () => {
   }
   const root = createRoot(appContainer);
 
-  root.render(<NewTab />);
+  root.render(
+    <ThemeProvider>
+      <NewTab />
+    </ThemeProvider>
+  );
 };
 
 init();

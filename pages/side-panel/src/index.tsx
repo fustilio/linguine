@@ -1,5 +1,6 @@
 import '@src/index.css';
 import { QueryClient, QueryClientProvider } from '@extension/api';
+import { ThemeProvider } from '@extension/ui';
 import SidePanel from '@src/SidePanel';
 import { createRoot } from 'react-dom/client';
 
@@ -13,9 +14,11 @@ const init = () => {
 
   const root = createRoot(appContainer);
   root.render(
-    <QueryClientProvider client={queryClient}>
-      <SidePanel />
-    </QueryClientProvider>,
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <SidePanel />
+      </QueryClientProvider>
+    </ThemeProvider>,
   );
 };
 

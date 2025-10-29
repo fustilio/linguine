@@ -1,6 +1,5 @@
 import { t } from '@extension/i18n';
 import { PROJECT_URL_OBJECT } from '@extension/shared';
-import { exampleThemeStorage } from '@extension/storage';
 import { ToggleButton, cn } from '@extension/ui';
 
 interface HeaderProps {
@@ -15,7 +14,7 @@ export const Header = ({ logo }: HeaderProps) => {
       <button onClick={goGithubSite}>
         <img src={chrome.runtime.getURL(logo)} className="App-logo" alt="logo" />
       </button>
-      <ToggleButton onClick={exampleThemeStorage.toggle}>{t('toggleTheme')}</ToggleButton>
+      <ToggleButton>{t('toggleTheme')}</ToggleButton>
     </header>
   );
 };

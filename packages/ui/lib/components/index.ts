@@ -12,6 +12,7 @@ export * from './Tabs';
 export * from './VocabularyFilterView';
 export * from './VocabularyStats';
 export * from './common-styles';
+export * from './theme-provider';
 
 // New reusable components
 export * from './forms';

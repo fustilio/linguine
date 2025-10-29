@@ -4,10 +4,9 @@ import { VocabularyAdmin } from './VocabularyAdmin';
 import { VocabularyAnalytics } from './VocabularyAnalytics';
 import { TextRewritesAdmin } from './TextRewritesAdmin';
 import { t } from '@extension/i18n';
-import { PROJECT_URL_OBJECT, useStorage, withErrorBoundary, withSuspense, LANGUAGES } from '@extension/shared';
-import { exampleThemeStorage, languageStorage } from '@extension/storage';
+import { useStorage, withErrorBoundary, withSuspense, LANGUAGES } from '@extension/shared';
+import { languageStorage } from '@extension/storage';
 import { cn, ErrorDisplay, LoadingSpinner, ToggleButton, useURLParam } from '@extension/ui';
-import { useState, useEffect } from 'react';
 
 const Options = () => {
   const { nativeLanguage, targetLanguage } = useStorage(languageStorage);

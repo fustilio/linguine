@@ -1,5 +1,3 @@
-import { useStorage } from '@extension/shared';
-import { exampleThemeStorage } from '@extension/storage';
 import { cn } from '@extension/ui';
 
 interface SidebarProps {

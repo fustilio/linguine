@@ -1,5 +1,6 @@
 import '@src/index.css';
 import { QueryClient, QueryClientProvider } from '@extension/api';
+import { ThemeProvider } from '@extension/ui';
 import Options from '@src/Options';
 import { createRoot } from 'react-dom/client';
 
@@ -12,9 +13,11 @@ const init = () => {
   const queryClient = new QueryClient();
   const root = createRoot(appContainer);
   root.render(
-    <QueryClientProvider client={queryClient}>
-      <Options />
-    </QueryClientProvider>,
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <Options />
+      </QueryClientProvider>
+    </ThemeProvider>,
   );
 };
 

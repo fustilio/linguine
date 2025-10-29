@@ -1,10 +1,4 @@
 import 'webextension-polyfill';
-import { exampleThemeStorage } from '@extension/storage';
-
-// Initialize theme storage
-exampleThemeStorage.get().then(theme => {
-  console.log('Theme loaded:', theme);
-});
 
 // Offscreen document lifecycle management
 let creating: Promise<void> | null = null; // Global promise to avoid concurrency issues

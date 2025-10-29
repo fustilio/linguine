@@ -45,11 +45,13 @@ export type StorageConfigType<D = string> = {
 };
 
 export interface ThemeStateType {
-  theme: 'light' | 'dark';
+  theme: 'light' | 'dark' | null; // null means respect system preference
 }
 
 export type ThemeStorageType = BaseStorageType<ThemeStateType> & {
   toggle: () => Promise<void>;
+  setTheme: (theme: 'light' | 'dark' | 'system') => Promise<void>;
+  initTheme: () => void;
 };
 
 export interface LanguageStateType {

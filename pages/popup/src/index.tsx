@@ -1,5 +1,6 @@
 import '@src/index.css';
 import Popup from '@src/Popup';
+import { ThemeProvider } from '@extension/ui';
 import { createRoot } from 'react-dom/client';
 
 const init = () => {
@@ -9,7 +10,11 @@ const init = () => {
   }
   const root = createRoot(appContainer);
 
-  root.render(<Popup />);
+  root.render(
+    <ThemeProvider>
+      <Popup />
+    </ThemeProvider>
+  );
 };
 
 init();
