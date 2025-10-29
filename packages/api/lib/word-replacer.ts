@@ -9,7 +9,7 @@ import { addTextRewrite } from './text-rewrites-api.js';
 import { normalizeLanguageCode } from '@extension/shared';
 import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 import type { WidgetSize } from './floating-widget.js';
-import { rewriterManager } from './chrome-ai-wrapper.js';
+import { rewriterManager } from './chrome-ai/index.js';
 
 
 type RewriterOptions = {

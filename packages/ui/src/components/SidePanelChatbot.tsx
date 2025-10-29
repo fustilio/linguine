@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { chatbotSessionManager, type ChatbotSession, type ConversationMessage } from '@extension/api/lib/chatbot-session-manager.js';
-import { chromeAIManager } from '@extension/api/lib/chrome-ai-wrapper.js';
+import { chromeAIManager } from '@extension/api/lib/chrome-ai/index.js';
 
 interface ChatbotProps {
   className?: string;

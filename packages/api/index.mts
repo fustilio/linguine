@@ -1,5 +1,5 @@
 export * from './lib/linguini-ai.js';
-export * from './lib/chrome-ai-wrapper.js';
+export * from './lib/chrome-ai/index.js';
 export * from './lib/hooks/useVocabulary.js';
 export * from './lib/hooks/useTextRewrites.js';
 export * from './lib/word-replacer.js';

@@ -1,6 +1,6 @@
 // original based on https://github.com/nico-martin/benz-gpt/blob/main/src/functionCallingPromptAPI/FunctionCallingPromptAPI.ts
 
-import { chromeAIManager } from '../chrome-ai-wrapper.js';
+import { chromeAIManager } from '../chrome-ai/index.js';
 import { z } from 'zod';
 import type { Message, FunctionCallingConfig, FunctionDefinition } from './types.js';
 

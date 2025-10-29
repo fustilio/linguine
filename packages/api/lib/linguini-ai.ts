@@ -3,7 +3,7 @@
  * Uses Chrome AI APIs for vocabulary analysis and insights
  */
 
-import { chromeAIManager, translateText } from './chrome-ai-wrapper.js';
+import { chromeAIManager, translateText } from './chrome-ai/index.js';
 import { FunctionCallingPromptAPI } from './function-calling/function-calling-api.js';
 import { z } from 'zod';
 import { LanguageCodeSchema } from '@extension/shared';

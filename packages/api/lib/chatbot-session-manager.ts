@@ -6,7 +6,7 @@
  * Provides conversation management, persistence, and session lifecycle for side panel chatbot
  */
 
-import { chromeAIManager, type ChromeAISession } from './chrome-ai-wrapper.js';
+import { chromeAIManager, type ChromeAISession } from './chrome-ai/index.js';
 
 export interface ConversationMessage {
   role: 'user' | 'assistant' | 'system';
