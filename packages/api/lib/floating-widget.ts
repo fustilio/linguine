@@ -107,8 +107,8 @@ export class FloatingWidget {
     if (!this.element) return;
 
     const stateStyles = {
-      idle: { background: 'white', cursor: 'move', animation: '' },
-      loading: { background: 'white', cursor: 'wait', animation: 'spin 1s linear infinite' },
+      idle: { background: '#f4d03f', cursor: 'move', animation: '' },
+      loading: { background: '#f4d03f', cursor: 'wait', animation: 'spin 1s linear infinite' },
       success: { background: '#4ade80', cursor: 'move', animation: '' },
       error: { background: '#f87171', cursor: 'move', animation: '' },
     };
@@ -198,7 +198,7 @@ export class FloatingWidget {
       right: ${position!.x}px;
       width: ${size.width};
       height: ${size.height};
-      background: white;
+      background: #f4d03f;
       border-radius: 50%;
       display: flex;
       align-items: center;

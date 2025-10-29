@@ -6,12 +6,12 @@ import { wordReplacerStorage, DEFAULT_REWRITER_OPTIONS, DEFAULT_REWRITER_PROMPT 
 import { cn, ErrorDisplay, LoadingSpinner, ToggleButton } from '@extension/ui';
 import { useEffect, useState } from 'react';
 
-const notificationOptions = {
-  type: 'basic',
-  iconUrl: chrome.runtime.getURL('pasta-illustration-2.png'),
-  title: 'Injecting content script error',
-  message: 'You cannot inject script here!',
-} as const;
+// const notificationOptions = {
+//   type: 'basic',
+//   iconUrl: chrome.runtime.getURL('pasta-illustration-2.png'),
+//   title: 'Injecting content script error',
+//   message: 'You cannot inject script here!',
+// } as const;
 
 const Popup = () => {
   const logo = 'popup/pasta-illustration-2.svg';
@@ -136,25 +136,25 @@ const Popup = () => {
 
   const goGithubSite = () => chrome.tabs.create(PROJECT_URL_OBJECT);
 
-  const injectContentScript = async () => {
-    const [tab] = await chrome.tabs.query({ currentWindow: true, active: true });
+  // const injectContentScript = async () => {
+  //   const [tab] = await chrome.tabs.query({ currentWindow: true, active: true });
 
-    if (tab.url!.startsWith('about:') || tab.url!.startsWith('chrome:')) {
-      chrome.notifications.create('inject-error', notificationOptions);
-    }
+  //   if (tab.url!.startsWith('about:') || tab.url!.startsWith('chrome:')) {
+  //     chrome.notifications.create('inject-error', notificationOptions);
+  //   }
 
-    await chrome.scripting
-      .executeScript({
-        target: { tabId: tab.id! },
-        files: ['/content-runtime/example.iife.js', '/content-runtime/all.iife.js'],
-      })
-      .catch(err => {
-        // Handling errors related to other paths
-        if (err.message.includes('Cannot access a chrome:// URL')) {
-          chrome.notifications.create('inject-error', notificationOptions);
-        }
-      });
-  };
+  //   await chrome.scripting
+  //     .executeScript({
+  //       target: { tabId: tab.id! },
+  //       files: ['/content-runtime/example.iife.js', '/content-runtime/all.iife.js'],
+  //     })
+  //     .catch(err => {
+  //       // Handling errors related to other paths
+  //       if (err.message.includes('Cannot access a chrome:// URL')) {
+  //         chrome.notifications.create('inject-error', notificationOptions);
+  //       }
+  //     });
+  // };
 
   return (
     <div
@@ -174,8 +174,9 @@ const Popup = () => {
           </button>
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold">Linguine</h1>
-            <p className="text-[10px] leading-tight opacity-90">
-              Rephrase highlighted text into simpler, more understandable language.
+            <p className="text-[11px] leading-tight opacity-90">
+              Rephrase highlighted text into simpler, more understandable language, just like untangling a bowl of
+              linguine.
             </p>
           </div>
         </div>
@@ -183,7 +184,7 @@ const Popup = () => {
 
       <div className="p-4">
         {/* Theme Toggle */}
-        <div className="mb-4 flex justify-center">
+        <div className="mb-6 flex justify-center">
           <ToggleButton>{t('toggleTheme')}</ToggleButton>
         </div>
 
@@ -219,14 +220,14 @@ const Popup = () => {
               )}></button>
           </div>
 
-          <button
+          {/* <button
             className={cn(
               'w-full rounded px-4 py-2 font-semibold shadow transition-transform hover:scale-105',
               'bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700',
             )}
             onClick={injectContentScript}>
             {t('injectButton')}
-          </button>
+          </button> */}
         </div>
 
         {/* Widget Size Section */}
