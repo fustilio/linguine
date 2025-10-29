@@ -1,15 +1,11 @@
 import { createStorage, StorageEnum } from '../base/index.js';
-import type { WordReplacerStateType, WordReplacerStorageType } from '../base/index.js';
 import { DEFAULT_WORD_REPLACER_STATE } from '../constants/rewriter-defaults.js';
+import type { WordReplacerStateType, WordReplacerStorageType } from '../base/index.js';
 
-const storage = createStorage<WordReplacerStateType>(
-  'wordReplacer',
-  DEFAULT_WORD_REPLACER_STATE,
-  {
-    storageEnum: StorageEnum.Sync,
-    liveUpdate: true,
-  },
-);
+const storage = createStorage<WordReplacerStateType>('wordReplacer', DEFAULT_WORD_REPLACER_STATE, {
+  storageEnum: StorageEnum.Sync,
+  liveUpdate: true,
+});
 
 export const wordReplacerStorage: WordReplacerStorageType = {
   ...storage,
@@ -26,6 +22,12 @@ export const wordReplacerStorage: WordReplacerStorageType = {
         ...currentState.rewriterOptions,
         ...options,
       },
+    }));
+  },
+  updateWidgetSize: async (size: WordReplacerStateType['widgetSize']) => {
+    await storage.set(currentState => ({
+      ...currentState,
+      widgetSize: size,
     }));
   },
 };

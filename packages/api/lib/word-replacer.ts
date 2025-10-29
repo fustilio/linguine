@@ -3,8 +3,8 @@
 // Users can select text to add replacements and see replacements applied in real-time
 
 import { addTextRewrite } from './text-rewrites-api.js';
-import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 import { normalizeLanguageCode } from '@extension/shared';
+import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 
 declare global {
   interface Window {
@@ -45,6 +45,7 @@ export class WordReplacer {
   private rewriter: Rewriter | null; // Type from Chrome's experimental AI API (not in TS types)
   private isRewriterReady: boolean;
   private rewriterOptions: RewriterOptions;
+  private widgetSize: 'small' | 'medium' | 'large';
   private downloadProgress: number;
   private isDownloading: boolean;
   private replaceTimeout?: ReturnType<typeof setTimeout>;
@@ -70,6 +71,7 @@ export class WordReplacer {
       format: 'as-is',
       length: 'shorter',
     };
+    this.widgetSize = 'small';
     this.downloadProgress = 0;
     this.isDownloading = false;
 
@@ -162,12 +164,11 @@ export class WordReplacer {
       this.isActive = settings.isActive || false;
       this.highlightColor = settings.highlightColor || '#fbbf24';
       this.replacements = new Map(settings.replacements || []);
+      this.widgetSize = settings.widgetSize || 'small';
 
       // Load rewriter options
       this.rewriterOptions = {
-        sharedContext:
-          settings.rewriterOptions?.sharedContext ||
-          DEFAULT_REWRITER_PROMPT,
+        sharedContext: settings.rewriterOptions?.sharedContext || DEFAULT_REWRITER_PROMPT,
         tone: settings.rewriterOptions?.tone || 'more-casual',
         format: settings.rewriterOptions?.format || 'plain-text',
         length: settings.rewriterOptions?.length || 'shorter',
@@ -189,6 +190,7 @@ export class WordReplacer {
         isActive: this.isActive,
         highlightColor: this.highlightColor,
         replacements: Array.from(this.replacements.entries()),
+        widgetSize: this.widgetSize,
         rewriterOptions: this.rewriterOptions,
       };
 
@@ -205,84 +207,93 @@ export class WordReplacer {
   ): boolean | void {
     const handleAsyncMessage = async () => {
       switch (message.action) {
-      case 'updateState': {
-        // Single handler for all state updates
-        const state = message.state as {
-          isActive?: boolean;
-          rewriterOptions?: RewriterOptions;
-        };
-
-        const wasActive = this.isActive;
-
-        // Update state
-        if (state.isActive !== undefined) {
-          this.isActive = state.isActive;
-        }
-        if (state.rewriterOptions) {
-          // Shallow merge two objects
-          this.rewriterOptions = {
-            ...this.rewriterOptions,
-            ...state.rewriterOptions,
+        case 'updateState': {
+          // Single handler for all state updates
+          const state = message.state as {
+            isActive?: boolean;
+            widgetSize?: 'small' | 'medium' | 'large';
+            rewriterOptions?: RewriterOptions;
           };
-          // Reset rewriter when options change
-          this.isRewriterReady = false;
-          this.rewriter = null;
-        }
 
-        // Handle activation/deactivation
-        if (this.isActive && !wasActive) {
-          this.setupSelectionMode();
-          this.replaceWordsInPage();
-          this.createFloatingWidget();
-        } else if (!this.isActive && wasActive) {
-          this.removeHighlights();
-          this.removeCurrentHighlight();
-          this.removeSelectionMode();
-          this.removeFloatingWidget();
-        }
+          const wasActive = this.isActive;
 
-        this.saveSettings();
-        sendResponse({ success: true });
-        break;
-      }
+          // Update state
+          if (state.isActive !== undefined) {
+            this.isActive = state.isActive;
+          }
+          if (state.widgetSize) {
+            this.widgetSize = state.widgetSize;
+            // Recreate widget if it exists to apply new size
+            if (this.floatingWidget) {
+              this.removeFloatingWidget();
+              this.createFloatingWidget();
+            }
+          }
+          if (state.rewriterOptions) {
+            // Shallow merge two objects
+            this.rewriterOptions = {
+              ...this.rewriterOptions,
+              ...state.rewriterOptions,
+            };
+            // Reset rewriter when options change
+            this.isRewriterReady = false;
+            this.rewriter = null;
+          }
 
-      case 'addReplacement':
-        this.replacements.set(message.original as string, message.replacement as string);
-        this.saveSettings();
-        if (this.isActive) {
-          this.replaceWordsInPage();
-        }
-        sendResponse({ success: true });
-        break;
+          // Handle activation/deactivation
+          if (this.isActive && !wasActive) {
+            this.setupSelectionMode();
+            this.replaceWordsInPage();
+            this.createFloatingWidget();
+          } else if (!this.isActive && wasActive) {
+            this.removeHighlights();
+            this.removeCurrentHighlight();
+            this.removeSelectionMode();
+            this.removeFloatingWidget();
+          }
 
-      case 'removeReplacement':
-        this.replacements.delete(message.original as string);
-        this.saveSettings();
-        if (this.isActive) {
-          this.replaceWordsInPage();
-        }
-        sendResponse({ success: true });
-        break;
-
-      case 'getState':
-        sendResponse({
-          success: true,
-          state: {
-            isActive: this.isActive,
-            replacements: Array.from(this.replacements.entries()),
-            highlightColor: this.highlightColor,
-          },
-        });
-        break;
-
-      case 'rewriteSelectedText':
-        if (!this.isActive) {
-          sendResponse({
-            success: false,
-            error: 'Extension is not active. Please enable it in the popup.',
-          });
+          this.saveSettings();
+          sendResponse({ success: true });
           break;
         }
+
+        case 'addReplacement':
+          this.replacements.set(message.original as string, message.replacement as string);
+          this.saveSettings();
+          if (this.isActive) {
+            this.replaceWordsInPage();
+          }
+          sendResponse({ success: true });
+          break;
+
+        case 'removeReplacement':
+          this.replacements.delete(message.original as string);
+          this.saveSettings();
+          if (this.isActive) {
+            this.replaceWordsInPage();
+          }
+          sendResponse({ success: true });
+          break;
+
+        case 'getState':
+          sendResponse({
+            success: true,
+            state: {
+              isActive: this.isActive,
+              replacements: Array.from(this.replacements.entries()),
+              highlightColor: this.highlightColor,
+            },
+          });
+          break;
+
+        case 'rewriteSelectedText':
+          if (!this.isActive) {
+            sendResponse({
+              success: false,
+              error: 'Extension is not active. Please enable it in the popup.',
+            });
+            break;
+          }
 
           try {
             const result = await this.rewriteSelectedText();
@@ -293,8 +304,9 @@ export class WordReplacer {
               error: error instanceof Error ? error.message : 'Unknown error',
             });
           }
+          break;
 
-      case 'checkRewriterAvailability':
+        case 'checkRewriterAvailability':
           try {
             const result = await this.checkRewriterAvailability();
             sendResponse({ success: true, ...result });
@@ -304,31 +316,32 @@ export class WordReplacer {
               error: error instanceof Error ? error.message : 'Unknown error',
             });
           }
+          break;
 
-      case 'updateRewriterOptions':
-        this.rewriterOptions = {
-          ...this.rewriterOptions,
-          ...(message.options as Partial<RewriterOptions>),
-        };
-        // Reset rewriter when options change
-        this.isRewriterReady = false;
-        this.rewriter = null;
-        this.saveSettings();
-        sendResponse({ success: true });
-        break;
+        case 'updateRewriterOptions':
+          this.rewriterOptions = {
+            ...this.rewriterOptions,
+            ...(message.options as Partial<RewriterOptions>),
+          };
+          // Reset rewriter when options change
+          this.isRewriterReady = false;
+          this.rewriter = null;
+          this.saveSettings();
+          sendResponse({ success: true });
+          break;
 
-      case 'getRewriterOptions':
-        sendResponse({
-          success: true,
-          options: this.rewriterOptions,
-        });
-        break;
+        case 'getRewriterOptions':
+          sendResponse({
+            success: true,
+            options: this.rewriterOptions,
+          });
+          break;
 
-      case 'ping':
-        sendResponse({ success: true, pong: true });
-        break;
+        case 'ping':
+          sendResponse({ success: true, pong: true });
+          break;
 
-      default:
+        default:
           sendResponse({ success: false, error: 'Unknown action' });
       }
       return; // Explicit return for async function
@@ -1385,7 +1398,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // // Clear selection
       // selection.removeAllRanges();
 
-      console.log("rewriting text: ", originalText);
+      console.log('rewriting text: ', originalText);
 
       // Save to database via background script
       try {
@@ -1399,7 +1412,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         // Generate URL fragment for text anchor
         const urlFragment = this.generateTextFragment(originalText);
         console.log('💾 trying to write', originalText, rewrittenText);
-        
+
         // Save rewrite via background script
         const success = await addTextRewrite({
           original_text: originalText,
@@ -1465,13 +1478,21 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
     widget.appendChild(img);
 
+    // Determine widget size based on setting
+    const sizeMap = {
+      small: { width: '50px', height: '50px' },
+      medium: { width: '70px', height: '70px' },
+      large: { width: '90px', height: '90px' },
+    };
+    const size = sizeMap[this.widgetSize];
+
     // Style the widget
     widget.style.cssText = `
         position: fixed;
         bottom: 20px;
         right: 20px;
-        width: 50px;
-        height: 50px;
+        width: ${size.width};
+        height: ${size.height};
         background: white;
         border-radius: 50%;
         display: flex;

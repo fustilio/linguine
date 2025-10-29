@@ -64,6 +64,7 @@ export type LanguageStorageType = BaseStorageType<LanguageStateType> & {
 
 export interface WordReplacerStateType {
   isActive: boolean;
+  widgetSize: 'small' | 'medium' | 'large';
   rewriterOptions: {
     sharedContext: string;
     tone: string;
@@ -75,4 +76,5 @@ export interface WordReplacerStateType {
 export type WordReplacerStorageType = BaseStorageType<WordReplacerStateType> & {
   toggleActive: () => Promise<void>;
   updateRewriterOptions: (options: Partial<WordReplacerStateType['rewriterOptions']>) => Promise<void>;
+  updateWidgetSize: (size: WordReplacerStateType['widgetSize']) => Promise<void>;
 };
