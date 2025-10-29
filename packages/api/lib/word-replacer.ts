@@ -1147,29 +1147,253 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    * Replace selected text in the DOM while preserving position, font, and style
    */
   replaceSelectedTextInDOM(range: Range, newText: string): void {
+    // Get all text nodes within the selection
+    const startContainer = range.startContainer;
+    const endContainer = range.endContainer;
+
+    console.log('🔍 Range details:', {
+      startContainer: startContainer.nodeName,
+      endContainer: endContainer.nodeName,
+      startContainerType: startContainer.nodeType,
+      endContainerType: endContainer.nodeType,
+      sameNode: startContainer === endContainer,
+      startParent: startContainer.parentNode?.nodeName,
+      endOffset: range.endOffset,
+      endChildNodesLength:
+        endContainer.nodeType === Node.ELEMENT_NODE ? (endContainer as Element).childNodes.length : 'N/A',
+    });
+
+    // Case 1: Selection is within a single text node (most common case)
+    // Also handle case where end container is an element but selection is still within one text node
+    const isSingleTextNode = startContainer === endContainer && startContainer.nodeType === Node.TEXT_NODE;
+
+    // Check if this is a selection that ends at the boundary of the next element
+    // When you select entire paragraph, browser sets endContainer to the NEXT element with endOffset=0
+    const isSelectionToElementBoundary =
+      startContainer.nodeType === Node.TEXT_NODE &&
+      endContainer.nodeType === Node.ELEMENT_NODE &&
+      range.endOffset === 0 && // Selection ends at start of next element
+      range.startOffset === 0; // Selection starts at beginning of text node
+
+    console.log('🔍 Detection logic:', {
+      isSingleTextNode,
+      isSelectionToElementBoundary,
+      startIsText: startContainer.nodeType === Node.TEXT_NODE,
+      endIsElement: endContainer.nodeType === Node.ELEMENT_NODE,
+      sameParent: startContainer.parentNode === endContainer,
+      containsStart:
+        endContainer.nodeType === Node.ELEMENT_NODE ? (endContainer as Element).contains(startContainer) : false,
+      startOffset: range.startOffset,
+      endOffset: range.endOffset,
+      endChildNodesLength:
+        endContainer.nodeType === Node.ELEMENT_NODE ? (endContainer as Element).childNodes.length : -1,
+    });
+
+    if (isSingleTextNode || isSelectionToElementBoundary) {
+      const textNode = startContainer as Text;
+      const originalText = textNode.nodeValue || '';
+
+      console.log('✅ Using Case 1: Single text node replacement');
+      console.log('📝 Original text:', originalText);
+      console.log('📝 Range offsets:', range.startOffset, 'to', range.endOffset);
+      console.log('📝 isSelectionToElementBoundary:', isSelectionToElementBoundary);
+
+      // Replace just the selected portion by modifying nodeValue directly
+      const before = originalText.substring(0, range.startOffset);
+      // If selection goes to boundary of next element (endOffset=0), replace to end of current text
+      const after = isSelectionToElementBoundary ? '' : originalText.substring(range.endOffset);
+      textNode.nodeValue = before + newText + after;
+
+      console.log('📝 New nodeValue:', textNode.nodeValue);
+      console.log('📝 Parent element:', textNode.parentElement?.tagName, textNode.parentElement?.className);
+
+      // Clear the selection
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+      }
+
+      console.log('✅ Text replaced in single node (nodeValue modified directly)');
+      return;
+    }
+
+    // Case 2: Selection spans multiple nodes
+    console.log('⚠️ Using Case 2: Selection spans multiple nodes');
+
+    // Check if we're selecting from the very start of one element
+    const isSelectingFromStart = range.startOffset === 0;
+
+    console.log('📊 Selection analysis:', {
+      isSelectingFromStart,
+      startOffset: range.startOffset,
+      startContainer: startContainer.nodeName,
+      endContainer: endContainer.nodeName,
+    });
+
+    if (isSelectingFromStart) {
+      // User selected entire paragraphs - create a new paragraph element
+      console.log('📄 Creating new paragraph element for full selection');
+
+      // Find the parent paragraph element
+      let firstP =
+        startContainer.nodeType === Node.TEXT_NODE ? startContainer.parentElement : (startContainer as HTMLElement);
+
+      // Find the actual <p> element if we're in a nested structure
+      while (firstP && firstP.nodeName !== 'P') {
+        firstP = firstP.parentElement;
+      }
+
+      if (firstP) {
+        // Collect all paragraph elements that are fully or partially selected
+        const paragraphsToRemove: Element[] = [];
+
+        // Start from the first paragraph and find all selected paragraphs
+        let currentNode: Node | null = firstP;
+
+        while (currentNode) {
+          if (currentNode.nodeType === Node.ELEMENT_NODE && currentNode.nodeName === 'P') {
+            if (range.intersectsNode(currentNode)) {
+              paragraphsToRemove.push(currentNode as Element);
+              console.log('🔍 Found paragraph in selection:', (currentNode as Element).textContent?.substring(0, 50));
+            } else {
+              // If this paragraph is not in selection, we've gone past the selection
+              break;
+            }
+          }
+          currentNode = currentNode.nextSibling;
+        }
+
+        console.log('📋 Paragraphs in selection:', paragraphsToRemove.length);
+
+        // Replace the FIRST selected paragraph's content, remove the rest
+        if (paragraphsToRemove.length > 0) {
+          const firstSelectedP = paragraphsToRemove[0] as HTMLElement;
+          firstSelectedP.textContent = newText;
+          console.log('✏️ Replaced first paragraph content');
+
+          // Remove the additional paragraphs (skip the first one)
+          for (let i = 1; i < paragraphsToRemove.length; i++) {
+            console.log('🗑️ Removing additional paragraph:', paragraphsToRemove[i].textContent?.substring(0, 50));
+            paragraphsToRemove[i].remove();
+          }
+
+          console.log('✅ Replaced 1 paragraph, removed', paragraphsToRemove.length - 1, 'additional paragraphs');
+        }
+      } else {
+        // Fallback: create a div
+        const newDiv = document.createElement('div');
+        newDiv.textContent = newText;
+
+        // Insert at the range position
+        range.deleteContents();
+        range.insertNode(newDiv);
+
+        console.log('✅ Created new div as fallback');
+      }
+    } else {
+      // Partial selection - need to check if it spans multiple paragraphs
+      let targetTextNode: Text | null = null;
+
+      if (startContainer.nodeType === Node.TEXT_NODE) {
+        targetTextNode = startContainer as Text;
+      } else {
+        // Find first text node in start container
+        const walker = document.createTreeWalker(startContainer, NodeFilter.SHOW_TEXT, null);
+        targetTextNode = walker.nextNode() as Text;
+      }
+
+      if (targetTextNode) {
+        console.log('📝 Found target text node in:', targetTextNode.parentElement?.tagName);
+
+        // Find if selection spans multiple paragraphs
+        const startP = targetTextNode.parentElement?.closest('p');
+        const endP = (
+          endContainer.nodeType === Node.TEXT_NODE ? endContainer.parentElement : (endContainer as HTMLElement)
+        )?.closest('p');
+
+        const spansMultipleParagraphs = startP !== endP && startP && endP;
+
+        console.log('📊 Paragraph span check:', {
+          startP: startP?.textContent?.substring(0, 30),
+          endP: endP?.textContent?.substring(0, 30),
+          spansMultipleParagraphs,
+        });
+
+        if (spansMultipleParagraphs) {
+          // Selection spans multiple paragraphs - create new paragraph for rewritten text
+          console.log('📄 Spans multiple paragraphs - creating new paragraph');
+
+          // Trim the first paragraph to keep only the text before selection
+          const originalText = targetTextNode.nodeValue || '';
+          const before = originalText.substring(0, range.startOffset);
+          targetTextNode.nodeValue = before;
+
+          console.log('✂️ Trimmed first paragraph to:', before);
+
+          // Create new paragraph for rewritten text with same styling
+          const newP = document.createElement('p');
+          if (startP?.className) {
+            newP.className = startP.className;
+          }
+          newP.textContent = newText;
+
+          // Insert the new paragraph after the first one
+          startP?.parentNode?.insertBefore(newP, startP.nextSibling);
+
+          console.log('✅ Created new paragraph with rewritten text');
+
+          // Find and remove all paragraphs between start and end (exclusive of start, inclusive of end)
+          let currentNode = startP?.nextSibling;
+          const nodesToRemove: Node[] = [];
+
+          while (currentNode && currentNode !== newP) {
+            if (currentNode.nodeType === Node.ELEMENT_NODE && (currentNode as Element).nodeName === 'P') {
+              // Check if this paragraph is in the selection
+              if (range.intersectsNode(currentNode) || currentNode === endP) {
+                nodesToRemove.push(currentNode);
+                console.log('�️ Will remove paragraph:', (currentNode as Element).textContent?.substring(0, 50));
+                if (currentNode === endP) break;
+              }
+            }
+            currentNode = currentNode.nextSibling;
+          }
+
+          // Remove the collected paragraphs
+          nodesToRemove.forEach(node => (node as Element).remove());
+          console.log('✅ Removed', nodesToRemove.length, 'selected paragraphs');
+        } else {
+          // Single paragraph - modify the text node directly
+          const originalText = targetTextNode.nodeValue || '';
+          const before = originalText.substring(0, range.startOffset);
+
+          // Replace the text node content
+          targetTextNode.nodeValue = before + newText;
+
+          console.log('📝 Updated text in single paragraph');
+
+          // Delete remaining selected content in same paragraph
+          const cleanupRange = document.createRange();
+          cleanupRange.setStart(targetTextNode, (before + newText).length);
+          cleanupRange.setEnd(endContainer, range.endOffset);
+
+          console.log('🗑️ Deleting remaining selected content');
+          cleanupRange.deleteContents();
+        }
+      } else {
+        console.log('⚠️ No text node found, using fallback');
+        // Fallback to simple replacement
+        const fragment = document.createDocumentFragment();
+        fragment.appendChild(document.createTextNode(newText));
+        range.deleteContents();
+        range.insertNode(fragment);
+      }
+    }
+
     // Store the parent element for cleanup
     const parentElement = range.commonAncestorContainer.parentElement;
 
-    // Create a document fragment to hold the new text
-    // This handles newlines and preserves whitespace better
-    const fragment = document.createDocumentFragment();
-
-    // Split text by newlines to preserve paragraph structure
-    const lines = newText.split('\n');
-
-    lines.forEach((line, index) => {
-      // Add text node for the line
-      fragment.appendChild(document.createTextNode(line));
-
-      // Add line break between lines (except after the last one)
-      if (index < lines.length - 1) {
-        fragment.appendChild(document.createElement('br'));
-      }
-    });
-
-    // Delete the old content and insert the new fragment
-    range.deleteContents();
-    range.insertNode(fragment);
+    console.log('📝 Replacement complete');
+    console.log('📦 Parent structure:', parentElement?.innerHTML.substring(0, 200));
 
     // Clean up any leftover empty elements (like empty <code>, <span>, etc.)
     if (parentElement) {
@@ -1182,7 +1406,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       selection.removeAllRanges();
     }
 
-    console.log('✅ Text replaced in DOM successfully');
+    console.log('✅ Text replaced across multiple nodes');
   }
 
   /**
