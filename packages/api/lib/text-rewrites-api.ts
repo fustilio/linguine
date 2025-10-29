@@ -6,10 +6,11 @@ import {
   sendDatabaseMessageForItem,
   sendDatabaseMessageForBoolean,
   sendDatabaseMessageForNumber,
+  TextRewriteSchema,
+  TextRewriteDataSchema,
+  TextRewriteFiltersSchema,
 } from './database-api-utils.js';
 import type { VocabularyItem } from './vocabulary-api.js';
-import { LanguageCodeSchema } from '@extension/shared';
-import { z } from 'zod';
 
 export interface TextRewriteData {
   original_text: string;
@@ -28,23 +29,8 @@ export interface TextRewriteFilters {
   sourceUrl?: string;
 }
 
-// Zod schemas for validation
-export const TextRewriteDataSchema = z.object({
-  original_text: z.string().min(1),
-  rewritten_text: z.string().min(1),
-  language: LanguageCodeSchema,
-  rewriter_settings: z.string(),
-  source_url: z.string().url(),
-  url_fragment: z.string().nullable().optional(),
-});
-
-export const TextRewriteFiltersSchema = z.object({
-  language: LanguageCodeSchema.optional(),
-  minReadability: z.number().min(0).max(100).optional(),
-  maxReadability: z.number().min(0).max(100).optional(),
-  recentDays: z.number().positive().optional(),
-  sourceUrl: z.string().url().optional(),
-});
+// Note: TextRewriteDataSchema and TextRewriteFiltersSchema are exported from database-api-utils.js
+// to avoid duplicate exports. They are imported above for use in this file.
 
 export interface TextRewriteResponse {
   success: boolean;
@@ -72,14 +58,8 @@ export interface TextRewrite {
  * Add a text rewrite via offscreen document
  */
 export const addTextRewrite = async (rewriteData: TextRewriteData): Promise<TextRewrite | null> => {
-  // Validate input data
   const validatedData = TextRewriteDataSchema.parse(rewriteData);
-  
-  const result = await sendDatabaseMessageForItem<TextRewrite>('addTextRewrite', validatedData);
-  if (result) {
-    console.log('✅ Text rewrite saved successfully');
-  }
-  return result;
+  return await sendDatabaseMessageForItem<TextRewrite>('addTextRewrite', validatedData, TextRewriteSchema);
 };
 
 /**
@@ -103,7 +83,9 @@ export const getTextRewrites = async (
     }
   }
   
-  return sendDatabaseMessageForArray<TextRewrite>('getTextRewrites', { page, limit, filters: validatedFilters });
+  const response = await sendDatabaseMessageForArray<TextRewrite>('getTextRewrites', { page, limit, filters: validatedFilters });
+  // Validate each item in the array
+  return response.map(item => TextRewriteSchema.parse(item));
 };
 
 /**
@@ -130,40 +112,28 @@ export const getTextRewriteCount = async (filters: TextRewriteFilters = {}): Pro
  * Delete a single text rewrite via offscreen document
  */
 export const deleteTextRewrite = async (id: number): Promise<boolean> => {
-  const result = await sendDatabaseMessageForBoolean('deleteTextRewrite', { id });
-  if (result) {
-    console.log('✅ Text rewrite deleted successfully');
-  }
-  return result;
+  return await sendDatabaseMessageForBoolean('deleteTextRewrite', { id });
 };
 
 /**
  * Delete multiple text rewrites via offscreen document
  */
 export const deleteTextRewrites = async (ids: number[]): Promise<boolean> => {
-  const result = await sendDatabaseMessageForBoolean('deleteTextRewrites', { ids });
-  if (result) {
-    console.log('✅ Text rewrites deleted successfully');
-  }
-  return result;
+  return await sendDatabaseMessageForBoolean('deleteTextRewrites', { ids });
 };
 
 /**
  * Clear all text rewrites via offscreen document
  */
 export const clearAllTextRewrites = async (): Promise<boolean> => {
-  const result = await sendDatabaseMessageForBoolean('clearAllTextRewrites');
-  if (result) {
-    console.log('✅ All text rewrites cleared successfully');
-  }
-  return result;
+  return await sendDatabaseMessageForBoolean('clearAllTextRewrites');
 };
 
 /**
  * Get text rewrite by ID via offscreen document
  */
 export const getTextRewriteById = async (id: number): Promise<TextRewrite | null> => {
-  return sendDatabaseMessageForItem<TextRewrite>('getTextRewriteById', { id });
+  return sendDatabaseMessageForItem<TextRewrite>('getTextRewriteById', { id }, TextRewriteSchema);
 };
 
 /**
@@ -216,11 +186,7 @@ export const getTextRewritesContainingWord = async (vocabularyId: number): Promi
  * Reset text rewrites database via offscreen document
  */
 export const resetTextRewritesDatabase = async (): Promise<boolean> => {
-  const result = await sendDatabaseMessageForBoolean('resetTextRewritesDatabase');
-  if (result) {
-    console.log('✅ Text rewrites database reset successfully');
-  }
-  return result;
+  return await sendDatabaseMessageForBoolean('resetTextRewritesDatabase');
 };
 
 /**
@@ -235,9 +201,6 @@ export const ensureDatabaseInitialized = async (): Promise<boolean> => {
  */
 export const migrateLanguageCodes = async (): Promise<{ updated: number; errors: number }> => {
   const result = await sendDatabaseMessageForItem<{ updated: number; errors: number }>('migrateLanguageCodes');
-  if (result) {
-    console.log(`✅ Language code migration completed: ${result.updated} updated, ${result.errors} errors`);
-  }
   return result || { updated: 0, errors: 0 };
 };
 

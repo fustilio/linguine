@@ -237,20 +237,34 @@ await db.schema.createIndex('idx_text_rewrites_source_url').on('text_rewrites').
 export const addTextRewrite = async (rewrite: Omit<NewTextRewrite, 'id' | 'original_readability_score' | 'rewritten_readability_score' | 'created_at'>) => {
   await ensureTextRewritesDatabaseInitialized();
   const db = getDb();
+  if (!db) {
+    throw new Error('Database not available');
+  }
   
-  const now = new Date().toISOString();
-  const originalReadabilityScore = calculateReadabilityScore(rewrite.original_text, rewrite.language);
-  const rewrittenReadabilityScore = calculateReadabilityScore(rewrite.rewritten_text, rewrite.language);
+  try {
+    const now = new Date().toISOString();
+    const originalReadabilityScore = calculateReadabilityScore(rewrite.original_text, rewrite.language);
+    const rewrittenReadabilityScore = calculateReadabilityScore(rewrite.rewritten_text, rewrite.language);
 
-  await db
-    .insertInto('text_rewrites')
-    .values({
+    const insertValues = {
       ...rewrite,
       original_readability_score: originalReadabilityScore,
       rewritten_readability_score: rewrittenReadabilityScore,
       created_at: now,
-    })
-    .execute();
+    };
+
+    // Use returningAll() to get the inserted row back
+    const result = await db
+      .insertInto('text_rewrites')
+      .values(insertValues)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return result;
+  } catch (error) {
+    console.error('Error adding text rewrite:', error);
+    throw error;
+  }
 };
 
 export const getTextRewrites = async (
@@ -651,7 +665,8 @@ console.log(`Migration completed: ${result.updated} updated, ${result.errors} er
 
 - **Direct Import**: Offscreen document imports SQLite functions directly
 - **OPFS Access**: Only offscreen document can access OPFS
-- **Message Handling**: Receives messages from background script
+- **Message Handling**: Receives messages directly from UI/content scripts with `target: 'offscreen'`
+- **Response Validation**: All responses validated with Zod schemas before sending
 
 ## Related Documentation
 

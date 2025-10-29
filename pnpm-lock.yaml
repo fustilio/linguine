@@ -141,6 +141,9 @@ importers:
 
   chrome-extension:
     dependencies:
+      '@extension/api':
+        specifier: workspace:*
+        version: link:../packages/api
       '@extension/env':
         specifier: workspace:*
         version: link:../packages/env
@@ -156,6 +159,9 @@ importers:
       webextension-polyfill:
         specifier: ^0.12.0
         version: 0.12.0
+      zod:
+        specifier: ^4.1.12
+        version: 4.1.12
     devDependencies:
       '@extension/dev-utils':
         specifier: workspace:*
@@ -363,9 +369,6 @@ importers:
         specifier: ^3.3.0
         version: 3.3.1
     devDependencies:
-      '@extension/api':
-        specifier: workspace:*
-        version: link:../api
       '@extension/sqlite':
         specifier: workspace:*
         version: link:../sqlite
@@ -627,6 +630,9 @@ importers:
       '@extension/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: ^5.90.5
+        version: 5.90.5(react@19.1.1)
     devDependencies:
       '@extension/tailwindcss-config':
         specifier: workspace:*

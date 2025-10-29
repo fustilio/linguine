@@ -4,12 +4,15 @@ import { Card, CardContent, cn, themeVariants } from '@extension/ui';
 import type { TextRewrite } from '@extension/api';
 import { RewriteDetailView } from './RewriteDetailView';
 import { RewritesList } from './RewritesList';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface RewritesViewProps {
   currentUrl: string;
 }
 
 export const RewritesView = ({ currentUrl }: RewritesViewProps) => {
+  const queryClient = useQueryClient();
+  
   // Parse URL to get domain + path (ignore query params and fragments)
   const getUrlBase = (url: string) => {
     try {
@@ -25,6 +28,40 @@ export const RewritesView = ({ currentUrl }: RewritesViewProps) => {
   const { items: rewrites, deleteTextRewrite } = useTextRewrites({ 
     sourceUrl: urlBase
   });
+  
+  // Listen for rewrite accepted messages from content script
+  useEffect(() => {
+    const handleMessage = (
+      message: { 
+        action: string; 
+        target?: string;
+        data?: { rewrite?: TextRewrite; url?: string } 
+      }
+    ) => {
+      // Only process messages explicitly targeted to sidepanel or with no target (for backward compatibility)
+      if (message.target && message.target !== 'sidepanel') {
+        return; // Message not for us
+      }
+
+      if (message.action === 'rewriteAccepted' && message.data) {
+        const { rewrite, url } = message.data;
+            // Check if this rewrite is for the current page
+            if (rewrite && url) {
+              const rewriteUrlBase = getUrlBase(url);
+              if (rewriteUrlBase === urlBase) {
+                // Invalidate queries to refresh the rewrites list
+                queryClient.invalidateQueries({ queryKey: ['textRewrites'] });
+              }
+            }
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, [urlBase, queryClient]);
 
   // Selected rewrite state (default to most recent)
   const [selectedRewrite, setSelectedRewrite] = useState<TextRewrite | null>(null);

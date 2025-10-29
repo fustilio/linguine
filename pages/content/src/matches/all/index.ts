@@ -12,18 +12,22 @@ console.log('[CEB] Word replacer initialized');
 
 // Handle messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log("received message", message);
+  // Ignore messages targeted to offscreen (database operations)
+  if (message.target === 'offscreen') {
+    return false;
+  }
   
-      if (message.action === 'scanAllRewritesAvailability') {
-        try {
-          const { rewrites } = message.data;
-          const results = scanAllRewritesAvailabilityOnPage(rewrites);
-          sendResponse({ success: true, data: results });
-        } catch (error) {
-          console.error('Failed to scan all rewrites availability:', error);
-          sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
-        }
-      } else if (message.action === 'checkTextAvailability') {
+  if (message.action === 'scanAllRewritesAvailability') {
+    try {
+      const { rewrites } = message.data;
+      const results = scanAllRewritesAvailabilityOnPage(rewrites);
+      sendResponse({ success: true, data: results });
+    } catch (error) {
+      console.error('Failed to scan all rewrites availability:', error);
+      sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+    return true; // Keep channel open for async
+  } else if (message.action === 'checkTextAvailability') {
     try {
       const { originalText, rewrittenText } = message.data;
       const available = checkTextAvailabilityOnPage(originalText, rewrittenText);
@@ -32,6 +36,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.error('Failed to check text availability:', error);
       sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     }
+    return true;
   } else if (message.action === 'scrollToText') {
     try {
       const { textFragment, originalText, rewrittenText } = message.data;
@@ -41,7 +46,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.error('Failed to scroll to text:', error);
       sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     }
+    return true;
   }
+  
+  // Unknown action - don't respond
+  return false;
 });
 
 // Function to scan all rewrites for availability on the main page
@@ -65,7 +74,6 @@ function scanAllRewritesAvailabilityOnPage(rewrites: Array<{id: number, original
     results.push({ id: rewrite.id, status });
   }
   
-  console.log('[CEB] Scanned rewrites availability:', results);
   return results;
 }
 
@@ -83,20 +91,13 @@ function scrollToTextOnPage(textFragment: string | null, originalText: string, r
   try {
     // If we have a text fragment, use it to scroll to the original text
     if (textFragment) {
-      // Parse the text fragment string into a TextFragment object
-      
-      console.log("textFragment", textFragment);
-
       const result = scrollToText(textFragment, {
         highlight: true,
         highlightDuration: 2000
       });
 
       if (result.found) {
-        console.log('[CEB] Scrolled to text using fragment:', result.textNode?.textContent);
         return;
-      } else {
-        console.log('[CEB] Text fragment not found, falling back to text search');
       }
     }
 
@@ -109,7 +110,6 @@ function scrollToTextOnPage(textFragment: string | null, originalText: string, r
     const textToFind = rewrittenTextFound ? rewrittenText : originalText;
     
     if (!rewrittenTextFound && !originalTextFound) {
-      console.log('[CEB] Neither rewritten nor original text found on page');
       return;
     }
 
@@ -132,17 +132,11 @@ function scrollToTextOnPage(textFragment: string | null, originalText: string, r
             inline: 'nearest'
           });
 
-          // Simple scroll without highlighting for fallback
-          // The polyfill handles highlighting when available
-
-          console.log('[CEB] Scrolled to text (fallback):', textToFind);
           return;
         }
       }
     }
-
-    console.log('[CEB] Text not found on page (fallback):', textToFind);
   } catch (error) {
-    console.error('[CEB] Failed to scroll to text:', error);
+    console.error('Failed to scroll to text:', error);
   }
 }

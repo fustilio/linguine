@@ -16,26 +16,43 @@ Chrome extensions require the offscreen document pattern for database operations
 ## Message Flow Architecture
 
 ```
-┌─────────────────┐    chrome.runtime.sendMessage    ┌─────────────────┐
-│   UI Component  │ ──────────────────────────────► │ Background      │
-│ (Options/Popup) │                                 │ Script          │
-└─────────────────┘                                 └─────────────────┘
-                                                              │
-                                                              │ validates action
-                                                              │ ensures offscreen exists
-                                                              ▼
-                                                    ┌─────────────────┐
-                                                    │ Offscreen       │
-                                                    │ Document        │
-                                                    └─────────────────┘
-                                                              │
-                                                              │ calls SQLite function
-                                                              ▼
-                                                    ┌─────────────────┐
-                                                    │ packages/sqlite │
-                                                    │ (OPFS Database) │
-                                                    └─────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│         Any Extension Context                          │
+│  (Options/Popup/Side Panel/Content Script)             │
+└─────────────────────────────────────────────────────────┘
+         │                                                 
+         │ 1. chrome.runtime.sendMessage({ action: 'ensureOffscreenDocument', target: 'background' })
+         ▼                                                 
+┌─────────────────┐                                        
+│ Background      │ Ensures offscreen document exists
+│ Script          │                                        
+└─────────────────┘                                        
+         │                                                 
+         │ 2. chrome.runtime.sendMessage({ action, target: 'offscreen', data })
+         │    (bypasses background script entirely)
+         ▼                                                 
+┌─────────────────┐                                        
+│ Offscreen       │ Validates message with Zod
+│ Document        │ Executes SQLite operation
+└─────────────────┘                                        
+         │                                                 
+         │ calls SQLite function
+         ▼                                                 
+┌─────────────────┐                                        
+│ packages/sqlite │ Returns data
+│ (OPFS Database) │                                        
+└─────────────────┘                                        
+         │                                                 
+         │ Validates response with Zod
+         │ Returns { success, data?, error? }
+         ▼                                                 
+┌─────────────────────────────────────────────────────────┐
+│         Extension Context                               │
+│  (Options/Popup/Side Panel/Content Script)              │
+└─────────────────────────────────────────────────────────┘
 ```
+
+**Key Point**: All extension contexts can send messages directly to offscreen. The background script is only involved in ensuring the offscreen document exists (via `ensureOffscreenDocument`), but does not forward database messages.
 
 ## Background Script Responsibilities
 
@@ -43,33 +60,37 @@ Chrome extensions require the offscreen document pattern for database operations
 
 ### Message Routing
 
-The background script acts as a message router, determining where to forward messages:
+The background script **no longer forwards database operations**. Database messages with `target: 'offscreen'` go directly to the offscreen document and are ignored by the background script.
+
+The background script only handles:
+1. **Offscreen Document Management**: `ensureOffscreenDocument` action
+2. **Non-Database Messages**: Word selection, settings export/import, content script coordination
 
 ```typescript
-// Database actions that require offscreen document
-const databaseActions = [
-  'getAllVocabularyForSummary',
-  'addVocabularyItem',
-  'deleteVocabularyItem',
-  'getTextRewrites',
-  'addTextRewrite',
-  // ... more database actions
-];
+// Background script ignores database messages
+if (message.target === 'offscreen' && message.action !== 'ensureOffscreenDocument') {
+  return false; // Don't handle, let offscreen handle it directly
+}
 
-if (databaseActions.includes(message.action)) {
-  // Forward to offscreen document
-  const response = await chrome.runtime.sendMessage(message);
-  sendResponse(response);
-} else {
-  // Handle non-database messages locally
-  switch (message.action) {
-    case 'wordSelected':
-      // Handle word selection
-      break;
-    case 'exportSettings':
-      // Handle settings export
-      break;
-  }
+// Only handles ensureOffscreenDocument and non-database messages
+switch (message.action) {
+  case 'ensureOffscreenDocument':
+    await setupOffscreenDocument('offscreen.html');
+    sendResponse({ success: true });
+    break;
+  
+  case 'wordSelected':
+    // Handle word selection locally
+    break;
+  
+  case 'exportSettings':
+    // Handle settings export locally
+    break;
+  
+  // Content script coordination
+  case 'scanAllRewritesAvailability':
+    // Forward to content script
+    break;
 }
 ```
 
@@ -102,10 +123,14 @@ async function setupOffscreenDocument(path: string): Promise<void> {
 
 The background script handles non-database messages directly:
 
-- **Word Selection**: Track vocabulary word replacements
+- **Offscreen Document Setup**: Ensures offscreen document exists when requested
+- **Word Selection**: Track vocabulary word replacements  
 - **Settings Export/Import**: Handle extension settings
 - **Tab Management**: Inject content scripts when needed
+- **Content Script Coordination**: Routes messages between side panel and content scripts
 - **Health Checks**: Respond to ping messages
+
+**Key Point**: Database operations bypass the background script entirely. All extension contexts (options page, popup, side panel, content scripts) can send messages directly to the offscreen document with `target: 'offscreen'`. The background script only handles `ensureOffscreenDocument` requests to create the offscreen document if it doesn't exist.
 
 ## Offscreen Document Responsibilities
 
@@ -113,7 +138,7 @@ The background script handles non-database messages directly:
 
 ### Message Processing
 
-The offscreen document receives messages and executes database operations:
+The offscreen document receives messages directly from any extension context (options page, popup, side panel, content scripts) and executes database operations:
 
 ```typescript
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -166,21 +191,22 @@ initializeDatabase();
 
 ## Message Format Specifications
 
-### Legacy Action-Based Format
+### Standard Message Format
 
-Most database operations use the legacy action-based format:
+All messages use a consistent format with explicit `target` field:
 
 ```typescript
-// Request format
+// Request format (database operations)
 {
   action: 'addVocabularyItem',
+  target: 'offscreen',  // Explicitly targets offscreen document
   data: {
     text: 'hello',
     language: 'en-US'
   }
 }
 
-// Response format
+// Response format (validated with Zod schemas)
 {
   success: true,
   data: {
@@ -188,30 +214,61 @@ Most database operations use the legacy action-based format:
     text: 'hello',
     language: 'en-US',
     knowledge_level: 1,
+    last_reviewed_at: '2024-01-01T00:00:00Z',
     created_at: '2024-01-01T00:00:00Z'
   }
 }
 ```
 
-### New Type/Target Format
+### Message Targeting
 
-Some operations use a newer structured format:
+Messages include a `target` field to route them to the correct handler:
+
+- **`target: 'offscreen'`**: Database operations go directly to offscreen document
+- **`target: 'background'`**: Non-database operations handled by background (or no target for backward compatibility)
+- **`target: 'sidepanel'`**: Messages for side panel (like `rewriteAccepted` notifications)
+- **`target: 'content'`**: Messages for content scripts
+
+If a message has a `target` that doesn't match the listener, it immediately returns `false` without calling `sendResponse`.
+
+## Message Targeting System
+
+### Explicit Targeting
+
+All messages now use an explicit `target` field to route them correctly:
 
 ```typescript
-// Request format
+// Database operations must include target: 'offscreen'
 {
-  type: 'ping',
-  target: 'offscreen',
-  data: 'Extension icon clicked'
+  action: 'addTextRewrite',
+  target: 'offscreen',  // Required for database operations
+  data: { /* ... */ }
 }
 
-// Response format
+// Non-database operations use target: 'background' or no target
 {
-  success: true,
-  pong: true,
-  message: 'Offscreen document is ready'
+  action: 'wordSelected',
+  target: 'background',  // Optional, defaults to background
+  data: { /* ... */ }
+}
+
+// Side panel notifications
+{
+  action: 'rewriteAccepted',
+  target: 'sidepanel',  // Only side panel will process this
+  data: { /* ... */ }
 }
 ```
+
+### Target-Based Routing
+
+Each listener checks the `target` field first:
+- **Background**: Ignores messages with `target: 'offscreen'` or `target: 'sidepanel'`
+- **Offscreen**: Only processes messages with `target: 'offscreen'` (or no target for backward compatibility)
+- **Content Scripts**: Ignore messages with `target: 'offscreen'`
+- **Side Panel**: Only processes messages with `target: 'sidepanel'` (or no target for backward compatibility)
+
+This prevents duplicate processing and ensures messages reach the correct handler.
 
 ## Available Database Actions
 
@@ -330,10 +387,18 @@ UI Component (handles error)
 ### Adding Vocabulary Item
 
 ```typescript
-// UI Component
+// UI Component (can be in options page, popup, side panel, or content script)
 const addVocabulary = async (text: string, language: string) => {
+  // Ensure offscreen document exists first
+  await chrome.runtime.sendMessage({ 
+    action: 'ensureOffscreenDocument', 
+    target: 'background' 
+  });
+  
+  // Send directly to offscreen, bypassing background
   const response = await chrome.runtime.sendMessage({
     action: 'addVocabularyItem',
+    target: 'offscreen',  // Explicitly targets offscreen
     data: { text, language }
   });
   
@@ -348,10 +413,18 @@ const addVocabulary = async (text: string, language: string) => {
 ### Getting Text Rewrites
 
 ```typescript
-// UI Component
+// UI Component (can be in options page, popup, side panel, or content script)
 const getRewrites = async (page: number, filters: TextRewriteFilters) => {
+  // Ensure offscreen document exists first
+  await chrome.runtime.sendMessage({ 
+    action: 'ensureOffscreenDocument', 
+    target: 'background' 
+  });
+  
+  // Send directly to offscreen, bypassing background
   const response = await chrome.runtime.sendMessage({
     action: 'getTextRewrites',
+    target: 'offscreen',  // Explicitly targets offscreen
     data: { page, limit: 10, filters }
   });
   
@@ -365,12 +438,18 @@ const getRewrites = async (page: number, filters: TextRewriteFilters) => {
 
 ### Using API Layer
 
-The `packages/api` layer provides cleaner interfaces:
+The `packages/api` layer provides cleaner interfaces that handle message passing automatically:
 
 ```typescript
 import { addVocabularyItem, getTextRewrites } from '@extension/api';
 
-// Clean API usage
+// API layer handles:
+// 1. Ensuring offscreen document exists
+// 2. Sending message with target: 'offscreen'
+// 3. Validating input data with Zod
+// 4. Validating response data with Zod
+// 5. Returning typed response
+
 const vocab = await addVocabularyItem({ text: 'hello', language: 'en-US' });
 const rewrites = await getTextRewrites(1, 10, { language: 'en-US' });
 ```
@@ -379,16 +458,15 @@ const rewrites = await getTextRewrites(1, 10, { language: 'en-US' });
 
 ### Console Logging
 
-Both background script and offscreen document include detailed logging:
+Essential error logging is maintained for debugging:
 
 ```typescript
-// Background script
-console.log('✅ Offscreen document created');
-console.error('❌ Failed to initialize offscreen document:', error);
+// Background script - only errors logged
+console.error('Error ensuring offscreen document:', error);
 
-// Offscreen document
-console.log('Offscreen received message:', message);
-console.log('✅ Database initialized in offscreen document');
+// Offscreen document - validation errors and critical failures
+console.error('Invalid database message structure:', validationError);
+console.error('Error in message handler:', error);
 ```
 
 ### Message Tracing
@@ -402,10 +480,12 @@ To trace message flow:
 
 ### Common Issues
 
-1. **Offscreen Document Not Created**: Check manifest permissions
-2. **Message Not Received**: Verify action name spelling
-3. **Database Errors**: Check OPFS availability
-4. **Response Format**: Ensure consistent response structure
+1. **Offscreen Document Not Created**: Check manifest permissions and `ensureOffscreenDocument` call
+2. **Message Not Received**: Verify `target: 'offscreen'` is set for database operations
+3. **Database Errors**: Check OPFS availability and offscreen document state
+4. **Response Format**: All responses validated with Zod schemas for consistency
+5. **Channel Closed Errors**: Ensure message listeners return `true` for async operations
+6. **Duplicate Processing**: Messages with `target: 'offscreen'` are ignored by background and content scripts
 
 ## Related Documentation
 

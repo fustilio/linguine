@@ -54,214 +54,174 @@ initializeOffscreenDocument().catch(error => {
 
 // Handle messages from popup and content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Ignore messages not intended for background
+  if (message.target && message.target !== 'background' && message.target !== 'offscreen') {
+    return false;
+  }
 
-  // Handle async operations
-  const handleAsyncMessage = async (): Promise<void> => {
-    try {
-      // Check if this is a database-related message
-      const databaseActions = [
-        'getAllVocabularyForSummary',
-        'addVocabularyItem',
-        'deleteVocabularyItem',
-        'deleteVocabularyItems',
-        'updateVocabularyItemKnowledgeLevel',
-        'updateVocabularyItemKnowledgeLevels',
-        'getVocabulary',
-        'getVocabularyCount',
-        'resetVocabularyDatabase',
-        'populateDummyVocabulary',
-        'ensureDatabaseInitialized',
-        'addTextRewrite',
-        'getTextRewrites',
-        'getTextRewriteCount',
-        'deleteTextRewrite',
-        'deleteTextRewrites',
-        'clearAllTextRewrites',
-        'getTextRewriteById',
-        'getTextRewritesByLanguage',
-        'getRecentTextRewrites',
-        'getTextRewritesByUrl',
-        'getTextRewritesByReadability',
-        'getVocabularyWordsInText',
-        'getTextRewritesContainingWord',
-        'resetTextRewritesDatabase'
-      ];
+  // Ignore database operations (they go directly to offscreen)
+  if (message.target === 'offscreen' && message.action !== 'ensureOffscreenDocument') {
+    return false;
+  }
 
-      if (databaseActions.includes(message.action)) {
-        try {
-          // Ensure offscreen document exists
-          await setupOffscreenDocument('offscreen.html');
-
-          // Forward database-related messages to offscreen document
-          const response = await chrome.runtime.sendMessage(message);
-
-          if (response && response.success) {
-            sendResponse(response);
-          } else {
-            console.error('❌ Offscreen document error:', response?.error || 'No response');
-            sendResponse({ success: false, error: response?.error || 'No response from offscreen document' });
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          console.error('❌ Error forwarding database message:', errorMessage);
-          
-          // Check if this is an extension context invalidation error
-          if (errorMessage.includes('Extension context invalidated') || 
-              errorMessage.includes('Receiving end does not exist') ||
-              errorMessage.includes('Could not establish connection')) {
-            sendResponse({ 
-              success: false, 
-              error: 'Extension context invalidated. Please reload the extension or refresh the page.' 
-            });
-          } else {
-            sendResponse({ 
-              success: false, 
-              error: errorMessage 
-            });
-          }
-        }
-      } else {
-        // Handle non-database messages
-        switch (message.action) {
-          case 'wordSelected':
-            // Handle word selection from content script
-            console.log(`Word selected: "${message.original}" -> "${message.replacement}"`);
-            sendResponse({ success: true });
-            break;
-
-          case 'getTabId':
-            // Return the current tab ID
-            if (sender.tab) {
-              sendResponse({ success: true, tabId: sender.tab.id });
-            } else {
-              sendResponse({ success: false, error: 'No tab ID available' });
-            }
-            break;
-
-          case 'ping':
-            // Health check
-            sendResponse({ success: true, pong: true });
-            break;
-
-          case 'scanAllRewritesAvailability':
-            // Forward bulk text availability scan to content script on the current tab
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-              if (tabs[0]?.id) {
-                chrome.tabs.sendMessage(tabs[0].id, {
-                  action: 'scanAllRewritesAvailability',
-                  data: message.data
-                }, (response) => {
-                  if (chrome.runtime.lastError) {
-                    console.error('Failed to send bulk text availability scan to content script:', chrome.runtime.lastError);
-                    sendResponse({ success: false, error: chrome.runtime.lastError.message });
-                  } else {
-                    sendResponse(response || { success: true, data: [] });
-                  }
-                });
-              } else {
-                sendResponse({ success: false, error: 'No active tab found' });
-              }
-            });
-            return; // Keep the message channel open
-
-          case 'checkTextAvailability':
-            // Forward text availability check to content script on the current tab
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-              if (tabs[0]?.id) {
-                chrome.tabs.sendMessage(tabs[0].id, {
-                  action: 'checkTextAvailability',
-                  data: message.data
-                }, (response) => {
-                  if (chrome.runtime.lastError) {
-                    console.error('Failed to send text availability check to content script:', chrome.runtime.lastError);
-                    sendResponse({ success: false, error: chrome.runtime.lastError.message });
-                  } else {
-                    sendResponse(response || { success: true, data: { available: false } });
-                  }
-                });
-              } else {
-                sendResponse({ success: false, error: 'No active tab found' });
-              }
-            });
-            return; // Keep the message channel open
-
-          case 'scrollToText':
-            // Forward scroll request to content script on the current tab
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-              if (tabs[0]?.id) {
-                chrome.tabs.sendMessage(tabs[0].id, {
-                  action: 'scrollToText',
-                  data: message.data
-                }, (response) => {
-                  if (chrome.runtime.lastError) {
-                    console.error('Failed to send scroll message to content script:', chrome.runtime.lastError);
-                    sendResponse({ success: false, error: chrome.runtime.lastError.message });
-                  } else {
-                    sendResponse(response || { success: true });
-                  }
-                });
-              } else {
-                sendResponse({ success: false, error: 'No active tab found' });
-              }
-            });
-            return; // Keep the message channel open
-
-          case 'exportSettings':
-            // Export settings to JSON file
-            chrome.storage.sync.get(['wordReplacer'], result => {
-              const settings = result.wordReplacer || {};
-              const dataStr = JSON.stringify(settings, null, 2);
-              const blob = new Blob([dataStr], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-
-              chrome.downloads.download(
-                {
-                  url: url,
-                  filename: 'word-replacer-settings.json',
-                  saveAs: true,
-                },
-                downloadId => {
-                  URL.revokeObjectURL(url);
-                  sendResponse({ success: true, downloadId: downloadId });
-                },
-              );
-            });
-            return; // Keep the message channel open
-
-          case 'importSettings':
-            // This would be handled by the popup reading a file
-            sendResponse({
-              success: false,
-              error: 'Import should be handled by popup',
-            });
-            break;
-
-          default:
-            // Forward other messages to content script
-            if (sender.tab && sender.tab.id) {
-              chrome.tabs.sendMessage(sender.tab.id, message, sendResponse);
-              return; // Keep the message channel open
-            } else {
-              sendResponse({ success: false, error: 'No active tab' });
-            }
-        }
+  // Handle ensureOffscreenDocument action
+  if (message.action === 'ensureOffscreenDocument') {
+    (async () => {
+      try {
+        await setupOffscreenDocument('offscreen.html');
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error('Error ensuring offscreen document:', error);
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
       }
-    } catch (error) {
-      console.error('❌ Error handling message:', error);
-      sendResponse({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+    })();
+    return true;
+  }
+
+  // Handle messages that use async Chrome APIs with callbacks
+  try {
+    switch (message.action) {
+      case 'wordSelected':
+        sendResponse({ success: true });
+        return false;
+
+      case 'getTabId':
+        // Return the current tab ID (synchronous)
+        if (sender.tab) {
+          sendResponse({ success: true, tabId: sender.tab.id });
+        } else {
+          sendResponse({ success: false, error: 'No tab ID available' });
+        }
+        return false; // Synchronous response, close channel
+
+      case 'ping':
+        // Health check (synchronous)
+        sendResponse({ success: true, pong: true });
+        return false; // Synchronous response, close channel
+
+      case 'scanAllRewritesAvailability':
+        // Forward bulk text availability scan to content script (async callback)
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs[0]?.id) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: 'scanAllRewritesAvailability',
+              data: message.data
+            }, (response) => {
+              if (chrome.runtime.lastError) {
+                console.error('Failed to send bulk text availability scan to content script:', chrome.runtime.lastError);
+                sendResponse({ success: false, error: chrome.runtime.lastError.message });
+              } else {
+                sendResponse(response || { success: true, data: [] });
+              }
+            });
+          } else {
+            sendResponse({ success: false, error: 'No active tab found' });
+          }
+        });
+        return true; // Keep channel open for async callback
+
+      case 'checkTextAvailability':
+        // Forward text availability check to content script (async callback)
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs[0]?.id) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: 'checkTextAvailability',
+              data: message.data
+            }, (response) => {
+              if (chrome.runtime.lastError) {
+                console.error('Failed to send text availability check to content script:', chrome.runtime.lastError);
+                sendResponse({ success: false, error: chrome.runtime.lastError.message });
+              } else {
+                sendResponse(response || { success: true, data: { available: false } });
+              }
+            });
+          } else {
+            sendResponse({ success: false, error: 'No active tab found' });
+          }
+        });
+        return true; // Keep channel open for async callback
+
+      case 'scrollToText':
+        // Forward scroll request to content script (async callback)
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs[0]?.id) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: 'scrollToText',
+              data: message.data
+            }, (response) => {
+              if (chrome.runtime.lastError) {
+                console.error('Failed to send scroll message to content script:', chrome.runtime.lastError);
+                sendResponse({ success: false, error: chrome.runtime.lastError.message });
+              } else {
+                sendResponse(response || { success: true });
+              }
+            });
+          } else {
+            sendResponse({ success: false, error: 'No active tab found' });
+          }
+        });
+        return true; // Keep channel open for async callback
+
+      case 'rewriteAccepted':
+        if (message.target === 'sidepanel') {
+          chrome.runtime.sendMessage(message).catch(() => {
+            // Side panel might not be open, that's okay
+          });
+        }
+        sendResponse({ success: true });
+        return false;
+
+      case 'exportSettings':
+        // Export settings to JSON file (async callback)
+        chrome.storage.sync.get(['wordReplacer'], result => {
+          const settings = result.wordReplacer || {};
+          const dataStr = JSON.stringify(settings, null, 2);
+          const blob = new Blob([dataStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+
+          chrome.downloads.download(
+            {
+              url: url,
+              filename: 'word-replacer-settings.json',
+              saveAs: true,
+            },
+            downloadId => {
+              URL.revokeObjectURL(url);
+              sendResponse({ success: true, downloadId: downloadId });
+            },
+          );
+        });
+        return true; // Keep channel open for async callback
+
+      case 'importSettings':
+        // This would be handled by the popup reading a file (synchronous)
+        sendResponse({
+          success: false,
+          error: 'Import should be handled by popup',
+        });
+        return false; // Synchronous response, close channel
+
+      default:
+        // Forward other messages to content script (async)
+        if (sender.tab && sender.tab.id) {
+          chrome.tabs.sendMessage(sender.tab.id, message, sendResponse);
+          return true; // Keep channel open for async callback
+        } else {
+          sendResponse({ success: false, error: 'No active tab' });
+          return false; // Synchronous response, close channel
+        }
     }
-  };
-
-  // Execute async handler
-  handleAsyncMessage().catch(error => {
-    console.error('Error in message handler:', error);
-    sendResponse({ success: false, error: 'Internal error' });
-  });
-
-  return true; // Keep the message channel open for async operations
+  } catch (error) {
+    console.error('❌ Error handling message:', error);
+    sendResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    return false; // Synchronous error response, close channel
+  }
 });
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -327,9 +287,8 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
           url: tab.url,
           title: tab.title
         }
-      }).catch(error => {
+      }).catch(() => {
         // Side panel might not be open, that's okay
-        console.log('Side panel not available for tab change notification:', error);
       });
     }
   } catch (error) {

@@ -218,23 +218,26 @@ The vocabulary analytics system uses the extension's message passing architectur
 ### Message Flow Architecture
 
 ```
-UI Component (Vocabulary Analytics)
-  ↓ chrome.runtime.sendMessage({ action: 'getAllVocabularyForSummary' })
+UI Component (Vocabulary Analytics - Options Page)
+  ↓ chrome.runtime.sendMessage({ action: 'ensureOffscreenDocument', target: 'background' })
 Background Script (Service Worker)
-  ↓ Validates action is database-related
   ↓ Ensures offscreen document exists
-  ↓ Forwards message to offscreen document
-Offscreen Document
-  ↓ Receives message
-  ↓ Calls getAllVocabularyForSummary() from packages/sqlite
-  ↓ Returns { success: true, data: vocabularyData }
-Background Script
-  ↓ Forwards response
+  ↓ Returns { success: true }
 UI Component
-  ↓ Receives vocabulary data
+  ↓ chrome.runtime.sendMessage({ action: 'getAllVocabularyForSummary', target: 'offscreen' })
+  ↓ (message bypasses background script, goes directly to offscreen)
+Offscreen Document
+  ↓ Validates message structure with Zod
+  ↓ Calls getAllVocabularyForSummary() from packages/sqlite
+  ↓ Validates response with VocabularyItemSchema.array()
+  ↓ Returns { success: true, data: vocabularyData }
+UI Component
+  ↓ Receives validated vocabulary data
   ↓ Formats data for AI analysis
   ↓ Sends to Chrome AI APIs
 ```
+
+**Note**: This same direct-to-offscreen messaging pattern applies to all extension pages: options, popup, side panel, and content scripts. All can bypass the background script for database operations.
 
 ### Database Operations Used
 
@@ -257,7 +260,8 @@ The analytics system integrates with the API layer:
 import { getAllVocabularyForSummary } from '@extension/api';
 
 const summarizeVocabulary = async (prompt: string, vocabularyData: string): Promise<AIResponse> => {
-  // Get all vocabulary data via message passing
+  // Get all vocabulary data via message passing (goes directly to offscreen)
+  // Response is validated with Zod schemas
   const allVocabulary = await getAllVocabularyForSummary();
   
   // Format for AI consumption

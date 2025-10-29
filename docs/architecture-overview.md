@@ -31,11 +31,13 @@ The linguine extension follows a layered architecture pattern with clear separat
 ┌─────────────────────────────────────────────────────────────┐
 │              Background Script (Service Worker)             │
 │  ┌─────────────────────────────────────────────────────────┐ │
-│  │ Message Router & Offscreen Document Manager            │ │
+│  │ Offscreen Document Manager & Non-DB Message Routing    │ │
 │  └─────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
                               │
-                              ▼ forwards messages
+                              │ (database messages bypass background)
+                              │ chrome.runtime.sendMessage({ target: 'offscreen' })
+                              ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                Offscreen Document                            │
 │  ┌─────────────────────────────────────────────────────────┐ │
@@ -72,16 +74,17 @@ The linguine extension follows a layered architecture pattern with clear separat
 
 **Responsibilities**:
 - Extension lifecycle management
-- Message routing between UI and offscreen document
 - Offscreen document lifecycle management
+- Non-database message handling (word selection, settings, content script coordination)
 - Content script injection
 - Tab management
 
 **Key Features**:
-- Ensures offscreen document exists before database operations
-- Routes database-related messages to offscreen document
-- Handles non-database messages (word selection, settings export/import)
+- Ensures offscreen document exists when requested (via `ensureOffscreenDocument` action)
+- Handles non-database messages locally (word selection, settings export/import)
+- Routes content script messages (text availability checks, scrolling)
 - Manages content script injection on page navigation
+- Ignores database messages (they go directly to offscreen with `target: 'offscreen'`)
 
 ### Offscreen Document
 
@@ -90,10 +93,11 @@ The linguine extension follows a layered architecture pattern with clear separat
 **Purpose**: Required for OPFS (Origin Private File System) access, which is only available in Web Workers or offscreen documents.
 
 **Responsibilities**:
-- Receives database operation messages from background script
+- Receives database operation messages directly from UI/content scripts (with `target: 'offscreen'`)
 - Executes SQLite operations via `packages/sqlite`
-- Returns structured responses to background script
+- Returns structured, validated responses using Zod schemas
 - Database initialization and lifecycle management
+- Validates incoming messages and outgoing responses
 
 ### Content Scripts
 
@@ -186,20 +190,32 @@ The extension uses OPFS for persistent SQLite database storage because:
 
 ### Message Passing Flow
 
+**Database Operations** (bypass background, go directly to offscreen):
 ```
-UI Component
-  ↓ chrome.runtime.sendMessage({ action, data })
-Background Script
-  ↓ Validates action is database-related
-  ↓ Ensures offscreen document exists
-  ↓ Forwards message to offscreen
+Any Extension Context
+  (Options/Popup/Side Panel/Content Script)
+  ↓ chrome.runtime.sendMessage({ action, target: 'offscreen', data })
+  ↓ (ensures offscreen exists first via ensureOffscreenDocument)
 Offscreen Document
-  ↓ Receives message
+  ↓ Validates message structure with Zod
   ↓ Calls appropriate SQLite function
+  ↓ Validates response with Zod schemas
   ↓ Returns { success, data?, error? }
+Extension Context
+  ↓ Receives validated response
+  ↓ Updates state/UI
+```
+
+**Note**: All extension contexts (options page, popup, side panel, content scripts) can send database messages directly to offscreen, bypassing the background script entirely.
+
+**Non-Database Operations** (handled by background):
+```
+Extension Context
+  ↓ chrome.runtime.sendMessage({ action, data, target?: 'background' })
 Background Script
-  ↓ Forwards response
-UI Component
+  ↓ Handles locally or forwards to content script
+  ↓ Returns response
+Extension Context
   ↓ Receives response
   ↓ Updates state/UI
 ```
@@ -293,9 +309,11 @@ UI Component (Display results)
 
 ### Error Handling
 
-- Structured error responses
+- Structured error responses with `{ success: boolean, data?: T, error?: string }`
+- Zod validation for all incoming messages and outgoing responses
 - Graceful fallbacks for AI API failures
 - User-friendly error messages
+- Proper message channel management (return `true` for async, `false` for sync)
 
 ## Performance Optimizations
 

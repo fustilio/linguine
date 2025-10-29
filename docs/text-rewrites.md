@@ -137,23 +137,27 @@ The text rewrites system uses the extension's message passing architecture to co
 ### Message Flow Architecture
 
 ```
-UI Component (Content Script/Options Page)
-  ↓ chrome.runtime.sendMessage({ action: 'addTextRewrite', data: rewriteData })
-Background Script (Service Worker)
-  ↓ Validates action is database-related
+Content Script (or any extension context)
+  ↓ 1. chrome.runtime.sendMessage({ action: 'ensureOffscreenDocument', target: 'background' })
+Background Script
   ↓ Ensures offscreen document exists
-  ↓ Forwards message to offscreen document
+  ↓ Returns { success: true }
+Content Script
+  ↓ 2. chrome.runtime.sendMessage({ action: 'addTextRewrite', target: 'offscreen', data: rewriteData })
+  ↓    (message bypasses background script, goes directly to offscreen)
 Offscreen Document
-  ↓ Receives message
+  ↓ Validates message structure with Zod
   ↓ Calls addTextRewrite() from packages/sqlite
   ↓ Calculates readability scores automatically
+  ↓ Validates response with TextRewriteSchema
   ↓ Returns { success: true, data: newRewrite }
-Background Script
-  ↓ Forwards response
-UI Component
-  ↓ Receives confirmation
+Content Script
+  ↓ Receives validated response
   ↓ Updates UI state
+  ↓ Notifies side panel (if open) via rewriteAccepted message
 ```
+
+**Note**: While this example shows a content script, the same flow applies to any extension context (options page, popup, side panel). All can send database messages directly to offscreen, bypassing the background script.
 
 ### Database Operations Used
 
@@ -184,9 +188,14 @@ export const addTextRewrite = async (rewriteData: TextRewriteData): Promise<Text
   const validatedData = TextRewriteDataSchema.parse(rewriteData);
   
   // Send to database via message passing
-  const result = await sendDatabaseMessageForItem<TextRewrite>('addTextRewrite', validatedData);
-  
-  return result;
+  // - Ensures offscreen document exists
+  // - Sends with target: 'offscreen'
+  // - Validates response with TextRewriteSchema
+  return await sendDatabaseMessageForItem<TextRewrite>(
+    'addTextRewrite', 
+    validatedData, 
+    TextRewriteSchema
+  );
 };
 
 // Zod validation schema

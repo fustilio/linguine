@@ -212,17 +212,26 @@ export const TextRewriteFiltersSchema = z.object({
 
 ### Database API Utils (`database-api-utils.ts`)
 
-**Purpose**: Shared utilities for message passing to offscreen document.
+**Purpose**: Shared utilities for message passing directly to offscreen document from any extension context (options, popup, side panel, content scripts).
 
 **Key Functions**:
 
 ```typescript
-// Generic message sending
+// Generic message sending with automatic offscreen document setup
 export const sendDatabaseMessage = async <T = unknown>(
   action: string,
   data?: unknown
 ): Promise<DatabaseResponse<T>> => {
-  const response = await chrome.runtime.sendMessage({ action, data });
+  // First ensure offscreen document exists
+  await ensureOffscreenDocument();
+  
+  // Send directly to offscreen with explicit target
+  const response = await chrome.runtime.sendMessage({ 
+    action, 
+    target: 'offscreen',
+    data 
+  });
+  
   return response;
 };
 
@@ -415,20 +424,23 @@ const result = await parser.generate('Show me struggling Spanish words');
 ### API Request Flow
 
 ```
-UI Component
+Any Extension Context
+  (Options/Popup/Side Panel/Content Script)
   ↓ calls API function
 packages/api (validates input with Zod)
-  ↓ sends chrome.runtime.sendMessage
-Background Script (routes to offscreen)
-  ↓ forwards message
-Offscreen Document (executes SQLite operation)
-  ↓ returns response
-Background Script (forwards response)
-  ↓ returns to API
-packages/api (handles response)
-  ↓ returns to UI Component
-UI Component (updates state)
+  ↓ ensures offscreen document exists (via background)
+  ↓ sends chrome.runtime.sendMessage({ action, target: 'offscreen', data })
+  ↓ (message bypasses background script entirely)
+Offscreen Document (validates message with Zod)
+  ↓ executes SQLite operation
+  ↓ validates response with Zod schemas
+  ↓ returns { success, data?, error? }
+packages/api (validates response with Zod)
+  ↓ returns typed data to extension context
+Extension Context (updates state)
 ```
+
+**Note**: Database messages bypass the background script entirely and go directly to the offscreen document. This applies to all extension contexts: options page, popup, side panel, and content scripts.
 
 ### React Hook Flow
 
@@ -458,11 +470,19 @@ export interface DatabaseResponse<T = unknown> {
 
 // Error handling in API functions
 export const addVocabularyItem = async (item: NewVocabularyItem): Promise<VocabularyItem | null> => {
-  const result = await sendDatabaseMessageForItem<VocabularyItem>('addVocabularyItem', item);
-  if (result) {
-    console.log('✅ Vocabulary item saved successfully');
-  }
-  return result;
+  // Validate input
+  const NewVocabularyItemSchema = z.object({
+    text: z.string().min(1),
+    language: z.string(),
+  });
+  const validatedItem = NewVocabularyItemSchema.parse(item);
+  
+  // Send to database with response validation
+  return await sendDatabaseMessageForItem<VocabularyItem>(
+    'addVocabularyItem', 
+    validatedItem, 
+    VocabularyItemSchema
+  );
 };
 ```
 
@@ -574,9 +594,11 @@ const VocabularyComponent = () => {
 
 ### With Packages SQLite
 
-- **Message Passing**: All database operations go through message passing
+- **Direct Message Passing**: Database messages go directly to offscreen document (bypass background)
+- **Message Validation**: Zod schemas validate all incoming messages in offscreen
+- **Response Validation**: Zod schemas validate all outgoing responses in offscreen
 - **Type Safety**: Shared TypeScript types between packages
-- **Error Handling**: Consistent error response format
+- **Error Handling**: Consistent error response format `{ success: boolean, data?: T, error?: string }`
 
 ### With Packages Shared
 

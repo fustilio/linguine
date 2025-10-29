@@ -120,6 +120,12 @@ export class WordReplacer {
 
     // Set up message listener
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      // Ignore messages targeted to offscreen (database operations)
+      // These are handled directly by offscreen, not by content script
+      if (message.target === 'offscreen') {
+        return false; // Don't handle messages intended for offscreen
+      }
+      
       this.handleMessage(message, sender, sendResponse);
       return true; // Keep the message channel open for async responses
     });
@@ -614,13 +620,6 @@ export class WordReplacer {
       const afterContext = fullText.substring(targetIndex + targetText.length, sentenceEnd).trim();
       const fullContext = fullText.substring(sentenceStart, sentenceEnd).trim();
 
-      console.log('🔍 Sentence boundary detection:', {
-        targetText: targetText.substring(0, 30) + '...',
-        sentenceStart,
-        sentenceEnd,
-        fullSentence: fullContext.substring(0, 100) + '...',
-      });
-
       return { beforeContext, afterContext, fullContext };
     } catch (error) {
       console.warn('Error extracting context:', error);
@@ -680,19 +679,12 @@ export class WordReplacer {
     }
 
     try {
-      console.log('🔄 Starting AI rewrite for:', originalText.substring(0, 50) + '...');
-
       // Show loading state
       highlightSpan.style.backgroundColor = '#fbbf24';
       highlightSpan.title = 'Rewriting with AI...';
 
       // Extract surrounding context for better rewriting
       const contextInfo = this.extractSurroundingContext(highlightSpan, originalText);
-      console.log('📖 Context extracted:', {
-        before: contextInfo.beforeContext.substring(-30),
-        target: originalText,
-        after: contextInfo.afterContext.substring(0, 30),
-      });
 
       // Initialize rewriter
       const rewriter = await this.initRewriter();
@@ -701,12 +693,11 @@ export class WordReplacer {
         throw new Error('Failed to initialize rewriter');
       }
 
-      // Prepare context-aware prompt - only rewrite the highlighted text
-      const rewritePrompt = originalText; // Only the highlighted text to be rewritten
+      // Prepare context-aware prompt
+      const rewritePrompt = originalText;
       let contextPrompt = 'Make this text easier to understand for language learners.';
 
       if (contextInfo.beforeContext || contextInfo.afterContext) {
-        // Provide context in the context parameter, not in the text to be rewritten
         contextPrompt = `CONTEXT: "${contextInfo.beforeContext} [TARGET] ${contextInfo.afterContext}"
 
 INSTRUCTIONS: 
@@ -723,7 +714,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       }
 
       // Rewrite the text
-      console.log('✨ Rewriting with context...');
       const rawRewrittenText = await rewriter.rewrite(rewritePrompt, {
         context: contextPrompt,
       });
@@ -731,16 +721,8 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // Clean up the rewritten response
       let rewrittenText = this.cleanRewrittenResponse(rawRewrittenText);
 
-      console.log('🔧 Response processing:', {
-        original: originalText,
-        rawResponse: rawRewrittenText.substring(0, 100) + '...',
-        cleaned: rewrittenText.substring(0, 50) + '...',
-      });
-
       // Preserve original formatting patterns
       rewrittenText = this.preserveOriginalFormatting(originalText, rewrittenText);
-
-      console.log('✅ Final rewritten text:', rewrittenText.substring(0, 50) + '...');
 
       // Create wrapper for the rewritten content
       const wrapper = document.createElement('span');
@@ -848,8 +830,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
           e.preventDefault();
           e.stopPropagation();
 
-          console.log('✅ Apply button clicked, current text:', wrapper.textContent?.substring(0, 30) + '...');
-
           // Remove buttons and keep the current text
           if (buttonContainer && buttonContainer.parentNode) {
             buttonContainer.remove();
@@ -858,10 +838,9 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
           wrapper.style.padding = '0';
           wrapper.classList.remove('rewriter-highlight');
 
-          // Clear current highlight reference (wrapper is now the current highlight)
+          // Clear current highlight reference
           if (this.currentHighlight === wrapper) {
             this.currentHighlight = null;
-            console.log('🧹 Cleared current highlight reference');
           }
         } catch (error) {
           console.error('❌ Error in apply button:', error);
@@ -1120,9 +1099,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    */
   async initRewriter() {
     try {
-      console.log('🚀 Initializing Rewriter API...');
-
-      // Create rewriter with configurable settings
       const options: RewriterOptions = {
         sharedContext: this.rewriterOptions.sharedContext || undefined,
         expectedInputLanguages: ['en', 'ja', 'es'],
@@ -1131,20 +1107,15 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         format: this.rewriterOptions.format !== 'as-is' ? this.rewriterOptions.format : undefined,
         length: this.rewriterOptions.length !== 'as-is' ? this.rewriterOptions.length : undefined,
         monitor: (m: DownloadMonitor) => {
-          console.log('📡 Monitor callback activated (Rewriter)');
           m.addEventListener('downloadprogress', (e: ProgressEvent) => {
             this.downloadProgress = Math.round((e.loaded / e.total) * 100);
-            console.log(`📥 Rewriter download: ${this.downloadProgress}%`);
           });
         },
       };
 
-      const rewriter = await rewriterManager.getRewriter(options);
-      console.log('✅ Rewriter ready!');
-
-      return rewriter;
+      return await rewriterManager.getRewriter(options);
     } catch (error) {
-      console.error('❌ Failed to initialize Rewriter:', error);
+      console.error('Failed to initialize Rewriter:', error);
       throw error;
     }
   }
@@ -1152,13 +1123,9 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
   /**
    * Reinitialize the rewriter singleton with current options
    * This is called when settings are updated from the popup
-   * The singleton will detect the options change and create a new instance
    */
   async reinitializeRewriter(): Promise<void> {
     try {
-      console.log('🔄 Reinitializing Rewriter with updated options...');
-
-      // Create rewriter with current configurable settings
       const options: RewriterOptions = {
         sharedContext: this.rewriterOptions.sharedContext || undefined,
         expectedInputLanguages: ['en', 'ja', 'es'],
@@ -1167,18 +1134,15 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         format: this.rewriterOptions.format !== 'as-is' ? this.rewriterOptions.format : undefined,
         length: this.rewriterOptions.length !== 'as-is' ? this.rewriterOptions.length : undefined,
         monitor: (m: DownloadMonitor) => {
-          console.log('📡 Monitor callback activated (Rewriter)');
           m.addEventListener('downloadprogress', (e: ProgressEvent) => {
             this.downloadProgress = Math.round((e.loaded / e.total) * 100);
-            console.log(`📥 Rewriter download: ${this.downloadProgress}%`);
           });
         },
       };
 
       await rewriterManager.getRewriter(options);
-      console.log('✅ Rewriter reinitialized with new options!');
     } catch (error) {
-      console.error('❌ Failed to reinitialize Rewriter:', error);
+      console.error('Failed to reinitialize Rewriter:', error);
       throw error;
     }
   }
@@ -1198,61 +1162,24 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     const startContainer = range.startContainer;
     const endContainer = range.endContainer;
 
-    console.log('🔍 Range details:', {
-      startContainer: startContainer.nodeName,
-      endContainer: endContainer.nodeName,
-      startContainerType: startContainer.nodeType,
-      endContainerType: endContainer.nodeType,
-      sameNode: startContainer === endContainer,
-      startParent: startContainer.parentNode?.nodeName,
-      endOffset: range.endOffset,
-      endChildNodesLength:
-        endContainer.nodeType === Node.ELEMENT_NODE ? (endContainer as Element).childNodes.length : 'N/A',
-    });
-
     // Case 1: Selection is within a single text node (most common case)
-    // Also handle case where end container is an element but selection is still within one text node
     const isSingleTextNode = startContainer === endContainer && startContainer.nodeType === Node.TEXT_NODE;
 
     // Check if this is a selection that ends at the boundary of the next element
-    // When you select entire paragraph, browser sets endContainer to the NEXT element with endOffset=0
     const isSelectionToElementBoundary =
       startContainer.nodeType === Node.TEXT_NODE &&
       endContainer.nodeType === Node.ELEMENT_NODE &&
-      range.endOffset === 0 && // Selection ends at start of next element
-      range.startOffset === 0; // Selection starts at beginning of text node
-
-    console.log('🔍 Detection logic:', {
-      isSingleTextNode,
-      isSelectionToElementBoundary,
-      startIsText: startContainer.nodeType === Node.TEXT_NODE,
-      endIsElement: endContainer.nodeType === Node.ELEMENT_NODE,
-      sameParent: startContainer.parentNode === endContainer,
-      containsStart:
-        endContainer.nodeType === Node.ELEMENT_NODE ? (endContainer as Element).contains(startContainer) : false,
-      startOffset: range.startOffset,
-      endOffset: range.endOffset,
-      endChildNodesLength:
-        endContainer.nodeType === Node.ELEMENT_NODE ? (endContainer as Element).childNodes.length : -1,
-    });
+      range.endOffset === 0 &&
+      range.startOffset === 0;
 
     if (isSingleTextNode || isSelectionToElementBoundary) {
       const textNode = startContainer as Text;
       const originalText = textNode.nodeValue || '';
 
-      console.log('✅ Using Case 1: Single text node replacement');
-      console.log('📝 Original text:', originalText);
-      console.log('📝 Range offsets:', range.startOffset, 'to', range.endOffset);
-      console.log('📝 isSelectionToElementBoundary:', isSelectionToElementBoundary);
-
       // Replace just the selected portion by modifying nodeValue directly
       const before = originalText.substring(0, range.startOffset);
-      // If selection goes to boundary of next element (endOffset=0), replace to end of current text
       const after = isSelectionToElementBoundary ? '' : originalText.substring(range.endOffset);
       textNode.nodeValue = before + newText + after;
-
-      console.log('📝 New nodeValue:', textNode.nodeValue);
-      console.log('📝 Parent element:', textNode.parentElement?.tagName, textNode.parentElement?.className);
 
       // Clear the selection
       const selection = window.getSelection();
@@ -1260,26 +1187,16 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         selection.removeAllRanges();
       }
 
-      console.log('✅ Text replaced in single node (nodeValue modified directly)');
       return;
     }
 
     // Case 2: Selection spans multiple nodes
-    console.log('⚠️ Using Case 2: Selection spans multiple nodes');
 
     // Check if we're selecting from the very start of one element
     const isSelectingFromStart = range.startOffset === 0;
 
-    console.log('📊 Selection analysis:', {
-      isSelectingFromStart,
-      startOffset: range.startOffset,
-      startContainer: startContainer.nodeName,
-      endContainer: endContainer.nodeName,
-    });
-
     if (isSelectingFromStart) {
       // User selected entire paragraphs - create a new paragraph element
-      console.log('📄 Creating new paragraph element for full selection');
 
       // Find the parent paragraph element
       let firstP =
@@ -1301,41 +1218,29 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
           if (currentNode.nodeType === Node.ELEMENT_NODE && currentNode.nodeName === 'P') {
             if (range.intersectsNode(currentNode)) {
               paragraphsToRemove.push(currentNode as Element);
-              console.log('🔍 Found paragraph in selection:', (currentNode as Element).textContent?.substring(0, 50));
             } else {
-              // If this paragraph is not in selection, we've gone past the selection
               break;
             }
           }
           currentNode = currentNode.nextSibling;
         }
 
-        console.log('📋 Paragraphs in selection:', paragraphsToRemove.length);
-
         // Replace the FIRST selected paragraph's content, remove the rest
         if (paragraphsToRemove.length > 0) {
           const firstSelectedP = paragraphsToRemove[0] as HTMLElement;
           firstSelectedP.textContent = newText;
-          console.log('✏️ Replaced first paragraph content');
 
           // Remove the additional paragraphs (skip the first one)
           for (let i = 1; i < paragraphsToRemove.length; i++) {
-            console.log('🗑️ Removing additional paragraph:', paragraphsToRemove[i].textContent?.substring(0, 50));
             paragraphsToRemove[i].remove();
           }
-
-          console.log('✅ Replaced 1 paragraph, removed', paragraphsToRemove.length - 1, 'additional paragraphs');
         }
       } else {
         // Fallback: create a div
         const newDiv = document.createElement('div');
         newDiv.textContent = newText;
-
-        // Insert at the range position
         range.deleteContents();
         range.insertNode(newDiv);
-
-        console.log('✅ Created new div as fallback');
       }
     } else {
       // Partial selection - need to check if it spans multiple paragraphs
@@ -1350,8 +1255,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       }
 
       if (targetTextNode) {
-        console.log('📝 Found target text node in:', targetTextNode.parentElement?.tagName);
-
         // Find if selection spans multiple paragraphs
         const startP = targetTextNode.parentElement?.closest('p');
         const endP = (
@@ -1360,22 +1263,13 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
         const spansMultipleParagraphs = startP !== endP && startP && endP;
 
-        console.log('📊 Paragraph span check:', {
-          startP: startP?.textContent?.substring(0, 30),
-          endP: endP?.textContent?.substring(0, 30),
-          spansMultipleParagraphs,
-        });
-
         if (spansMultipleParagraphs) {
           // Selection spans multiple paragraphs - create new paragraph for rewritten text
-          console.log('📄 Spans multiple paragraphs - creating new paragraph');
 
           // Trim the first paragraph to keep only the text before selection
           const originalText = targetTextNode.nodeValue || '';
           const before = originalText.substring(0, range.startOffset);
           targetTextNode.nodeValue = before;
-
-          console.log('✂️ Trimmed first paragraph to:', before);
 
           // Create new paragraph for rewritten text with same styling
           const newP = document.createElement('p');
@@ -1383,11 +1277,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
             newP.className = startP.className;
           }
           newP.textContent = newText;
-
-          // Insert the new paragraph after the first one
           startP?.parentNode?.insertBefore(newP, startP.nextSibling);
-
-          console.log('✅ Created new paragraph with rewritten text');
 
           // Find and remove all paragraphs between start and end (exclusive of start, inclusive of end)
           let currentNode = startP?.nextSibling;
@@ -1439,9 +1329,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     // Store the parent element for cleanup
     const parentElement = range.commonAncestorContainer.parentElement;
 
-    console.log('📝 Replacement complete');
-    console.log('📦 Parent structure:', parentElement?.innerHTML.substring(0, 200));
-
     // Clean up any leftover empty elements (like empty <code>, <span>, etc.)
     if (parentElement) {
       this.cleanupEmptyElements(parentElement);
@@ -1452,8 +1339,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     if (selection) {
       selection.removeAllRanges();
     }
-
-    console.log('✅ Text replaced across multiple nodes');
   }
 
   /**
@@ -1536,8 +1421,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     }
 
     try {
-      console.log('🔄 Starting selected text rewrite...');
-
       // Get the current selection
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) {
@@ -1546,8 +1429,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
       const selectedText = selection.toString().trim();
 
-      console.log('📝 Original selected text:', selectedText.substring(0, 100) + '...');
-
       // Get the range and expand it to full word boundaries
       const originalRange = selection.getRangeAt(0);
       const expandedRange = this.expandSelectionToWordBoundaries(originalRange);
@@ -1555,8 +1436,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
       // Use the expanded text as the target for rewriting
       const originalText = expandedText || selectedText;
-
-      console.log('📝 Expanded to full word(s):', originalText.substring(0, 100) + '...');
 
       // Use the expanded range for DOM replacement
       const range = expandedRange;
@@ -1574,11 +1453,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       let contextInfo = { beforeContext: '', afterContext: '', fullContext: originalText };
       if (contextElement) {
         contextInfo = this.extractSurroundingContext(contextElement, originalText);
-        console.log('📖 Selection context extracted:', {
-          before: contextInfo.beforeContext.substring(-30),
-          target: originalText,
-          after: contextInfo.afterContext.substring(0, 30),
-        });
       }
 
       // Initialize rewriter
@@ -1610,7 +1484,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       }
 
       // Rewrite the text
-      console.log('✨ Rewriting with context...');
       const rawRewrittenText = await rewriter.rewrite(rewritePrompt, {
         context: contextPrompt,
       });
@@ -1618,20 +1491,8 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // Clean up the rewritten response
       let rewrittenText = this.cleanRewrittenResponse(rawRewrittenText);
 
-      console.log('🔧 Response processing:', {
-        original: originalText,
-        rawResponse: rawRewrittenText.substring(0, 100) + '...',
-        cleaned: rewrittenText.substring(0, 50) + '...',
-      });
-
       // Preserve original formatting patterns
       rewrittenText = this.preserveOriginalFormatting(originalText, rewrittenText);
-
-      console.log('✅ Final rewritten text:', rewrittenText);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('📄 ORIGINAL:', originalText);
-      console.log('✨ REWRITTEN:', rewrittenText);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       // Create wrapper for the rewritten content with interactive UI
       const wrapper = document.createElement('span');
@@ -1741,28 +1602,129 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       applyBtn.addEventListener('mouseout', () => {
         applyBtn.style.backgroundColor = 'white';
       });
-      applyBtn.addEventListener('click', e => {
+      // Track if save is in progress to prevent duplicate saves
+      let isSaving = false;
+      
+      applyBtn.addEventListener('click', async e => {
         try {
           e.preventDefault();
           e.stopPropagation();
 
-          console.log('✅ Apply button clicked, current text:', wrapper.textContent?.substring(0, 30) + '...');
-
-          // Remove buttons and keep the current text
-          if (buttonContainer && buttonContainer.parentNode) {
-            buttonContainer.remove();
+          // Prevent duplicate clicks/saves
+          if (isSaving) {
+            return;
           }
-          wrapper.style.backgroundColor = 'transparent';
-          wrapper.style.padding = '0';
-          wrapper.classList.remove('rewriter-highlight');
 
-          // Clear current highlight reference if this is the current highlight
-          if (this.currentHighlight === wrapper) {
-            this.currentHighlight = null;
-            console.log('🧹 Cleared current highlight reference');
+          // If showing original text, revert to original and don't save
+          if (!showingRewritten) {
+            // Revert to original text
+            wrapper.textContent = originalText;
+            wrapper.style.backgroundColor = 'transparent';
+            wrapper.style.padding = '0';
+            wrapper.classList.remove('rewriter-highlight');
+            
+            // Remove buttons
+            if (buttonContainer && buttonContainer.parentNode) {
+              buttonContainer.remove();
+            }
+            
+            // Clear current highlight reference
+            if (this.currentHighlight === wrapper) {
+              this.currentHighlight = null;
+            }
+            
+            return;
+          }
+
+          // User accepted the rewritten text - save it to database
+          // Mark as saving and disable button
+          isSaving = true;
+          applyBtn.disabled = true;
+          applyBtn.style.opacity = '0.5';
+          applyBtn.style.cursor = 'not-allowed';
+          
+          let saveSuccessful = false;
+          try {
+            const rewriterSettings = wrapper.dataset.rewriterSettings || JSON.stringify({
+              sharedContext: 'Make this text easier to understand for language learners.',
+              tone: this.rewriterOptions.tone || 'more-casual',
+              format: this.rewriterOptions.format || 'plain-text',
+              length: this.rewriterOptions.length || 'shorter',
+            });
+            
+            const urlFragment = wrapper.dataset.urlFragment || null;
+            
+            const savedRewrite = await addTextRewrite({
+              original_text: originalText,
+              rewritten_text: rewrittenText,
+              language: normalizeLanguageCode(navigator.language || 'en-US'),
+              rewriter_settings: rewriterSettings,
+              source_url: window.location.href,
+              url_fragment: urlFragment || null,
+            });
+
+            if (savedRewrite) {
+              saveSuccessful = true;
+              
+              // Notify side panel about new rewrite
+              try {
+                await chrome.runtime.sendMessage({
+                  action: 'rewriteAccepted',
+                  target: 'sidepanel',
+                  data: {
+                    rewrite: savedRewrite,
+                    url: window.location.href
+                  }
+                });
+              } catch {
+                // Side panel might not be open, that's okay
+              }
+            }
+          } catch (dbError) {
+            const errorMessage = dbError instanceof Error ? dbError.message : 'Unknown error';
+
+            // Check if this is an extension context invalidation error
+            if (
+              errorMessage.includes('Extension context invalidated') ||
+              errorMessage.includes('Receiving end does not exist') ||
+              errorMessage.includes('Could not establish connection')
+            ) {
+              // Show user-friendly notification
+              this.showContextInvalidationNotification();
+            } else {
+              console.warn('Failed to save rewrite to database:', dbError);
+            }
+          }
+
+          // Only remove buttons and cleanup if save was successful
+          if (saveSuccessful) {
+            // Remove buttons and keep the rewritten text
+            if (buttonContainer && buttonContainer.parentNode) {
+              buttonContainer.remove();
+            }
+            wrapper.style.backgroundColor = 'transparent';
+            wrapper.style.padding = '0';
+            wrapper.classList.remove('rewriter-highlight');
+
+            // Clear current highlight reference
+            if (this.currentHighlight === wrapper) {
+              this.currentHighlight = null;
+            }
+            isSaving = false;
+          } else {
+            // Save failed - keep buttons visible so user can try again
+            isSaving = false;
+            applyBtn.disabled = false;
+            applyBtn.style.opacity = '1';
+            applyBtn.style.cursor = 'pointer';
           }
         } catch (error) {
           console.error('❌ Error in apply button:', error);
+          // Reset saving flag on error
+          isSaving = false;
+          applyBtn.disabled = false;
+          applyBtn.style.opacity = '1';
+          applyBtn.style.cursor = 'pointer';
         }
       });
 
@@ -1776,53 +1738,15 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // Update current highlight reference
       this.currentHighlight = wrapper;
 
-      console.log('rewriting text: ', originalText);
-
-      // Save to database via background script
-      try {
-        const rewriterSettings = JSON.stringify({
-          sharedContext: 'Make this text easier to understand for language learners.',
-          tone: this.rewriterOptions.tone || 'more-casual',
-          format: this.rewriterOptions.format || 'plain-text',
-          length: this.rewriterOptions.length || 'shorter',
-        });
-        
-        console.log('💾 trying to write', originalText, rewrittenText, urlFragment);
-        // Save rewrite via background script
-        const success = await addTextRewrite({
-          original_text: originalText,
-          rewritten_text: rewrittenText,
-          language: normalizeLanguageCode(navigator.language || 'en-US'),
-          rewriter_settings: rewriterSettings,
-          source_url: window.location.href,
-          url_fragment: urlFragment || null,
-        });
-
-        if (success) {
-          console.log('💾 Text rewrite saved to database');
-        } else {
-          console.warn('⚠️ Failed to save rewrite to database');
-        }
-      } catch (dbError) {
-        const errorMessage = dbError instanceof Error ? dbError.message : 'Unknown error';
-
-        // Check if this is an extension context invalidation error
-        if (
-          errorMessage.includes('Extension context invalidated') ||
-          errorMessage.includes('Receiving end does not exist') ||
-          errorMessage.includes('Could not establish connection')
-        ) {
-          console.warn(
-            '⚠️ Extension context invalidated. Text rewrite was successful but could not be saved to database. Please reload the extension or refresh the page to restore database functionality.',
-          );
-
-          // Show user-friendly notification
-          this.showContextInvalidationNotification();
-        } else {
-          console.warn('⚠️ Failed to save rewrite to database:', dbError);
-        }
-        // Don't throw - the rewrite still succeeded
-      }
+      // Store rewrite data for later saving (when user accepts)
+      // Store in wrapper data attributes for access in apply button handler
+      wrapper.dataset.urlFragment = urlFragment || '';
+      wrapper.dataset.rewriterSettings = JSON.stringify({
+        sharedContext: 'Make this text easier to understand for language learners.',
+        tone: this.rewriterOptions.tone || 'more-casual',
+        format: this.rewriterOptions.format || 'plain-text',
+        length: this.rewriterOptions.length || 'shorter',
+      });
 
       return {
         originalText,
@@ -1840,12 +1764,9 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    */
   generateTextFragment(range: Range): string | null {
     try {
-      const result = generateFragmentStringHashFromRange(range);
-
-      console.log('textfragment', result);
-      return result;
+      return generateFragmentStringHashFromRange(range);
     } catch (error) {
-      console.error('❌ Error generating text fragment:', error);
+      console.error('Error generating text fragment:', error);
       return null;
     }
   }

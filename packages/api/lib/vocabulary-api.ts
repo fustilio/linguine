@@ -6,7 +6,9 @@ import {
   sendDatabaseMessageForItem,
   sendDatabaseMessageForBoolean,
   sendDatabaseMessageForNumber,
+  VocabularyItemSchema,
 } from './database-api-utils.js';
+import { z } from 'zod';
 
 export interface VocabularyItem {
   id: number;
@@ -32,62 +34,49 @@ export interface VocabularyResponse {
  * Get all vocabulary items for summary
  */
 export const getAllVocabularyForSummary = async (): Promise<VocabularyItem[]> => {
-  return sendDatabaseMessageForArray<VocabularyItem>('getAllVocabularyForSummary');
+  const response = await sendDatabaseMessageForArray<VocabularyItem>('getAllVocabularyForSummary');
+  // Validate each item in the array
+  return response.map(item => VocabularyItemSchema.parse(item));
 };
 
 /**
  * Add a vocabulary item via offscreen document
  */
 export const addVocabularyItem = async (item: NewVocabularyItem): Promise<VocabularyItem | null> => {
-  const result = await sendDatabaseMessageForItem<VocabularyItem>('addVocabularyItem', item);
-  if (result) {
-    console.log('✅ Vocabulary item saved successfully');
-  }
-  return result;
+  const NewVocabularyItemSchema = z.object({
+    text: z.string().min(1),
+    language: z.string(),
+  });
+  const validatedItem = NewVocabularyItemSchema.parse(item);
+  return await sendDatabaseMessageForItem<VocabularyItem>('addVocabularyItem', validatedItem, VocabularyItemSchema);
 };
 
 /**
  * Delete a vocabulary item via offscreen document
  */
 export const deleteVocabularyItem = async (id: number): Promise<boolean> => {
-  const result = await sendDatabaseMessageForBoolean('deleteVocabularyItem', { id });
-  if (result) {
-    console.log('✅ Vocabulary item deleted successfully');
-  }
-  return result;
+  return await sendDatabaseMessageForBoolean('deleteVocabularyItem', { id });
 };
 
 /**
  * Delete multiple vocabulary items via offscreen document
  */
 export const deleteVocabularyItems = async (ids: number[]): Promise<boolean> => {
-  const result = await sendDatabaseMessageForBoolean('deleteVocabularyItems', { ids });
-  if (result) {
-    console.log('✅ Vocabulary items deleted successfully');
-  }
-  return result;
+  return await sendDatabaseMessageForBoolean('deleteVocabularyItems', { ids });
 };
 
 /**
  * Update vocabulary item knowledge level via offscreen document
  */
 export const updateVocabularyItemKnowledgeLevel = async (id: number, level: number): Promise<boolean> => {
-  const result = await sendDatabaseMessageForBoolean('updateVocabularyItemKnowledgeLevel', { id, level });
-  if (result) {
-    console.log('✅ Vocabulary item knowledge level updated successfully');
-  }
-  return result;
+  return await sendDatabaseMessageForBoolean('updateVocabularyItemKnowledgeLevel', { id, level });
 };
 
 /**
  * Update multiple vocabulary items knowledge levels via offscreen document
  */
 export const updateVocabularyItemKnowledgeLevels = async (ids: number[], levelChange: 1 | -1): Promise<boolean> => {
-  const result = await sendDatabaseMessageForBoolean('updateVocabularyItemKnowledgeLevels', { ids, levelChange });
-  if (result) {
-    console.log('✅ Vocabulary items knowledge levels updated successfully');
-  }
-  return result;
+  return await sendDatabaseMessageForBoolean('updateVocabularyItemKnowledgeLevels', { ids, levelChange });
 };
 
 /**
@@ -98,7 +87,9 @@ export const getVocabulary = async (
   limit: number = 10,
   languageFilter?: string | null
 ): Promise<VocabularyItem[]> => {
-  return sendDatabaseMessageForArray<VocabularyItem>('getVocabulary', { page, limit, languageFilter });
+  const response = await sendDatabaseMessageForArray<VocabularyItem>('getVocabulary', { page, limit, languageFilter });
+  // Validate each item in the array
+  return response.map(item => VocabularyItemSchema.parse(item));
 };
 
 /**
@@ -112,22 +103,14 @@ export const getVocabularyCount = async (languageFilter?: string | null): Promis
  * Reset vocabulary database via offscreen document
  */
 export const resetVocabularyDatabase = async (): Promise<boolean> => {
-  const result = await sendDatabaseMessageForBoolean('resetVocabularyDatabase');
-  if (result) {
-    console.log('✅ Vocabulary database reset successfully');
-  }
-  return result;
+  return await sendDatabaseMessageForBoolean('resetVocabularyDatabase');
 };
 
 /**
  * Populate dummy vocabulary via offscreen document
  */
 export const populateDummyVocabulary = async (): Promise<boolean> => {
-  const result = await sendDatabaseMessageForBoolean('populateDummyVocabulary');
-  if (result) {
-    console.log('✅ Dummy vocabulary populated successfully');
-  }
-  return result;
+  return await sendDatabaseMessageForBoolean('populateDummyVocabulary');
 };
 
 /**

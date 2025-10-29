@@ -82,15 +82,24 @@ const getVocabularyCount = async (language?: string | null): Promise<number> => 
   return (result?.count as number) || 0;
 };
 
-const addVocabularyItem = async (item: Pick<NewVocabularyItem, 'text' | 'language'>) => {
+const addVocabularyItem = async (item: Pick<NewVocabularyItem, 'text' | 'language'>): Promise<VocabularyItem> => {
   await ensureDatabaseInitialized();
   const db = getDb();
-  if (!db) return;
+  if (!db) {
+    throw new Error('Database not available');
+  }
+  
   const now = new Date().toISOString();
-  await db
+  const insertValues = { ...item, last_reviewed_at: now, created_at: now, knowledge_level: 1 };
+  
+  // Use returningAll() to get the inserted row back directly
+  const result = await db
     .insertInto('vocabulary')
-    .values({ ...item, last_reviewed_at: now, created_at: now, knowledge_level: 1 })
-    .execute();
+    .values(insertValues)
+    .returningAll()
+    .executeTakeFirstOrThrow();
+
+  return result as VocabularyItem;
 };
 
 const updateVocabularyItemKnowledgeLevel = async (id: number, level: number) => {

@@ -35,11 +35,7 @@ const initializeTextRewritesDatabase = async () => {
     // Create indexes for common queries
     await db.schema.createIndex('idx_text_rewrites_language').on('text_rewrites').column('language').execute();
 
-    await db.schema
-      .createIndex('idx_text_rewrites_created_at')
-      .on('text_rewrites')
-      .column('created_at')
-      .execute();
+    await db.schema.createIndex('idx_text_rewrites_created_at').on('text_rewrites').column('created_at').execute();
 
     await db.schema
       .createIndex('idx_text_rewrites_original_readability_score')
@@ -53,11 +49,7 @@ const initializeTextRewritesDatabase = async () => {
       .column('rewritten_readability_score')
       .execute();
 
-    await db.schema
-      .createIndex('idx_text_rewrites_source_url')
-      .on('text_rewrites')
-      .column('source_url')
-      .execute();
+    await db.schema.createIndex('idx_text_rewrites_source_url').on('text_rewrites').column('source_url').execute();
   }
 };
 
@@ -167,7 +159,7 @@ const countSyllablesKorean = (text: string): number => {
 const countSyllables = (word: string, language: string): number => {
   // Normalize the language code to ensure consistency
   const normalizedLang = normalizeLanguageCode(language);
-  
+
   switch (normalizedLang) {
     case 'es-ES':
       return countSyllablesSpanish(word);
@@ -228,7 +220,7 @@ const countKanji = (text: string): number => {
 const calculateReadabilityScore = (text: string, language: string): number => {
   // Normalize the language code to ensure consistency
   const normalizedLang = normalizeLanguageCode(language);
-  
+
   const words = text
     .trim()
     .split(/\s+/)
@@ -305,12 +297,12 @@ const getTextRewrites = async (
   },
 ): Promise<TextRewrite[]> => {
   await ensureTextRewritesDatabaseInitialized();
-  
+
   const db = getDb();
   if (!db) return [];
 
   try {
-    let query = db.selectFrom('text_rewrites').selectAll().orderBy('created_at', 'desc')
+    let query = db.selectFrom('text_rewrites').selectAll().orderBy('created_at', 'desc');
 
     if (filters?.language) {
       query = query.where('language', '=', filters.language);
@@ -466,13 +458,9 @@ const getTextRewritesByReadability = async (
 
 const addTextRewrite = async (
   rewrite: Omit<NewTextRewrite, 'id' | 'original_readability_score' | 'rewritten_readability_score' | 'created_at'>,
-) => {
-    console.log("add text rewrite")
-  // Ensure database is initialized before attempting to insert
+): Promise<TextRewrite> => {
   await ensureTextRewritesDatabaseInitialized();
 
-  console.log("db is initilized")
-  
   const db = getDb();
   if (!db) {
     throw new Error('Database not available');
@@ -483,15 +471,20 @@ const addTextRewrite = async (
     const originalReadabilityScore = calculateReadabilityScore(rewrite.original_text, rewrite.language);
     const rewrittenReadabilityScore = calculateReadabilityScore(rewrite.rewritten_text, rewrite.language);
 
-    await db
+    const insertValues = {
+      ...rewrite,
+      original_readability_score: originalReadabilityScore,
+      rewritten_readability_score: rewrittenReadabilityScore,
+      created_at: now,
+    };
+
+    const result = await db
       .insertInto('text_rewrites')
-      .values({
-        ...rewrite,
-        original_readability_score: originalReadabilityScore,
-        rewritten_readability_score: rewrittenReadabilityScore,
-        created_at: now,
-      })
-      .execute();
+      .values(insertValues)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return result;
   } catch (error) {
     console.error('Error adding text rewrite:', error);
     throw error;
@@ -500,7 +493,7 @@ const addTextRewrite = async (
 
 const deleteTextRewrite = async (id: number) => {
   await ensureTextRewritesDatabaseInitialized();
-  
+
   const db = getDb();
   if (!db) {
     throw new Error('Database not available');
@@ -516,7 +509,7 @@ const deleteTextRewrite = async (id: number) => {
 
 const deleteTextRewrites = async (ids: number[]) => {
   await ensureTextRewritesDatabaseInitialized();
-  
+
   const db = getDb();
   if (!db) {
     throw new Error('Database not available');
@@ -532,7 +525,7 @@ const deleteTextRewrites = async (ids: number[]) => {
 
 const clearAllTextRewrites = async () => {
   await ensureTextRewritesDatabaseInitialized();
-  
+
   const db = getDb();
   if (!db) {
     throw new Error('Database not available');
@@ -553,7 +546,7 @@ const resetTextRewritesDatabase = async () => {
 
   // Drop the table if it exists
   await db.schema.dropTable('text_rewrites').ifExists().execute();
-  
+
   // Recreate the table with current schema
   await initializeTextRewritesDatabase();
 };
@@ -637,17 +630,14 @@ const migrateLanguageCodes = async (): Promise<{ updated: number; errors: number
 
   try {
     // Get all text rewrites
-    const rewrites = await db
-      .selectFrom('text_rewrites')
-      .selectAll()
-      .execute();
+    const rewrites = await db.selectFrom('text_rewrites').selectAll().execute();
 
     console.log(`Found ${rewrites.length} text rewrites to check for language normalization`);
 
     for (const rewrite of rewrites) {
       try {
         const normalizedLanguage = normalizeLanguageCode(rewrite.language);
-        
+
         // Only update if the language code has changed
         if (normalizedLanguage !== rewrite.language) {
           await db
@@ -655,7 +645,7 @@ const migrateLanguageCodes = async (): Promise<{ updated: number; errors: number
             .set({ language: normalizedLanguage })
             .where('id', '=', rewrite.id)
             .execute();
-          
+
           updated++;
           console.log(`Updated rewrite ${rewrite.id}: "${rewrite.language}" → "${normalizedLanguage}"`);
         }
@@ -675,7 +665,7 @@ const migrateLanguageCodes = async (): Promise<{ updated: number; errors: number
 };
 
 // Export all functions
-export { 
+export {
   initializeTextRewritesDatabase,
   calculateReadabilityScore,
   ensureTextRewritesDatabaseInitialized,
@@ -693,5 +683,5 @@ export {
   resetTextRewritesDatabase,
   getVocabularyWordsInText,
   getTextRewritesContainingWord,
-  migrateLanguageCodes
+  migrateLanguageCodes,
 };

@@ -1,11 +1,271 @@
 // Database API Utilities
 // Shared utilities for message passing to offscreen document
 
+import { z } from 'zod';
+import { LanguageCodeSchema } from '@extension/shared';
+
 export interface DatabaseResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
 }
+
+// Zod schemas for database message validation
+
+/**
+ * Message target types - specifies which component should handle the message
+ */
+export type MessageTarget = 'background' | 'offscreen' | 'sidepanel' | 'content' | 'popup' | 'options';
+
+/**
+ * Base database request schema with explicit target
+ */
+export const DatabaseRequestSchema = z.object({
+  action: z.string(),
+  target: z.enum(['background', 'offscreen', 'sidepanel', 'content', 'popup', 'options']).optional(),
+  data: z.unknown().optional(),
+});
+
+/**
+ * Generic database response schema
+ */
+export const DatabaseResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
+  z.object({
+    success: z.boolean(),
+    data: dataSchema.optional(),
+    error: z.string().optional(),
+  });
+
+/**
+ * Text Rewrite schemas
+ */
+export const TextRewriteSchema = z.object({
+  id: z.number(),
+  original_text: z.string(),
+  rewritten_text: z.string(),
+  language: z.string(),
+  rewriter_settings: z.string(),
+  source_url: z.string(),
+  url_fragment: z.string().nullable(),
+  original_readability_score: z.number(),
+  rewritten_readability_score: z.number(),
+  created_at: z.string(),
+});
+
+export const TextRewriteDataSchema = z.object({
+  original_text: z.string().min(1),
+  rewritten_text: z.string().min(1),
+  language: LanguageCodeSchema,
+  rewriter_settings: z.string(),
+  source_url: z.string().url(),
+  url_fragment: z.string().nullable().optional(),
+});
+
+export const TextRewriteFiltersSchema = z.object({
+  language: LanguageCodeSchema.optional(),
+  minReadability: z.number().min(0).max(100).optional(),
+  maxReadability: z.number().min(0).max(100).optional(),
+  recentDays: z.number().positive().optional(),
+  sourceUrl: z.string().url().optional(),
+});
+
+export const AddTextRewriteRequestSchema = z.object({
+  action: z.literal('addTextRewrite'),
+  target: z.enum(['background', 'offscreen', 'sidepanel', 'content', 'popup', 'options']).optional().default('offscreen'),
+  data: TextRewriteDataSchema,
+});
+
+export const GetTextRewritesRequestSchema = z.object({
+  action: z.literal('getTextRewrites'),
+  data: z.object({
+    page: z.number().positive().optional(),
+    limit: z.number().positive().optional(),
+    filters: TextRewriteFiltersSchema.optional(),
+  }),
+});
+
+export const GetTextRewriteCountRequestSchema = z.object({
+  action: z.literal('getTextRewriteCount'),
+  data: z.object({
+    filters: TextRewriteFiltersSchema.optional(),
+  }),
+});
+
+export const DeleteTextRewriteRequestSchema = z.object({
+  action: z.literal('deleteTextRewrite'),
+  data: z.object({
+    id: z.number().positive(),
+  }),
+});
+
+export const DeleteTextRewritesRequestSchema = z.object({
+  action: z.literal('deleteTextRewrites'),
+  data: z.object({
+    ids: z.array(z.number().positive()),
+  }),
+});
+
+export const GetTextRewriteByIdRequestSchema = z.object({
+  action: z.literal('getTextRewriteById'),
+  data: z.object({
+    id: z.number().positive(),
+  }),
+});
+
+export const GetTextRewritesByLanguageRequestSchema = z.object({
+  action: z.literal('getTextRewritesByLanguage'),
+  data: z.object({
+    language: LanguageCodeSchema,
+  }),
+});
+
+export const GetRecentTextRewritesRequestSchema = z.object({
+  action: z.literal('getRecentTextRewrites'),
+  data: z.object({
+    days: z.number().positive(),
+    language: LanguageCodeSchema.optional(),
+  }),
+});
+
+export const GetTextRewritesByUrlRequestSchema = z.object({
+  action: z.literal('getTextRewritesByUrl'),
+  data: z.object({
+    url: z.string().url(),
+  }),
+});
+
+export const GetTextRewritesByReadabilityRequestSchema = z.object({
+  action: z.literal('getTextRewritesByReadability'),
+  data: z.object({
+    minScore: z.number().min(0).max(100),
+    maxScore: z.number().min(0).max(100),
+    language: LanguageCodeSchema.optional(),
+  }),
+});
+
+/**
+ * Vocabulary schemas
+ */
+export const VocabularyItemSchema = z.object({
+  id: z.number(),
+  text: z.string(),
+  language: z.string(),
+  knowledge_level: z.number(),
+  last_reviewed_at: z.string(),
+  created_at: z.string(),
+});
+
+export const NewVocabularyItemSchema = z.object({
+  text: z.string().min(1),
+  language: LanguageCodeSchema,
+});
+
+export const AddVocabularyItemRequestSchema = z.object({
+  action: z.literal('addVocabularyItem'),
+  data: NewVocabularyItemSchema,
+});
+
+export const DeleteVocabularyItemRequestSchema = z.object({
+  action: z.literal('deleteVocabularyItem'),
+  data: z.object({
+    id: z.number().positive(),
+  }),
+});
+
+export const DeleteVocabularyItemsRequestSchema = z.object({
+  action: z.literal('deleteVocabularyItems'),
+  data: z.object({
+    ids: z.array(z.number().positive()),
+  }),
+});
+
+export const UpdateVocabularyItemKnowledgeLevelRequestSchema = z.object({
+  action: z.literal('updateVocabularyItemKnowledgeLevel'),
+  data: z.object({
+    id: z.number().positive(),
+    level: z.number().int().min(1).max(5),
+  }),
+});
+
+export const UpdateVocabularyItemKnowledgeLevelsRequestSchema = z.object({
+  action: z.literal('updateVocabularyItemKnowledgeLevels'),
+  data: z.object({
+    ids: z.array(z.number().positive()),
+    levelChange: z.union([z.literal(1), z.literal(-1)]),
+  }),
+});
+
+export const GetVocabularyRequestSchema = z.object({
+  action: z.literal('getVocabulary'),
+  data: z.object({
+    page: z.number().positive().optional(),
+    limit: z.number().positive().optional(),
+    languageFilter: LanguageCodeSchema.nullable().optional(),
+  }),
+});
+
+export const GetVocabularyCountRequestSchema = z.object({
+  action: z.literal('getVocabularyCount'),
+  data: z.object({
+    languageFilter: LanguageCodeSchema.nullable().optional(),
+  }),
+});
+
+export const GetVocabularyWordsInTextRequestSchema = z.object({
+  action: z.literal('getVocabularyWordsInText'),
+  data: z.object({
+    textId: z.number().positive(),
+  }),
+});
+
+export const GetTextRewritesContainingWordRequestSchema = z.object({
+  action: z.literal('getTextRewritesContainingWord'),
+  data: z.object({
+    vocabularyId: z.number().positive(),
+  }),
+});
+
+/**
+ * Union of all request schemas
+ */
+export const DatabaseActionRequestSchema = z.discriminatedUnion('action', [
+  AddTextRewriteRequestSchema,
+  GetTextRewritesRequestSchema,
+  GetTextRewriteCountRequestSchema,
+  DeleteTextRewriteRequestSchema,
+  DeleteTextRewritesRequestSchema,
+  GetTextRewriteByIdRequestSchema,
+  GetTextRewritesByLanguageRequestSchema,
+  GetRecentTextRewritesRequestSchema,
+  GetTextRewritesByUrlRequestSchema,
+  GetTextRewritesByReadabilityRequestSchema,
+  AddVocabularyItemRequestSchema,
+  DeleteVocabularyItemRequestSchema,
+  DeleteVocabularyItemsRequestSchema,
+  UpdateVocabularyItemKnowledgeLevelRequestSchema,
+  UpdateVocabularyItemKnowledgeLevelsRequestSchema,
+  GetVocabularyRequestSchema,
+  GetVocabularyCountRequestSchema,
+  GetVocabularyWordsInTextRequestSchema,
+  GetTextRewritesContainingWordRequestSchema,
+  z.object({ action: z.literal('getAllVocabularyForSummary') }),
+  z.object({ action: z.literal('resetVocabularyDatabase') }),
+  z.object({ action: z.literal('populateDummyVocabulary') }),
+  z.object({ action: z.literal('clearAllTextRewrites') }),
+  z.object({ action: z.literal('resetTextRewritesDatabase') }),
+  z.object({ action: z.literal('ensureDatabaseInitialized') }),
+  z.object({ action: z.literal('migrateLanguageCodes') }),
+]);
+
+/**
+ * Response schemas
+ */
+export const TextRewriteResponseSchema = DatabaseResponseSchema(TextRewriteSchema);
+export const TextRewritesArrayResponseSchema = DatabaseResponseSchema(z.array(TextRewriteSchema));
+export const VocabularyItemResponseSchema = DatabaseResponseSchema(VocabularyItemSchema);
+export const VocabularyItemsArrayResponseSchema = DatabaseResponseSchema(z.array(VocabularyItemSchema));
+export const BooleanResponseSchema = DatabaseResponseSchema(z.boolean());
+export const NumberResponseSchema = DatabaseResponseSchema(z.number());
 
 /**
  * Check if the extension context is still valid
@@ -20,7 +280,25 @@ const isExtensionContextValid = (): boolean => {
 };
 
 /**
- * Generic function to send messages to the offscreen document with retry logic
+ * Ensure offscreen document exists before sending messages
+ */
+const ensureOffscreenDocument = async (): Promise<void> => {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'ensureOffscreenDocument',
+      target: 'background',
+    });
+    if (!response || !response.success) {
+      throw new Error('Failed to ensure offscreen document exists');
+    }
+  } catch (error) {
+    console.error('❌ Failed to ensure offscreen document:', error);
+    throw error;
+  }
+};
+
+/**
+ * Generic function to send messages directly to the offscreen document with retry logic
  */
 export const sendDatabaseMessage = async <T = unknown>(
   action: string,
@@ -35,8 +313,15 @@ export const sendDatabaseMessage = async <T = unknown>(
       throw new Error('Extension context invalidated');
     }
 
+    // Ensure offscreen document exists (only on first attempt, not retries)
+    if (retryCount === 0) {
+      await ensureOffscreenDocument();
+    }
+
+    // Send directly to offscreen document
     const response = await chrome.runtime.sendMessage({
       action,
+      target: 'offscreen', // Send directly to offscreen
       data,
     });
 
@@ -53,7 +338,7 @@ export const sendDatabaseMessage = async <T = unknown>(
       console.error(`❌ No valid response received for ${action}. Response:`, response);
       return { 
         success: false, 
-        error: 'No valid response received from background script' 
+        error: 'No valid response received from offscreen document' 
       };
     }
   } catch (error) {
@@ -102,10 +387,27 @@ export const sendDatabaseMessageForArray = async <T = unknown>(
  */
 export const sendDatabaseMessageForItem = async <T = unknown>(
   action: string,
-  data?: unknown
+  data?: unknown,
+  responseSchema?: z.ZodType<T>
 ): Promise<T | null> => {
   const response = await sendDatabaseMessage<T>(action, data);
-  return response.success ? response.data || null : null;
+  
+  if (response.success && response.data) {
+    // Validate response data if schema is provided
+    if (responseSchema) {
+      try {
+        const validatedData = responseSchema.parse(response.data);
+        return validatedData;
+      } catch (error) {
+        console.error(`❌ Response validation failed for ${action}:`, error);
+        console.error('Invalid response data:', response.data);
+        return null;
+      }
+    }
+    return response.data;
+  }
+  
+  return null;
 };
 
 /**
