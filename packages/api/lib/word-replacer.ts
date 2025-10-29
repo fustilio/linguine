@@ -1216,11 +1216,20 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
       const selectedText = selection.toString().trim();
 
-      console.log('📝 Selected text:', selectedText.substring(0, 100) + '...');
+      console.log('📝 Original selected text:', selectedText.substring(0, 100) + '...');
 
-      // Get the range
-      const range = selection.getRangeAt(0);
-      const originalText = selectedText;
+      // Get the range and expand it to full word boundaries
+      const originalRange = selection.getRangeAt(0);
+      const expandedRange = this.expandSelectionToWordBoundaries(originalRange);
+      const expandedText = expandedRange.toString().trim();
+
+      // Use the expanded text as the target for rewriting
+      const originalText = expandedText || selectedText;
+
+      console.log('📝 Expanded to full word(s):', originalText.substring(0, 100) + '...');
+
+      // Use the expanded range for DOM replacement
+      const range = expandedRange;
 
       // Extract surrounding context for better rewriting
       const commonAncestor = range.commonAncestorContainer;
