@@ -53,6 +53,7 @@ export class WordReplacer {
   private floatingWidget: HTMLElement | null;
   private isDragging: boolean;
   private dragOffset: { x: number; y: number };
+  private dragStartPosition: { x: number; y: number } | null;
 
   private constructor() {
     this.replacements = new Map();
@@ -79,6 +80,7 @@ export class WordReplacer {
     this.floatingWidget = null;
     this.isDragging = false;
     this.dragOffset = { x: 0, y: 0 };
+    this.dragStartPosition = null;
 
     // Initialize the extension
     this.init();
@@ -1530,7 +1532,11 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
     // Handle drag start
     widget.addEventListener('mousedown', (e: MouseEvent) => {
-      this.isDragging = true;
+      this.isDragging = false; // Will be set to true only after actual dragging starts
+      this.dragStartPosition = {
+        x: e.clientX,
+        y: e.clientY,
+      };
       const rect = widget.getBoundingClientRect();
       this.dragOffset = {
         x: e.clientX - rect.left,
@@ -1542,7 +1548,19 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
     // Handle dragging
     const handleMouseMove = (e: MouseEvent) => {
-      if (!this.isDragging || !this.floatingWidget) return;
+      if (!this.dragStartPosition || !this.floatingWidget) return;
+
+      // Calculate distance moved from initial mousedown position
+      const deltaX = Math.abs(e.clientX - this.dragStartPosition.x);
+      const deltaY = Math.abs(e.clientY - this.dragStartPosition.y);
+      const dragThreshold = 5; // Minimum pixels to move before considering it a drag
+
+      // Only start dragging if moved beyond threshold
+      if (!this.isDragging && (deltaX > dragThreshold || deltaY > dragThreshold)) {
+        this.isDragging = true;
+      }
+
+      if (!this.isDragging) return;
 
       const x = e.clientX - this.dragOffset.x;
       const y = e.clientY - this.dragOffset.y;
@@ -1562,18 +1580,27 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
     // Handle drag end
     const handleMouseUp = () => {
-      if (this.isDragging && this.floatingWidget) {
-        this.isDragging = false;
+      if (this.floatingWidget) {
         this.floatingWidget.style.cursor = 'move';
         this.floatingWidget.style.transform = 'scale(1)';
         this.floatingWidget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
       }
+
+      // Reset drag state after a small delay to prevent click event from firing
+      setTimeout(() => {
+        this.isDragging = false;
+        this.dragStartPosition = null;
+      }, 10);
     };
 
     // Handle click (rewrite selected text)
-    widget.addEventListener('click', async () => {
+    widget.addEventListener('click', async e => {
       // Only trigger rewrite if not dragging
-      if (this.isDragging) return;
+      if (this.isDragging) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
 
       const selection = window.getSelection();
       if (!selection || selection.toString().trim().length === 0) {
