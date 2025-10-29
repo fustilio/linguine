@@ -5,5 +5,5 @@
     "outDir": "dist",
     "types": ["dom-chromium-ai", "chrome"]
   },
-  "include": ["index.mts", "lib"]
+  "include": ["index.mts", "lib", "text-fragments-polyfill.d.ts"]
 }

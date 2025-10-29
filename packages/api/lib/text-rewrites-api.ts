@@ -93,6 +93,16 @@ export const getTextRewrites = async (
   // Validate filters
   const validatedFilters = TextRewriteFiltersSchema.parse(filters);
   
+  // Normalize sourceUrl to domain + path only
+  if (validatedFilters.sourceUrl) {
+    try {
+      const url = new URL(validatedFilters.sourceUrl);
+      validatedFilters.sourceUrl = `${url.origin}${url.pathname}`;
+    } catch {
+      // Keep original if URL parsing fails
+    }
+  }
+  
   return sendDatabaseMessageForArray<TextRewrite>('getTextRewrites', { page, limit, filters: validatedFilters });
 };
 
@@ -102,6 +112,16 @@ export const getTextRewrites = async (
 export const getTextRewriteCount = async (filters: TextRewriteFilters = {}): Promise<number> => {
   // Validate filters
   const validatedFilters = TextRewriteFiltersSchema.parse(filters);
+  
+  // Normalize sourceUrl to domain + path only
+  if (validatedFilters.sourceUrl) {
+    try {
+      const url = new URL(validatedFilters.sourceUrl);
+      validatedFilters.sourceUrl = `${url.origin}${url.pathname}`;
+    } catch {
+      // Keep original if URL parsing fails
+    }
+  }
   
   return sendDatabaseMessageForNumber('getTextRewriteCount', { filters: validatedFilters });
 };

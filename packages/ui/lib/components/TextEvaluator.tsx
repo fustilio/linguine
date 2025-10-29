@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import { LANGUAGES } from '@extension/shared/const';
 import { useState } from 'react';
-import type { TextEvaluationResult } from '@extension/api';
+import type { TextEvaluationResult } from '@extension/shared';
 
 interface TextEvaluatorProps {
   onAnalyze: (text: string, language: string) => void;

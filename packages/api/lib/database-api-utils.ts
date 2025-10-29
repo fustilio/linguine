@@ -8,13 +8,33 @@ export interface DatabaseResponse<T = unknown> {
 }
 
 /**
- * Generic function to send messages to the offscreen document
+ * Check if the extension context is still valid
+ */
+const isExtensionContextValid = (): boolean => {
+  try {
+    // Try to access chrome.runtime to check if context is valid
+    return chrome.runtime && chrome.runtime.id !== undefined;
+  } catch (error) {
+    return false;
+  }
+};
+
+/**
+ * Generic function to send messages to the offscreen document with retry logic
  */
 export const sendDatabaseMessage = async <T = unknown>(
   action: string,
-  data?: unknown
+  data?: unknown,
+  retryCount: number = 0
 ): Promise<DatabaseResponse<T>> => {
+  const maxRetries = 2;
+  
   try {
+    // Check if extension context is valid before sending message
+    if (!isExtensionContextValid()) {
+      throw new Error('Extension context invalidated');
+    }
+
     const response = await chrome.runtime.sendMessage({
       action,
       data,
@@ -37,10 +57,31 @@ export const sendDatabaseMessage = async <T = unknown>(
       };
     }
   } catch (error) {
-    console.error(`❌ Error sending message for ${action}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`❌ Error sending message for ${action}:`, errorMessage);
+    
+    // Check if this is an extension context invalidation error
+    if (errorMessage.includes('Extension context invalidated') || 
+        errorMessage.includes('Receiving end does not exist') ||
+        errorMessage.includes('Could not establish connection')) {
+      
+      // If we haven't exceeded max retries, wait and retry
+      if (retryCount < maxRetries) {
+        console.log(`🔄 Retrying ${action} in 1 second... (attempt ${retryCount + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return sendDatabaseMessage<T>(action, data, retryCount + 1);
+      } else {
+        console.error(`❌ Max retries exceeded for ${action}. Extension may need to be reloaded.`);
+        return { 
+          success: false, 
+          error: 'Extension context invalidated. Please reload the extension or refresh the page.' 
+        };
+      }
+    }
+    
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      error: errorMessage
     };
   }
 };

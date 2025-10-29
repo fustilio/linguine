@@ -30,7 +30,6 @@
     "tailwind-merge": "^3.3.0"
   },
   "devDependencies": {
-    "@extension/api": "workspace:*",
     "@extension/sqlite": "workspace:*",
     "@extension/tailwindcss-config": "workspace:*",
     "@extension/tsconfig": "workspace:*",

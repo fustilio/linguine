@@ -88,17 +88,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       ];
 
       if (databaseActions.includes(message.action)) {
-        // Ensure offscreen document exists
-        await setupOffscreenDocument('offscreen.html');
+        try {
+          // Ensure offscreen document exists
+          await setupOffscreenDocument('offscreen.html');
 
-        // Forward database-related messages to offscreen document
-        const response = await chrome.runtime.sendMessage(message);
+          // Forward database-related messages to offscreen document
+          const response = await chrome.runtime.sendMessage(message);
 
-        if (response && response.success) {
-          sendResponse(response);
-        } else {
-          console.error('❌ Offscreen document error:', response?.error || 'No response');
-          sendResponse({ success: false, error: response?.error || 'No response from offscreen document' });
+          if (response && response.success) {
+            sendResponse(response);
+          } else {
+            console.error('❌ Offscreen document error:', response?.error || 'No response');
+            sendResponse({ success: false, error: response?.error || 'No response from offscreen document' });
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error('❌ Error forwarding database message:', errorMessage);
+          
+          // Check if this is an extension context invalidation error
+          if (errorMessage.includes('Extension context invalidated') || 
+              errorMessage.includes('Receiving end does not exist') ||
+              errorMessage.includes('Could not establish connection')) {
+            sendResponse({ 
+              success: false, 
+              error: 'Extension context invalidated. Please reload the extension or refresh the page.' 
+            });
+          } else {
+            sendResponse({ 
+              success: false, 
+              error: errorMessage 
+            });
+          }
         }
       } else {
         // Handle non-database messages
@@ -122,6 +142,69 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             // Health check
             sendResponse({ success: true, pong: true });
             break;
+
+          case 'scanAllRewritesAvailability':
+            // Forward bulk text availability scan to content script on the current tab
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+              if (tabs[0]?.id) {
+                chrome.tabs.sendMessage(tabs[0].id, {
+                  action: 'scanAllRewritesAvailability',
+                  data: message.data
+                }, (response) => {
+                  if (chrome.runtime.lastError) {
+                    console.error('Failed to send bulk text availability scan to content script:', chrome.runtime.lastError);
+                    sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                  } else {
+                    sendResponse(response || { success: true, data: [] });
+                  }
+                });
+              } else {
+                sendResponse({ success: false, error: 'No active tab found' });
+              }
+            });
+            return; // Keep the message channel open
+
+          case 'checkTextAvailability':
+            // Forward text availability check to content script on the current tab
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+              if (tabs[0]?.id) {
+                chrome.tabs.sendMessage(tabs[0].id, {
+                  action: 'checkTextAvailability',
+                  data: message.data
+                }, (response) => {
+                  if (chrome.runtime.lastError) {
+                    console.error('Failed to send text availability check to content script:', chrome.runtime.lastError);
+                    sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                  } else {
+                    sendResponse(response || { success: true, data: { available: false } });
+                  }
+                });
+              } else {
+                sendResponse({ success: false, error: 'No active tab found' });
+              }
+            });
+            return; // Keep the message channel open
+
+          case 'scrollToText':
+            // Forward scroll request to content script on the current tab
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+              if (tabs[0]?.id) {
+                chrome.tabs.sendMessage(tabs[0].id, {
+                  action: 'scrollToText',
+                  data: message.data
+                }, (response) => {
+                  if (chrome.runtime.lastError) {
+                    console.error('Failed to send scroll message to content script:', chrome.runtime.lastError);
+                    sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                  } else {
+                    sendResponse(response || { success: true });
+                  }
+                });
+              } else {
+                sendResponse({ success: false, error: 'No active tab found' });
+              }
+            });
+            return; // Keep the message channel open
 
           case 'exportSettings':
             // Export settings to JSON file
@@ -226,6 +309,31 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
           });
       }
     });
+  }
+});
+
+// Handle tab activation to refresh sidebar data
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    
+    // Only refresh for web pages
+    if (tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
+      // Send message to side panel to refresh data for the new tab
+      chrome.runtime.sendMessage({
+        action: 'tabChanged',
+        data: {
+          tabId: activeInfo.tabId,
+          url: tab.url,
+          title: tab.title
+        }
+      }).catch(error => {
+        // Side panel might not be open, that's okay
+        console.log('Side panel not available for tab change notification:', error);
+      });
+    }
+  } catch (error) {
+    console.error('Failed to handle tab activation:', error);
   }
 });
 

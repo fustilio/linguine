@@ -1,11 +1,6 @@
-/**
- * Example React component for side panel chatbot using the new session manager
- * This demonstrates how to integrate the ChatbotSessionManager with your UI
- */
-
 import React, { useState, useEffect, useRef } from 'react';
 import { chatbotSessionManager, type ChatbotSession, type ConversationMessage } from '@extension/api/lib/chatbot-session-manager.js';
-import { chromeAIManager } from '@extension/api/lib/chrome-ai/index.js';
+import { chromeAIManager, type DownloadProgressCallback, type SessionStatusCallback } from '@extension/api/lib/chrome-ai/index.js';
 
 interface ChatbotProps {
   className?: string;
@@ -28,13 +23,13 @@ export const SidePanelChatbot: React.FC<ChatbotProps> = ({ className }) => {
         await chatbotSessionManager.initialize();
         
         // Set up download progress monitoring
-        const unsubscribeProgress = chromeAIManager.onDownloadProgress((progress) => {
+        const unsubscribeProgress = chromeAIManager.onDownloadProgress((progress: number) => {
           setDownloadProgress(progress);
           setStatus('downloading');
         });
 
         // Set up status monitoring
-        const unsubscribeStatus = chromeAIManager.onStatusUpdate((status, message) => {
+        const unsubscribeStatus = chromeAIManager.onStatusUpdate((status: 'initializing' | 'ready' | 'downloading' | 'error', message?: string) => {
           setStatus(status);
           if (status === 'ready') {
             setDownloadProgress(100);
@@ -95,6 +90,7 @@ export const SidePanelChatbot: React.FC<ChatbotProps> = ({ className }) => {
       } catch (error) {
         console.error('Failed to initialize chatbot:', error);
         setStatus('error');
+        return () => {}; // Return empty cleanup function on error
       }
     };
 
@@ -185,7 +181,7 @@ export const SidePanelChatbot: React.FC<ChatbotProps> = ({ className }) => {
   }
 
   return (
-    <div className={`flex flex-col h-full ${className}`}>
+    <div className={`flex flex-col h-full pt-4 ${className}`}>
       {/* Session Tabs */}
       <div className="flex border-b border-gray-200 bg-gray-50">
         <div className="flex-1 overflow-x-auto">

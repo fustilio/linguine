@@ -10,7 +10,7 @@ import { normalizeLanguageCode } from '@extension/shared';
 import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 import type { WidgetSize } from './floating-widget.js';
 import { rewriterManager } from './chrome-ai/index.js';
-
+import { generateFragmentStringHashFromRange } from './text-fragments-api.js';
 
 type RewriterOptions = {
   sharedContext?: string;
@@ -193,61 +193,60 @@ export class WordReplacer {
   ): boolean | void {
     const handleAsyncMessage = async () => {
       switch (message.action) {
-
-      case 'updateState': {
-        // Single handler for all state updates
-        const state = message.state as {
-          isActive?: boolean;
-          widgetSize?: 'small' | 'medium' | 'large';
-          rewriterOptions?: RewriterRewriteOptions;
-        };
-
-        const wasActive = this.isActive;
-
-        // Update state
-        if (state.isActive !== undefined) {
-          this.isActive = state.isActive;
-        }
-        if (state.widgetSize) {
-          this.widgetSize = state.widgetSize;
-          // Recreate widget if it exists to apply new size
-          if (this.floatingWidget) {
-            this.removeFloatingWidget();
-            this.createFloatingWidget();
-          }
-        }
-        if (state.rewriterOptions) {
-          // Shallow merge two objects
-          this.rewriterOptions = {
-            ...this.rewriterOptions,
-            ...state.rewriterOptions,
+        case 'updateState': {
+          // Single handler for all state updates
+          const state = message.state as {
+            isActive?: boolean;
+            widgetSize?: 'small' | 'medium' | 'large';
+            rewriterOptions?: RewriterRewriteOptions;
           };
-          
-          // Reinitialize the rewriter singleton with new options
-          try {
-            await this.reinitializeRewriter();
-          } catch (error) {
-            console.warn('Failed to reinitialize rewriter with new options:', error);
-            // Don't fail the entire operation if rewriter reinit fails
+
+          const wasActive = this.isActive;
+
+          // Update state
+          if (state.isActive !== undefined) {
+            this.isActive = state.isActive;
           }
-        }
+          if (state.widgetSize) {
+            this.widgetSize = state.widgetSize;
+            // Recreate widget if it exists to apply new size
+            if (this.floatingWidget) {
+              this.removeFloatingWidget();
+              this.createFloatingWidget();
+            }
+          }
+          if (state.rewriterOptions) {
+            // Shallow merge two objects
+            this.rewriterOptions = {
+              ...this.rewriterOptions,
+              ...state.rewriterOptions,
+            };
 
-        // Handle activation/deactivation
-        if (this.isActive && !wasActive) {
-          this.setupSelectionMode();
-          this.replaceWordsInPage();
-          this.createFloatingWidget();
-        } else if (!this.isActive && wasActive) {
-          this.removeHighlights();
-          this.removeCurrentHighlight();
-          this.removeSelectionMode();
-          this.removeFloatingWidget();
-        }
+            // Reinitialize the rewriter singleton with new options
+            try {
+              await this.reinitializeRewriter();
+            } catch (error) {
+              console.warn('Failed to reinitialize rewriter with new options:', error);
+              // Don't fail the entire operation if rewriter reinit fails
+            }
+          }
 
-        this.saveSettings();
-        sendResponse({ success: true });
-        break;
-      }
+          // Handle activation/deactivation
+          if (this.isActive && !wasActive) {
+            this.setupSelectionMode();
+            this.replaceWordsInPage();
+            this.createFloatingWidget();
+          } else if (!this.isActive && wasActive) {
+            this.removeHighlights();
+            this.removeCurrentHighlight();
+            this.removeSelectionMode();
+            this.removeFloatingWidget();
+          }
+
+          this.saveSettings();
+          sendResponse({ success: true });
+          break;
+        }
 
         case 'addReplacement':
           this.replacements.set(message.original as string, message.replacement as string);
@@ -315,14 +314,15 @@ export class WordReplacer {
             ...this.rewriterOptions,
             ...(message.options as Partial<RewriterOptions>),
           };
-        // Reinitialize the rewriter singleton with new options
-        try {
-          await this.reinitializeRewriter();
-        } catch (error) {
-          console.warn('Failed to reinitialize rewriter with new options:', error);
-          // Don't fail the entire operation if rewriter reinit fails
-        }
-        
+
+          // Reinitialize the rewriter singleton with new options
+          try {
+            await this.reinitializeRewriter();
+          } catch (error) {
+            console.warn('Failed to reinitialize rewriter with new options:', error);
+            // Don't fail the entire operation if rewriter reinit fails
+          }
+
           this.saveSettings();
           sendResponse({ success: true });
           break;
@@ -337,7 +337,6 @@ export class WordReplacer {
         case 'ping':
           sendResponse({ success: true, pong: true });
           break;
-
         default:
           sendResponse({ success: false, error: 'Unknown action' });
       }
@@ -1644,6 +1643,13 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
             position: relative;
             display: inline;
           `;
+      // we generate this before replacing the text in the DOM so that we can save the fragment to the database
+      // Generate URL fragment for text anchor
+      const urlFragment = this.generateTextFragment(range);
+   
+
+      // Replace the selected text in the DOM with the rewritten version
+      this.replaceSelectedTextInDOM(range, rewrittenText);
 
       // Store both texts as data attributes
       wrapper.dataset.originalText = originalText;
@@ -1780,11 +1786,8 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
           format: this.rewriterOptions.format || 'plain-text',
           length: this.rewriterOptions.length || 'shorter',
         });
-
-        // Generate URL fragment for text anchor
-        const urlFragment = this.generateTextFragment(range);
-        console.log('💾 trying to write', originalText, rewrittenText);
-
+        
+        console.log('💾 trying to write', originalText, rewrittenText, urlFragment);
         // Save rewrite via background script
         const success = await addTextRewrite({
           original_text: originalText,
@@ -1792,7 +1795,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
           language: normalizeLanguageCode(navigator.language || 'en-US'),
           rewriter_settings: rewriterSettings,
           source_url: window.location.href,
-          url_fragment: urlFragment,
+          url_fragment: urlFragment || null,
         });
 
         if (success) {
@@ -1801,7 +1804,23 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
           console.warn('⚠️ Failed to save rewrite to database');
         }
       } catch (dbError) {
-        console.warn('⚠️ Failed to save rewrite to database:', dbError);
+        const errorMessage = dbError instanceof Error ? dbError.message : 'Unknown error';
+
+        // Check if this is an extension context invalidation error
+        if (
+          errorMessage.includes('Extension context invalidated') ||
+          errorMessage.includes('Receiving end does not exist') ||
+          errorMessage.includes('Could not establish connection')
+        ) {
+          console.warn(
+            '⚠️ Extension context invalidated. Text rewrite was successful but could not be saved to database. Please reload the extension or refresh the page to restore database functionality.',
+          );
+
+          // Show user-friendly notification
+          this.showContextInvalidationNotification();
+        } else {
+          console.warn('⚠️ Failed to save rewrite to database:', dbError);
+        }
         // Don't throw - the rewrite still succeeded
       }
 
@@ -1817,81 +1836,22 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
   }
 
   /**
-   * Generate URL fragment for text anchor using Google's text fragments polyfill
+   * Generate URL fragment for text anchor using the text fragments API
    */
-  generateTextFragment(range: Range): string {
+  generateTextFragment(range: Range): string | null {
     try {
-      // Dynamic import for the fragment generation utility from Google's polyfill
-      // Note: This will be resolved at runtime
-      const generateFragment = (window as any).generateFragment || this.fallbackFragmentGeneration;
-      
-      // Use Google's battle-tested algorithm if available
-      if (typeof generateFragment === 'function' && generateFragment !== this.fallbackFragmentGeneration) {
-        const fragment = generateFragment(range);
-        
-        if (fragment.status === 0) { // Success
-          return this.buildFragmentString(fragment.fragment);
-        }
-      }
-      
-      // Fallback to simple implementation if polyfill fails
-      return this.fallbackFragmentGeneration(range);
+      const result = generateFragmentStringHashFromRange(range);
+
+      console.log('textfragment', result);
+      return result;
     } catch (error) {
-      console.warn('Fragment generation failed, using fallback:', error);
-      return this.fallbackFragmentGeneration(range);
+      console.error('❌ Error generating text fragment:', error);
+      return null;
     }
   }
 
   /**
-   * Build fragment string from Google's fragment object
-   */
-  private buildFragmentString(fragment: {
-    textStart: string;
-    textEnd?: string;
-    prefix?: string;
-    suffix?: string;
-  }): string {
-    let result = '#:~:text=';
-    
-    if (fragment.prefix) {
-      result += encodeURIComponent(fragment.prefix) + '-,';
-    }
-    
-    result += encodeURIComponent(fragment.textStart);
-    
-    if (fragment.textEnd) {
-      result += ',' + encodeURIComponent(fragment.textEnd);
-    }
-    
-    if (fragment.suffix) {
-      result += ',-' + encodeURIComponent(fragment.suffix);
-    }
-    
-    return result;
-  }
-
-  /**
-   * Fallback fragment generation for when polyfill fails
-   */
-  private fallbackFragmentGeneration(range: Range): string {
-    const selectedText = range.toString().trim();
-    
-    // For short text (< 20 chars or < 3 words), use entire text
-    const words = selectedText.split(/\s+/);
-    if (selectedText.length <= 20 || words.length <= 3) {
-      return `#:~:text=${encodeURIComponent(selectedText)}`;
-    }
-    
-    // For longer text, split into textStart and textEnd
-    const midpoint = Math.ceil(words.length / 2);
-    const textStart = words.slice(0, midpoint).join(' ');
-    const textEnd = words.slice(-Math.floor(words.length / 2)).join(' ');
-    
-    return `#:~:text=${encodeURIComponent(textStart)},${encodeURIComponent(textEnd)}`;
-  }
-
-  /**
-   * Create and mount the floating widget
+   * Draggable floating widget
    */
   createFloatingWidget() {
     this.removeFloatingWidget();
@@ -1934,5 +1894,69 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       this.floatingWidget.unmount();
       this.floatingWidget = null;
     }
+  }
+
+  /**
+   * Show a user-friendly notification when extension context is invalidated
+   */
+  showContextInvalidationNotification() {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.id = 'linguine-context-invalidation-notification';
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      padding: 16px;
+      max-width: 400px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 1000001;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.4;
+      color: #92400e;
+    `;
+
+    notification.innerHTML = `
+      <div style="display: flex; align-items: flex-start; gap: 12px;">
+        <div style="flex-shrink: 0; margin-top: 2px;">⚠️</div>
+        <div>
+          <div style="font-weight: 600; margin-bottom: 4px;">Extension Context Invalidated</div>
+          <div style="margin-bottom: 8px;">Your text rewrite was successful, but it couldn't be saved to the database. This usually happens when the extension is reloaded.</div>
+          <div style="font-size: 12px; color: #a16207;">
+            <strong>Solution:</strong> Refresh this page or reload the extension to restore full functionality.
+          </div>
+        </div>
+        <button 
+          onclick="this.parentElement.parentElement.remove()" 
+          style="
+            background: none; 
+            border: none; 
+            font-size: 18px; 
+            cursor: pointer; 
+            color: #92400e; 
+            padding: 0; 
+            margin-left: auto;
+            flex-shrink: 0;
+          "
+          title="Close notification"
+        >
+          ×
+        </button>
+      </div>
+    `;
+
+    // Add to DOM
+    document.body.appendChild(notification);
+
+    // Auto-remove after 10 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.remove();
+      }
+    }, 10000);
   }
 }
