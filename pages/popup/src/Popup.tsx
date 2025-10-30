@@ -224,9 +224,8 @@ const Popup = () => {
               strokeLinecap="round"
               strokeLinejoin="round"
               className="h-5 w-5">
-              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.42-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.42-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2H2a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.42-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2" />
-              <path d="M12.22 22h-.44a2 2 0 0 1-2-2v-.18a2 2 0 0 0-1-1.73l-.43-.25a2 2 0 0 0-2 0l-.42.25a2 2 0 0 0-1 1.73v.18a2 2 0 0 1-2 2h-.44a2 2 0 0 1-2-2v-.18a2 2 0 0 0-1-1.73l-.43-.25a2 2 0 0 0-2 0l-.42.25a2 2 0 0 0-1 1.73v.18a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-.18a2 2 0 0 0-1-1.73l-.43-.25a2 2 0 0 0-2 0l-.42.25a2 2 0 0 0-1 1.73v.18a2 2 0 0 1-2 2" />
               <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </button>
         </div>
@@ -369,32 +368,31 @@ const Popup = () => {
             <p className={cn('text-[11px] leading-relaxed text-[#666] dark:text-gray-400')}>
               Tests text annotation with short Thai sample. Check console for timing logs.
             </p>
-          <button
-            onClick={async () => {
-              if (!currentTab?.id) return;
-              try {
-                await checkContentScript(currentTab);
-                await new Promise(resolve => setTimeout(resolve, 100));
-                const response = await chrome.tabs.sendMessage(currentTab.id, {
-                  action: 'closeReadingMode',
-                });
-                if (response?.success) {
-                  console.log('Reading mode closed');
-                } else {
-                  console.error('Failed to close reading mode:', response?.error);
+            <button
+              onClick={async () => {
+                if (!currentTab?.id) return;
+                try {
+                  await checkContentScript(currentTab);
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                  const response = await chrome.tabs.sendMessage(currentTab.id, {
+                    action: 'closeReadingMode',
+                  });
+                  if (response?.success) {
+                    console.log('Reading mode closed');
+                  } else {
+                    console.error('Failed to close reading mode:', response?.error);
+                  }
+                } catch (error) {
+                  console.error('Failed to close reading mode:', error);
                 }
-              } catch (error) {
-                console.error('Failed to close reading mode:', error);
-              }
-            }}
-            className={cn(
-              'w-full rounded-lg px-4 py-2.5 font-medium transition-colors',
-              'bg-gray-200 text-gray-800 hover:bg-gray-300',
-              'dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600',
-            )}
-          >
-            ✖ Close Reading Mode
-          </button>
+              }}
+              className={cn(
+                'w-full rounded-lg px-4 py-2.5 font-medium transition-colors',
+                'bg-gray-200 text-gray-800 hover:bg-gray-300',
+                'dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600',
+              )}>
+              ✖ Close Reading Mode
+            </button>
           </div>
         </div>
       </div>
