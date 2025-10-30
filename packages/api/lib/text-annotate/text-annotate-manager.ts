@@ -23,6 +23,24 @@ export class TextAnnotateManager {
     if (this.ENABLE_TEXT_ANNOTATE_LOGS) console.log(...args);
   }
 
+  /**
+   * Resolve user's native language from storage; fallback to en-US
+   */
+  private async getNativeLanguageOrDefault(): Promise<SupportedLanguage> {
+    try {
+      // Lazy import to avoid hard dependency if storage package pathing differs in some builds
+      const mod = await import('@extension/storage');
+      if (mod?.languageStorage?.get) {
+        const state = await mod.languageStorage.get();
+        const lang = (state?.nativeLanguage || 'en-US') as SupportedLanguage;
+        return lang;
+      }
+    } catch {
+      // ignore
+    }
+    return 'en-US';
+  }
+
   private constructor() {
     // Private constructor for singleton
   }
@@ -37,12 +55,7 @@ export class TextAnnotateManager {
   /**
    * Open reading mode with auto-extracted content
    */
-  public async openReadingModeAuto(
-    document: Document,
-    url: string,
-    targetLanguage: SupportedLanguage = 'en-US',
-    useFullContent: boolean = true,
-  ): Promise<void> {
+  public async openReadingModeAuto(document: Document, url: string, useFullContent: boolean = true): Promise<void> {
     const startTime = performance.now();
     this.taLog('[TextAnnotate] Starting openReadingModeAuto with URL:', url, 'useFullContent:', useFullContent);
 
@@ -114,7 +127,8 @@ export class TextAnnotateManager {
     // Process in background
     this.taLog('[TextAnnotate] Starting background processing...');
     try {
-      await this.processAndDisplay(extracted, targetLanguage);
+      const nativeLang = await this.getNativeLanguageOrDefault();
+      await this.processAndDisplay(extracted, nativeLang);
       const endTime = performance.now();
       this.taLog(
         `[TextAnnotate] Background processing completed successfully in ${(endTime - startTime).toFixed(2)}ms`,
@@ -146,7 +160,7 @@ export class TextAnnotateManager {
   /**
    * Open reading mode with selected text
    */
-  public async openReadingModeManual(document: Document, targetLanguage: SupportedLanguage = 'en-US'): Promise<void> {
+  public async openReadingModeManual(document: Document): Promise<void> {
     const extracted = extractSelectedText(document);
 
     if (!extracted) {
@@ -176,17 +190,14 @@ export class TextAnnotateManager {
       this.readingModeUI.initialize();
       this.readingModeUI.show();
     }
-    await this.processAndDisplay(extracted, targetLanguage);
+    const nativeLang = await this.getNativeLanguageOrDefault();
+    await this.processAndDisplay(extracted, nativeLang);
   }
 
   /**
    * Open reading mode with selector-based extraction
    */
-  public async openReadingModeSelector(
-    document: Document,
-    selector: string,
-    targetLanguage: SupportedLanguage = 'en-US',
-  ): Promise<void> {
+  public async openReadingModeSelector(document: Document, selector: string): Promise<void> {
     const extracted = extractTextBySelector(document, selector);
 
     if (!extracted) {
@@ -198,7 +209,8 @@ export class TextAnnotateManager {
       this.readingModeUI.initialize();
       this.readingModeUI.show();
     }
-    await this.processAndDisplay(extracted, targetLanguage);
+    const nativeLang = await this.getNativeLanguageOrDefault();
+    await this.processAndDisplay(extracted, nativeLang);
   }
   /**
    * Process extracted text and display in reading mode (with AI)

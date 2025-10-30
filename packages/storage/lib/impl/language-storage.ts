@@ -5,7 +5,6 @@ const storage = createStorage<LanguageStateType>(
   'language-storage-key',
   {
     nativeLanguage: 'en-US',
-    targetLanguage: 'zh-CN', // Mandarin Chinese
   },
   {
     storageEnum: StorageEnum.Local,
@@ -19,12 +18,6 @@ export const languageStorage: LanguageStorageType = {
     await storage.set(currentState => ({
       ...currentState,
       nativeLanguage: language,
-    }));
-  },
-  setTargetLanguage: async (language: string) => {
-    await storage.set(currentState => ({
-      ...currentState,
-      targetLanguage: language,
     }));
   },
 };

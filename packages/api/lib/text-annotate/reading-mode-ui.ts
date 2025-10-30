@@ -30,6 +30,39 @@ export class ReadingModeUI {
   };
 
   private readonly storageKey = 'text-annotate-reading-mode-config';
+  private readonly settingsKey = 'text-annotate-reading-mode-settings';
+
+  // Reading settings
+  private settings: {
+    fontSizePx: number;
+    lineHeight: number;
+    maxWidthCh: number;
+    theme: 'light' | 'dark' | 'sepia';
+  } = {
+    fontSizePx: 18,
+    lineHeight: 1.6,
+    maxWidthCh: 65,
+    theme: 'light',
+  };
+
+  // Scroll lock bookkeeping
+  private isScrollLocked = false;
+  private lockedScrollY = 0;
+  private lucideReady = false;
+
+  private async initLucide(): Promise<void> {
+    if (this.lucideReady) return;
+    try {
+      // Dynamically import to avoid loading unless needed
+      const mod: any = await import('lucide');
+      if (mod && typeof mod.createIcons === 'function') {
+        mod.createIcons({ icons: mod.icons });
+        this.lucideReady = true;
+      }
+    } catch {
+      // No-op if lucide isn't available in this context
+    }
+  }
 
   /**
    * Initialize reading mode UI
@@ -49,17 +82,56 @@ export class ReadingModeUI {
     this.isInitialized = true;
 
     // Load persisted configuration (fire-and-forget)
-    this.loadConfig().then(() => {
-      this.applyConfigToOpenTooltips();
-    });
+    Promise.all([this.loadConfig(), this.loadSettings()])
+      .then(() => {
+        this.applyConfigToOpenTooltips();
+        this.applySettingsToContainer();
+      })
+      .catch(() => {});
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
+    const isVisible = !!this.container && this.container.style.display !== 'none';
     if (e.key === 'Escape') {
       this.hide();
-    } else if (e.key === 'Tab' && this.container && this.container.style.display !== 'none') {
+    } else if (e.key === 'Tab' && isVisible) {
       e.preventDefault();
       this.toggleDebugPanel();
+    } else if (isVisible) {
+      const isMeta = e.ctrlKey || e.metaKey;
+      // Font size
+      if (isMeta && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.adjustFontSize(+1);
+        return;
+      }
+      if (isMeta && e.key === '-') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.adjustFontSize(-1);
+        return;
+      }
+      // Column width
+      if (isMeta && e.key === ']') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.adjustMaxWidth(+5);
+        return;
+      }
+      if (isMeta && e.key === '[') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.adjustMaxWidth(-5);
+        return;
+      }
+      // Theme cycle
+      if (!isMeta && (e.key === 't' || e.key === 'T')) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.cycleTheme();
+        return;
+      }
     }
   };
 
@@ -88,13 +160,18 @@ export class ReadingModeUI {
     // Clear previous content
     this.container.innerHTML = '';
 
-    // Create header with progress bar
+    // Create header with progress bar and controls
     const header = this.createHeaderWithProgress(title, onClose);
     this.container.appendChild(header);
 
     // Create content area with plain text
     this.contentArea = this.createPlainTextContent(plainText);
     this.container.appendChild(this.contentArea);
+
+    // Apply settings to freshly created DOM
+    this.applySettingsToContainer();
+    // Lock page scroll while reading mode visible
+    this.lockScroll();
   }
 
   /**
@@ -180,6 +257,7 @@ export class ReadingModeUI {
     if (this.container) {
       this.container.style.display = 'none';
     }
+    this.unlockScroll();
   }
 
   /**
@@ -189,6 +267,8 @@ export class ReadingModeUI {
     if (this.container) {
       this.container.style.display = 'flex';
     }
+    this.applySettingsToContainer();
+    this.lockScroll();
   }
 
   /**
@@ -201,6 +281,7 @@ export class ReadingModeUI {
     }
     document.removeEventListener('keydown', this.onKeyDown, true);
     this.isInitialized = false;
+    this.unlockScroll();
   }
 
   /**
@@ -211,6 +292,13 @@ export class ReadingModeUI {
     container.id = 'text-annotate-reading-mode';
     container.className = 'text-annotate-reading-mode';
     container.style.display = 'none';
+    // Ensure container is the scrollable viewport and blocks page scroll bleed
+    container.style.position = 'fixed';
+    container.style.inset = '0';
+    container.style.height = '100vh';
+    container.style.overflow = 'auto';
+    (container.style as any).overscrollBehavior = 'contain';
+    container.style.zIndex = '2147483647';
     return container;
   }
 
@@ -247,7 +335,7 @@ export class ReadingModeUI {
     this.progressBar = this.createProgressBar();
     header.appendChild(this.progressBar);
 
-    // Controls row: toggles for images, prefixes, and source
+    // Controls row: typography/layout controls and toggles
     const controls = document.createElement('div');
     controls.className = 'text-annotate-controls';
     controls.style.display = 'flex';
@@ -256,19 +344,45 @@ export class ReadingModeUI {
     controls.style.justifyContent = 'center';
     controls.style.marginTop = '4px';
 
-    // Icon button helper
-    const makeIconButton = (label: string, title: string): HTMLButtonElement => {
+    // Icon button helper (styled similarly to popup buttons)
+    const makeIconButton = (iconHtml: string, title: string, isRawHtml: boolean = true): HTMLButtonElement => {
       const btn = document.createElement('button');
-      btn.textContent = label;
+      if (isRawHtml) btn.innerHTML = iconHtml; else btn.textContent = iconHtml;
       btn.title = title;
-      btn.style.border = '1px solid #e5e7eb';
-      btn.style.background = '#fff';
-      btn.style.borderRadius = '6px';
-      btn.style.padding = '2px 6px';
+      btn.className = 'ta-icon-btn';
       btn.style.cursor = 'pointer';
       btn.style.fontSize = '12px';
       return btn;
     };
+
+    // Font size controls (Lucide runtime icons)
+    const decFont = makeIconButton('<i data-lucide="a-arrow-down" class="ta-icon"></i>', 'Decrease font size (Ctrl/Cmd + -)');
+    const incFont = makeIconButton('<i data-lucide="a-arrow-up" class="ta-icon"></i>', 'Increase font size (Ctrl/Cmd + =)');
+    decFont.onclick = () => this.adjustFontSize(-1);
+    incFont.onclick = () => this.adjustFontSize(+1);
+    controls.appendChild(decFont);
+    controls.appendChild(incFont);
+
+    // Line height controls (Lucide list-chevrons-down-up)
+    const decLine = makeIconButton('<i data-lucide="list-chevrons-down-up" class="ta-icon"></i>', 'Decrease line height');
+    const incLine = makeIconButton('<i data-lucide="list-chevrons-up-down" class="ta-icon"></i>', 'Increase line height');
+    decLine.onclick = () => this.adjustLineHeight(-0.05);
+    incLine.onclick = () => this.adjustLineHeight(+0.05);
+    controls.appendChild(decLine);
+    controls.appendChild(incLine);
+
+    // Column width controls (Lucide ruler-dimension-line)
+    const nar = makeIconButton('<i data-lucide="fold-horizontal" class="ta-icon"></i>', 'Narrow column (Ctrl/Cmd + [)');
+    const wid = makeIconButton('<i data-lucide="unfold-horizontal" class="ta-icon"></i>', 'Widen column (Ctrl/Cmd + ])');
+    nar.onclick = () => this.adjustMaxWidth(-5);
+    wid.onclick = () => this.adjustMaxWidth(+5);
+    controls.appendChild(nar);
+    controls.appendChild(wid);
+
+    // Theme cycle (Lucide sun-moon)
+    const themeBtn = makeIconButton('<i data-lucide="sun-moon" class="ta-icon"></i>', 'Cycle theme (T)');
+    themeBtn.onclick = () => this.cycleTheme();
+    controls.appendChild(themeBtn);
 
     // Show Images toggle (🖼)
     const imgBtn = makeIconButton('🖼', 'Toggle images');
@@ -304,6 +418,8 @@ export class ReadingModeUI {
     controls.appendChild(srcLabel);
 
     header.appendChild(controls);
+    // Initialize Lucide icons for the controls
+    this.initLucide().catch(() => {});
 
     return header;
   }
@@ -450,9 +566,17 @@ export class ReadingModeUI {
   private createPlainTextContent(plainText: string): HTMLElement {
     const content = document.createElement('div');
     content.className = 'text-annotate-content';
+    // Constrain readable width via settings
+    content.style.margin = '0 auto';
+    content.style.maxWidth = `${this.settings.maxWidthCh}ch`;
+    content.style.fontSize = `${this.settings.fontSizePx}px`;
+    content.style.lineHeight = String(this.settings.lineHeight);
 
     const textEl = document.createElement('div');
     textEl.className = 'text-annotate-plain-text';
+    // Override default CSS to reflect settings
+    textEl.style.fontSize = `${this.settings.fontSizePx}px`;
+    textEl.style.lineHeight = String(this.settings.lineHeight);
 
     // Render each character in its own span to allow range wrapping later
     for (let i = 0; i < plainText.length; i++) {
@@ -548,6 +672,10 @@ export class ReadingModeUI {
   private createContentArea(chunks: AnnotatedChunk[]): HTMLElement {
     const content = document.createElement('div');
     content.className = 'text-annotate-content';
+    content.style.margin = '0 auto';
+    content.style.maxWidth = `${this.settings.maxWidthCh}ch`;
+    content.style.fontSize = `${this.settings.fontSizePx}px`;
+    content.style.lineHeight = String(this.settings.lineHeight);
 
     for (const chunk of chunks) {
       const chunkEl = this.createChunkElement(chunk);
@@ -884,7 +1012,172 @@ export class ReadingModeUI {
 
     const style = document.createElement('style');
     style.id = 'text-annotate-styles';
-    style.textContent = getReadingModeStyles();
+    style.textContent = `
+${getReadingModeStyles()}
+/* Reading Mode container base to ensure viewport-scoped scrolling */
+#text-annotate-reading-mode {
+  background: var(--rm-bg, #ffffff);
+  color: var(--rm-fg, #111111);
+}
+#text-annotate-reading-mode.rm-theme-light { --rm-bg:#ffffff; --rm-fg:#111111; }
+#text-annotate-reading-mode.rm-theme-dark { --rm-bg:#0b0d10; --rm-fg:#e6e8ea; }
+#text-annotate-reading-mode.rm-theme-sepia { --rm-bg:#f4ecd8; --rm-fg:#403323; }
+/* Force theme colors onto content text overriding default white */
+#text-annotate-reading-mode .text-annotate-content,
+#text-annotate-reading-mode .text-annotate-plain-text {
+  color: var(--rm-fg, #111111) !important;
+}
+/* Header inherits background but ensure text uses theme fg */
+#text-annotate-reading-mode .text-annotate-header,
+#text-annotate-reading-mode .text-annotate-title {
+  color: var(--rm-fg, #111111);
+  background: inherit;
+}
+.text-annotate-header { position: sticky; top: 0; z-index: 1; background: inherit; }
+/* Icon button styling matching popup */
+#text-annotate-reading-mode .ta-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 30px; width: 34px; border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.15); background: rgba(255,255,255,0.9);
+  color: #374151; transition: transform 0.12s ease, background-color 0.2s ease;
+}
+#text-annotate-reading-mode.rm-theme-dark .ta-icon-btn {
+  border-color: rgba(255,255,255,0.2); background: rgba(31,41,55,0.9); color: #e5e7eb;
+}
+#text-annotate-reading-mode .ta-icon-btn:hover { transform: scale(1.06); }
+#text-annotate-reading-mode .ta-icon-btn:active { transform: scale(0.97); }
+#text-annotate-reading-mode .ta-icon { height: 16px; width: 16px; display: inline-block; }
+#text-annotate-reading-mode .ta-icon svg { height: 16px; width: 16px; display: block; }
+`;
     document.head.appendChild(style);
+  }
+
+  // ——— Settings, Shortcuts, and Scroll Lock ———
+  private applySettingsToContainer(): void {
+    if (!this.container) return;
+    // Theme class
+    this.container.classList.remove('rm-theme-light', 'rm-theme-dark', 'rm-theme-sepia');
+    this.container.classList.add(`rm-theme-${this.settings.theme}`);
+    // Apply to content area if exists
+    if (this.contentArea) {
+      (this.contentArea as HTMLElement).style.maxWidth = `${this.settings.maxWidthCh}ch`;
+      (this.contentArea as HTMLElement).style.fontSize = `${this.settings.fontSizePx}px`;
+      (this.contentArea as HTMLElement).style.lineHeight = String(this.settings.lineHeight);
+    }
+    const plain = this.container.querySelector('.text-annotate-plain-text') as HTMLElement | null;
+    if (plain) {
+      plain.style.fontSize = `${this.settings.fontSizePx}px`;
+      plain.style.lineHeight = String(this.settings.lineHeight);
+    }
+  }
+
+  private adjustFontSize(deltaPx: number): void {
+    const next = Math.min(32, Math.max(12, this.settings.fontSizePx + deltaPx));
+    this.settings.fontSizePx = next;
+    this.applySettingsToContainer();
+    this.saveSettings().catch(() => {});
+  }
+
+  private adjustLineHeight(delta: number): void {
+    const next = Math.min(2.0, Math.max(1.2, parseFloat((this.settings.lineHeight + delta).toFixed(2))));
+    this.settings.lineHeight = next;
+    this.applySettingsToContainer();
+    this.saveSettings().catch(() => {});
+  }
+
+  private adjustMaxWidth(deltaCh: number): void {
+    const next = Math.min(90, Math.max(40, this.settings.maxWidthCh + deltaCh));
+    this.settings.maxWidthCh = next;
+    this.applySettingsToContainer();
+    this.saveSettings().catch(() => {});
+  }
+
+  private cycleTheme(): void {
+    const order: Array<'light' | 'dark' | 'sepia'> = ['light', 'dark', 'sepia'];
+    const idx = order.indexOf(this.settings.theme);
+    this.settings.theme = order[(idx + 1) % order.length];
+    this.applySettingsToContainer();
+    this.saveSettings().catch(() => {});
+  }
+
+  private async loadSettings(): Promise<void> {
+    try {
+      const hasChrome = typeof chrome !== 'undefined' && !!chrome.storage && !!chrome.storage.local;
+      if (hasChrome) {
+        const data = await new Promise<Record<string, unknown>>(resolve => {
+          try {
+            chrome.storage.local.get([this.settingsKey], res => resolve(res || {}));
+          } catch {
+            resolve({});
+          }
+        });
+        const raw = (data && (data[this.settingsKey] as any)) || null;
+        if (raw && typeof raw === 'object') {
+          this.settings.fontSizePx = Math.max(12, Math.min(32, Number((raw as any).fontSizePx) || this.settings.fontSizePx));
+          this.settings.lineHeight = Math.max(1.2, Math.min(2.0, Number((raw as any).lineHeight) || this.settings.lineHeight));
+          this.settings.maxWidthCh = Math.max(40, Math.min(90, Number((raw as any).maxWidthCh) || this.settings.maxWidthCh));
+          const theme = (raw as any).theme;
+          if (theme === 'light' || theme === 'dark' || theme === 'sepia') this.settings.theme = theme;
+        }
+        return;
+      }
+      // Fallback to localStorage (site-scoped)
+      const raw = localStorage.getItem(this.settingsKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          this.settings = { ...this.settings, ...parsed };
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  private async saveSettings(): Promise<void> {
+    try {
+      const payload = { [this.settingsKey]: this.settings } as Record<string, unknown>;
+      const hasChrome = typeof chrome !== 'undefined' && !!chrome.storage && !!chrome.storage.local;
+      if (hasChrome) {
+        await new Promise<void>(resolve => {
+          try {
+            chrome.storage.local.set(payload, () => resolve());
+          } catch {
+            resolve();
+          }
+        });
+        return;
+      }
+      localStorage.setItem(this.settingsKey, JSON.stringify(this.settings));
+    } catch {
+      // ignore
+    }
+  }
+
+  private lockScroll(): void {
+    if (this.isScrollLocked) return;
+    this.isScrollLocked = true;
+    this.lockedScrollY = window.scrollY || window.pageYOffset || 0;
+    document.documentElement.style.overflow = 'hidden';
+    (document.documentElement.style as any).overscrollBehaviorY = 'contain';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${this.lockedScrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+  }
+
+  private unlockScroll(): void {
+    if (!this.isScrollLocked) return;
+    this.isScrollLocked = false;
+    const restoreY = -parseInt(document.body.style.top || '0', 10) || 0;
+    document.documentElement.style.overflow = '';
+    (document.documentElement.style as any).overscrollBehaviorY = '';
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
+    window.scrollTo(0, restoreY);
   }
 }
