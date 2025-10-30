@@ -640,3 +640,4 @@ const VocabularyComponent = () => {
 - [Packages Shared](packages-shared.md) - Shared utilities documentation
 - [Vocabulary Analytics](vocabulary-analytics.md) - AI-powered analytics
 - [Text Rewrites](text-rewrites.md) - Text simplification feature
+ - [Text Annotate](text-annotate.md) - Reading mode annotation feature

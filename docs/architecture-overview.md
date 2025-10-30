@@ -22,7 +22,6 @@ The linguine extension follows a layered architecture pattern with clear separat
 │                 API Layer (packages/api)                    │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐          │
 │  │ Vocabulary  │ │ Sentence    │ │ Chrome AI   │          │
-│  │ API         │ │ Rewrites    │ │ Wrapper     │          │
 │  │             │ │ API         │ │             │          │
 │  └─────────────┘ └─────────────┘ └─────────────┘          │
 └─────────────────────────────────────────────────────────────┘
@@ -106,6 +105,7 @@ The linguine extension follows a layered architecture pattern with clear separat
 **Responsibilities**:
 - Inject vocabulary replacement functionality into web pages
 - Provide UI for text rewriting and vocabulary saving
+- Text Annotate reading mode overlay (DOM-based): extraction, progressive annotations, TTS
 - Communicate with background script for database operations
 - Handle text selection and Chrome Rewriter API integration
 
@@ -117,7 +117,7 @@ The linguine extension follows a layered architecture pattern with clear separat
 - Vocabulary management interface
 - Analytics and insights dashboard
 - Settings configuration
-- Extension popup interface
+- Extension popup interface (Text Annotate buttons for full-content and demo)
 
 ## Database Access Patterns
 
@@ -344,3 +344,4 @@ UI Component (Display results)
 - [Language Configuration System](language-config-system.md) - Language handling
 - [Vocabulary Analytics](vocabulary-analytics.md) - AI-powered analytics
 - [Text Rewrites](text-rewrites.md) - Text simplification feature
+ - [Text Annotate](text-annotate.md) - Reading mode, segmentation, POS, translations

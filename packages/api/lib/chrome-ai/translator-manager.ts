@@ -35,7 +35,7 @@ export class TranslatorManager extends BaseChromeAIManager<TranslatorManager> {
 
   public async getTranslator(sourceLanguage: string, targetLanguage: string): Promise<Translator> {
     const key = this.getLanguagePairKey(sourceLanguage, targetLanguage);
-    
+
     if (this.translators.has(key)) {
       return this.translators.get(key)!;
     }
@@ -45,12 +45,14 @@ export class TranslatorManager extends BaseChromeAIManager<TranslatorManager> {
 
   private async createTranslator(sourceLanguage: string, targetLanguage: string): Promise<Translator> {
     try {
-      await this.checkAPIAvailability('Translator', async () => {
-        return await Translator.availability({
-          sourceLanguage,
-          targetLanguage,
-        });
-      });
+      await this.checkAPIAvailability(
+        'Translator',
+        async () =>
+          await Translator.availability({
+            sourceLanguage,
+            targetLanguage,
+          }),
+      );
 
       const translator = await Translator.create({
         sourceLanguage,
@@ -59,7 +61,7 @@ export class TranslatorManager extends BaseChromeAIManager<TranslatorManager> {
 
       const key = this.getLanguagePairKey(sourceLanguage, targetLanguage);
       this.translators.set(key, translator);
-      
+
       return translator;
     } catch (error) {
       console.error('Failed to create translator:', error);

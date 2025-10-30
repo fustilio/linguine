@@ -271,6 +271,132 @@ const Popup = () => {
             </span>
           </div>
         </div>
+
+        {/* Text Annotate Section */}
+        <div className="mb-5">
+          <h3 className={cn('mb-3 text-sm font-semibold text-[#444] dark:text-gray-200')}>Text Annotate</h3>
+          <button
+            onClick={async () => {
+              if (!currentTab?.id) return;
+              try {
+                // Ensure content script is loaded first
+                await checkContentScript(currentTab);
+
+                // Wait a bit for content script to initialize
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                const response = await chrome.tabs.sendMessage(currentTab.id, {
+                  action: 'openReadingMode',
+                  data: { mode: 'auto', useFullContent: true },
+                });
+
+                if (response?.success) {
+                  console.log('Reading mode opened successfully');
+                } else {
+                  console.error('Failed to open reading mode:', response?.error);
+                }
+              } catch (error) {
+                console.error('Failed to open reading mode:', error);
+                // Try to inject content script again if message failed
+                try {
+                  await chrome.scripting.executeScript({
+                    target: { tabId: currentTab.id },
+                    files: ['content-runtime/index.iife.js'],
+                  });
+                  console.log('Content script re-injected, try again');
+                } catch (injectError) {
+                  console.error('Failed to re-inject content script:', injectError);
+                }
+              }
+            }}
+            className={cn(
+              'w-full rounded-lg px-4 py-2.5 font-medium transition-colors',
+              'bg-blue-600 text-white hover:bg-blue-700',
+              'dark:bg-blue-700 dark:hover:bg-blue-600',
+            )}>
+            Open Reading Mode
+          </button>
+          <p className={cn('mt-2 text-[11px] leading-relaxed text-[#666] dark:text-gray-400')}>
+            Extract page content and annotate with AI translations
+          </p>
+        </div>
+
+        {/* Debug Section */}
+        <div className="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700">
+          <h3 className={cn('mb-3 text-sm font-semibold text-[#444] dark:text-gray-200')}>🐛 Debug Tools</h3>
+          <div className="space-y-3">
+            <button
+              onClick={async () => {
+                if (!currentTab?.id) return;
+                try {
+                  // Ensure content script is loaded first
+                  await checkContentScript(currentTab);
+
+                  // Wait a bit for content script to initialize
+                  await new Promise(resolve => setTimeout(resolve, 100));
+
+                  const response = await chrome.tabs.sendMessage(currentTab.id, {
+                    action: 'openReadingMode',
+                    data: { mode: 'auto', useFullContent: false },
+                  });
+
+                  if (response?.success) {
+                    console.log('Reading mode opened successfully');
+                  } else {
+                    console.error('Failed to open reading mode:', response?.error);
+                  }
+                } catch (error) {
+                  console.error('Failed to open reading mode:', error);
+                  // Try to inject content script again if message failed
+                  try {
+                    await chrome.scripting.executeScript({
+                      target: { tabId: currentTab.id },
+                      files: ['content-runtime/index.iife.js'],
+                    });
+                    console.log('Content script re-injected, try again');
+                  } catch (injectError) {
+                    console.error('Failed to re-inject content script:', injectError);
+                  }
+                }
+              }}
+              className={cn(
+                'w-full rounded-lg px-4 py-2.5 font-medium transition-colors',
+                'bg-orange-500 text-white hover:bg-orange-600',
+                'dark:bg-orange-600 dark:hover:bg-orange-500',
+              )}>
+              🧪 Test Reading Mode (Demo)
+            </button>
+            <p className={cn('text-[11px] leading-relaxed text-[#666] dark:text-gray-400')}>
+              Tests text annotation with short Thai sample. Check console for timing logs.
+            </p>
+          <button
+            onClick={async () => {
+              if (!currentTab?.id) return;
+              try {
+                await checkContentScript(currentTab);
+                await new Promise(resolve => setTimeout(resolve, 100));
+                const response = await chrome.tabs.sendMessage(currentTab.id, {
+                  action: 'closeReadingMode',
+                });
+                if (response?.success) {
+                  console.log('Reading mode closed');
+                } else {
+                  console.error('Failed to close reading mode:', response?.error);
+                }
+              } catch (error) {
+                console.error('Failed to close reading mode:', error);
+              }
+            }}
+            className={cn(
+              'w-full rounded-lg px-4 py-2.5 font-medium transition-colors',
+              'bg-gray-200 text-gray-800 hover:bg-gray-300',
+              'dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600',
+            )}
+          >
+            ✖ Close Reading Mode
+          </button>
+          </div>
+        </div>
       </div>
     </div>
   );

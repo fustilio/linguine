@@ -494,3 +494,4 @@ To trace message flow:
 - [Packages SQLite](packages-sqlite.md) - Database layer documentation
 - [Vocabulary Analytics](vocabulary-analytics.md) - AI-powered analytics
 - [Text Rewrites](text-rewrites.md) - Text simplification feature
+ - [Text Annotate](text-annotate.md) - Reading mode overlay and streaming annotations

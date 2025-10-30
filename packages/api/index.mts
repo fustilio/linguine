@@ -18,3 +18,4 @@ export type {
   FunctionCallingConfig,
   FunctionCallingError,
 } from './lib/function-calling/types.js';
+export * from './lib/text-annotate/index.js';

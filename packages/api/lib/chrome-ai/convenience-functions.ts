@@ -6,9 +6,9 @@
  */
 
 import { ChromeAIManager } from './language-model-manager.js';
-import { TranslatorManager } from './translator-manager.js';
-import { SummarizerManager } from './summarizer-manager.js';
 import { RewriterManager } from './rewriter-manager.js';
+import { SummarizerManager } from './summarizer-manager.js';
+import { TranslatorManager } from './translator-manager.js';
 
 /**
  * Translate text using Chrome Translator API

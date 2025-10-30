@@ -5,8 +5,8 @@
 
 import { chromeAIManager, translateText } from './chrome-ai/index.js';
 import { FunctionCallingPromptAPI } from './function-calling/function-calling-api.js';
-import { z } from 'zod';
 import { LanguageCodeSchema } from '@extension/shared';
+import { z } from 'zod';
 import type {
   VocabularyAnalysisResult,
   TextEvaluationResult,
