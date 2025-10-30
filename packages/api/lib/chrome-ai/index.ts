@@ -18,6 +18,7 @@ export { ChromeAIManager } from './language-model-manager.js';
 export { TranslatorManager } from './translator-manager.js';
 export { SummarizerManager } from './summarizer-manager.js';
 export { RewriterManager } from './rewriter-manager.js';
+export { LanguageDetectionManager } from './language-detection-manager.js';
 export { BaseChromeAIManager } from './base-manager.js';
 
 // Export convenience functions and instances
@@ -30,4 +31,5 @@ export {
   translatorManager,
   summarizerManager,
   rewriterManager,
+  languageDetectionManager,
 } from './convenience-functions.js';

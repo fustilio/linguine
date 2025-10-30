@@ -5,6 +5,7 @@
  * Provides simple, high-level interfaces for common operations
  */
 
+import { LanguageDetectionManager } from './language-detection-manager.js';
 import { ChromeAIManager } from './language-model-manager.js';
 import { RewriterManager } from './rewriter-manager.js';
 import { SummarizerManager } from './summarizer-manager.js';
@@ -46,8 +47,18 @@ export const rewriteText = async (text: string, options?: RewriterRewriteOptions
   return await rewriter.rewrite(text, { context: options?.context });
 };
 
+/**
+ * Detect language using Chrome Language Detector API
+ */
+export const detectLanguage = async (text: string) => {
+  const languageDetectionManager = LanguageDetectionManager.getInstance();
+  const languageDetector = await languageDetectionManager.getLanguageDetector();
+  return await languageDetector.detect(text);
+};
+
 // Export manager instances for direct access
 export const chromeAIManager = ChromeAIManager.getInstance();
 export const translatorManager = TranslatorManager.getInstance();
 export const summarizerManager = SummarizerManager.getInstance();
 export const rewriterManager = RewriterManager.getInstance();
+export const languageDetectionManager = LanguageDetectionManager.getInstance();
