@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useTextRewrites } from '@extension/api';
-import { Card, CardContent, cn, themeVariants } from '@extension/ui';
-import type { TextRewrite } from '@extension/api';
 import { RewriteDetailView } from './RewriteDetailView';
 import { RewritesList } from './RewritesList';
+import { useTextRewrites } from '@extension/api';
+import { Card, CardContent, cn, themeVariants } from '@extension/ui';
 import { useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import type { TextRewrite } from '@extension/api';
 
 interface RewritesViewProps {
   currentUrl: string;
@@ -12,7 +12,7 @@ interface RewritesViewProps {
 
 export const RewritesView = ({ currentUrl }: RewritesViewProps) => {
   const queryClient = useQueryClient();
-  
+
   // Parse URL to get domain + path (ignore query params and fragments)
   const getUrlBase = (url: string) => {
     try {
@@ -25,19 +25,17 @@ export const RewritesView = ({ currentUrl }: RewritesViewProps) => {
 
   // Use hook with sourceUrl filter matching domain + path
   const urlBase = getUrlBase(currentUrl);
-  const { items: rewrites, deleteTextRewrite } = useTextRewrites({ 
-    sourceUrl: urlBase
+  const { items: rewrites, deleteTextRewrite } = useTextRewrites({
+    sourceUrl: urlBase,
   });
-  
+
   // Listen for rewrite accepted messages from content script
   useEffect(() => {
-    const handleMessage = (
-      message: { 
-        action: string; 
-        target?: string;
-        data?: { rewrite?: TextRewrite; url?: string } 
-      }
-    ) => {
+    const handleMessage = (message: {
+      action: string;
+      target?: string;
+      data?: { rewrite?: TextRewrite; url?: string };
+    }) => {
       // Only process messages explicitly targeted to sidepanel or with no target (for backward compatibility)
       if (message.target && message.target !== 'sidepanel') {
         return; // Message not for us
@@ -45,19 +43,19 @@ export const RewritesView = ({ currentUrl }: RewritesViewProps) => {
 
       if (message.action === 'rewriteAccepted' && message.data) {
         const { rewrite, url } = message.data;
-            // Check if this rewrite is for the current page
-            if (rewrite && url) {
-              const rewriteUrlBase = getUrlBase(url);
-              if (rewriteUrlBase === urlBase) {
-                // Invalidate queries to refresh the rewrites list
-                queryClient.invalidateQueries({ queryKey: ['textRewrites'] });
-              }
-            }
+        // Check if this rewrite is for the current page
+        if (rewrite && url) {
+          const rewriteUrlBase = getUrlBase(url);
+          if (rewriteUrlBase === urlBase) {
+            // Invalidate queries to refresh the rewrites list
+            queryClient.invalidateQueries({ queryKey: ['textRewrites'] });
+          }
+        }
       }
     };
 
     chrome.runtime.onMessage.addListener(handleMessage);
-    
+
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
@@ -65,9 +63,11 @@ export const RewritesView = ({ currentUrl }: RewritesViewProps) => {
 
   // Selected rewrite state (default to most recent)
   const [selectedRewrite, setSelectedRewrite] = useState<TextRewrite | null>(null);
-  
+
   // Text availability status for each rewrite
-  const [textAvailabilityStatus, setTextAvailabilityStatus] = useState<Map<number, 'rewritten' | 'original' | 'none'>>(new Map());
+  const [textAvailabilityStatus, setTextAvailabilityStatus] = useState<Map<number, 'rewritten' | 'original' | 'none'>>(
+    new Map(),
+  );
 
   // Update selected when rewrites load
   useEffect(() => {
@@ -92,9 +92,9 @@ export const RewritesView = ({ currentUrl }: RewritesViewProps) => {
             id: rewrite.id,
             originalText: rewrite.original_text,
             rewrittenText: rewrite.rewritten_text,
-            url: rewrite.source_url
-          }))
-        }
+            url: rewrite.source_url,
+          })),
+        },
       });
 
       if (response && response.success) {
@@ -123,23 +123,21 @@ export const RewritesView = ({ currentUrl }: RewritesViewProps) => {
   };
 
   return (
-    <div className="flex flex-col h-full gap-4 pt-4">
+    <div className="flex h-full flex-col gap-4 pt-4">
       {/* Detail View - Top Section */}
-      <div className="flex-shrink-0 h-2/5">
+      <div className="h-2/5 flex-shrink-0">
         {selectedRewrite ? (
-          <RewriteDetailView 
-            rewrite={selectedRewrite} 
+          <RewriteDetailView
+            rewrite={selectedRewrite}
             onDelete={handleDeleteRewrite}
             availabilityStatus={textAvailabilityStatus.get(selectedRewrite.id)}
           />
         ) : (
           <Card className="h-full">
-            <CardContent className="flex items-center justify-center h-full">
+            <CardContent className="flex h-full items-center justify-center">
               <div className="text-center">
                 <p className={cn(themeVariants.muted())}>No rewrites for this page</p>
-                <p className={cn(themeVariants.muted(), 'text-sm mt-2')}>
-                  Select text and rewrite it to see it here
-                </p>
+                <p className={cn(themeVariants.muted(), 'mt-2 text-sm')}>Select text and rewrite it to see it here</p>
               </div>
             </CardContent>
           </Card>
@@ -147,8 +145,8 @@ export const RewritesView = ({ currentUrl }: RewritesViewProps) => {
       </div>
 
       {/* List View - Bottom Section */}
-      <div className="flex-1 min-h-0">
-        <RewritesList 
+      <div className="min-h-0 flex-1">
+        <RewritesList
           rewrites={rewrites}
           selectedId={selectedRewrite?.id}
           onSelectRewrite={setSelectedRewrite}

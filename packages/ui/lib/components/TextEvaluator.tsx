@@ -32,17 +32,13 @@ export const TextEvaluator = ({ onAnalyze, result, isAnalyzing = false }: TextEv
         'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800',
       )}>
       <div>
-        <h3 className={cn('mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100')}>
-          Text Evaluator
-        </h3>
+        <h3 className={cn('mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100')}>Text Evaluator</h3>
         <p className={cn('mb-4 text-sm text-gray-600 dark:text-gray-400')}>
           Paste text and see which words you know, which you're struggling with, and which you've mastered.
         </p>
 
         <div className="mb-3">
-          <label className={cn('mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300')}>
-            Language:
-          </label>
+          <label className={cn('mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300')}>Language:</label>
           <select
             value={language}
             onChange={e => setLanguage(e.target.value)}
@@ -90,15 +86,13 @@ export const TextEvaluator = ({ onAnalyze, result, isAnalyzing = false }: TextEv
       </div>
 
       {result && (
-        <div className={cn('space-y-3 rounded-lg border p-4 border-gray-200 dark:border-gray-600')}>
+        <div className={cn('space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-600')}>
           <div>
             <h4 className={cn('mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100')}>Results</h4>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-gray-600 dark:text-gray-400">Total words:</span>
-                <span className={cn('ml-2 font-medium text-gray-900 dark:text-gray-100')}>
-                  {result.totalWords}
-                </span>
+                <span className={cn('ml-2 font-medium text-gray-900 dark:text-gray-100')}>{result.totalWords}</span>
               </div>
               <div>
                 <span className="text-gray-600 dark:text-gray-400">Known:</span>
@@ -114,17 +108,13 @@ export const TextEvaluator = ({ onAnalyze, result, isAnalyzing = false }: TextEv
               </div>
               <div>
                 <span className="text-gray-600 dark:text-gray-400">Mastered:</span>
-                <span className={cn('ml-2 font-medium text-gray-900 dark:text-gray-100')}>
-                  {result.masteredWords}
-                </span>
+                <span className={cn('ml-2 font-medium text-gray-900 dark:text-gray-100')}>{result.masteredWords}</span>
               </div>
             </div>
           </div>
 
-          <div className={cn('rounded border p-3 border-gray-200 dark:border-gray-600')}>
-            <p className={cn('mb-2 text-xs font-medium text-gray-700 dark:text-gray-300')}>
-              Word breakdown:
-            </p>
+          <div className={cn('rounded border border-gray-200 p-3 dark:border-gray-600')}>
+            <p className={cn('mb-2 text-xs font-medium text-gray-700 dark:text-gray-300')}>Word breakdown:</p>
             <div className="flex flex-wrap gap-1">
               {result.breakdown.map((item, idx) => (
                 <span

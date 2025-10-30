@@ -11,14 +11,7 @@ interface ModalProps {
   className?: string;
 }
 
-export const Modal = ({ 
-  isOpen, 
-  onClose, 
-  children, 
-  size = 'lg', 
-  className 
-}: ModalProps) => {
-  
+export const Modal = ({ isOpen, onClose, children, size = 'lg', className }: ModalProps) => {
   if (!isOpen) return null;
 
   const sizeClasses = {
@@ -31,14 +24,9 @@ export const Modal = ({
 
   return (
     <div className={themeVariants.modalOverlay()} onClick={onClose}>
-      <div 
-        className={cn(
-          themeVariants.modalContent(),
-          sizeClasses[size],
-          className
-        )}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div
+        className={cn(themeVariants.modalContent(), sizeClasses[size], className)}
+        onClick={e => e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -55,15 +43,12 @@ export const ModalHeader = ({ children, onClose, className }: ModalHeaderProps) 
   return (
     <div className={cn(themeVariants.modalHeader(), className)}>
       <div className="flex items-center justify-between">
-        <div className="flex-1">
-          {children}
-        </div>
+        <div className="flex-1">{children}</div>
         {onClose && (
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            className="rounded-md p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:text-gray-300">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -79,11 +64,7 @@ interface ModalBodyProps {
 }
 
 export const ModalBody = ({ children, className }: ModalBodyProps) => {
-  return (
-    <div className={cn(themeVariants.modalBody(), className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn(themeVariants.modalBody(), className)}>{children}</div>;
 };
 
 interface ModalFooterProps {
@@ -92,11 +73,7 @@ interface ModalFooterProps {
 }
 
 export const ModalFooter = ({ children, className }: ModalFooterProps) => {
-  return (
-    <div className={cn(themeVariants.modalFooter(), className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn(themeVariants.modalFooter(), className)}>{children}</div>;
 };
 
 interface ModalActionsProps {
@@ -105,9 +82,5 @@ interface ModalActionsProps {
 }
 
 export const ModalActions = ({ children, className }: ModalActionsProps) => {
-  return (
-    <div className={cn('flex justify-end gap-2', className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn('flex justify-end gap-2', className)}>{children}</div>;
 };

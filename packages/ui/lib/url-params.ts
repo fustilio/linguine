@@ -14,11 +14,11 @@ export interface URLParams {
 export const getURLParams = (): URLParams => {
   const urlParams = new URLSearchParams(window.location.search);
   const params: URLParams = {};
-  
+
   for (const [key, value] of urlParams.entries()) {
     params[key] = value;
   }
-  
+
   return params;
 };
 
@@ -53,7 +53,7 @@ export const removeURLParam = (key: string): void => {
  */
 export const setURLParams = (params: URLParams): void => {
   const url = new URL(window.location.href);
-  
+
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
       url.searchParams.set(key, value);
@@ -61,7 +61,7 @@ export const setURLParams = (params: URLParams): void => {
       url.searchParams.delete(key);
     }
   });
-  
+
   window.history.replaceState({}, '', url.toString());
 };
 
@@ -70,9 +70,9 @@ export const setURLParams = (params: URLParams): void => {
  */
 export const useURLParam = (key: string, defaultValue?: string) => {
   const getCurrentValue = () => getURLParam(key) || defaultValue || '';
-  
+
   const [value, setValue] = React.useState(getCurrentValue);
-  
+
   const updateValue = (newValue: string) => {
     setValue(newValue);
     if (newValue) {
@@ -81,16 +81,16 @@ export const useURLParam = (key: string, defaultValue?: string) => {
       removeURLParam(key);
     }
   };
-  
+
   React.useEffect(() => {
     const handlePopState = () => {
       setValue(getCurrentValue());
     };
-    
+
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [key]);
-  
+
   return [value, updateValue] as const;
 };
 
@@ -99,23 +99,23 @@ export const useURLParam = (key: string, defaultValue?: string) => {
  */
 export const useURLParams = (defaultParams: URLParams = {}) => {
   const getCurrentParams = () => ({ ...defaultParams, ...getURLParams() });
-  
+
   const [params, setParams] = React.useState(getCurrentParams);
-  
+
   const updateParams = (newParams: Partial<URLParams>) => {
     const updatedParams = { ...params, ...newParams };
     setParams(updatedParams);
     setURLParams(updatedParams);
   };
-  
+
   React.useEffect(() => {
     const handlePopState = () => {
       setParams(getCurrentParams());
     };
-    
+
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-  
+
   return [params, updateParams] as const;
 };

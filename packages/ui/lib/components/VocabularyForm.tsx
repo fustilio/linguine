@@ -29,7 +29,10 @@ export const VocabularyForm = ({ onAddItem }: VocabularyFormProps) => {
           if (e.key === 'Enter') handleAddItem();
         }}
       />
-      <select className={cn('w-32', select())} value={newItemLanguage} onChange={e => setNewItemLanguage(e.target.value)}>
+      <select
+        className={cn('w-32', select())}
+        value={newItemLanguage}
+        onChange={e => setNewItemLanguage(e.target.value)}>
         {LANGUAGES.map(lang => (
           <option key={lang.value} value={lang.value}>
             {lang.label}

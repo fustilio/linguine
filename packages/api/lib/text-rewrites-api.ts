@@ -68,11 +68,11 @@ export const addTextRewrite = async (rewriteData: TextRewriteData): Promise<Text
 export const getTextRewrites = async (
   page: number = 1,
   limit: number = 10,
-  filters: TextRewriteFilters = {}
+  filters: TextRewriteFilters = {},
 ): Promise<TextRewrite[]> => {
   // Validate filters
   const validatedFilters = TextRewriteFiltersSchema.parse(filters);
-  
+
   // Normalize sourceUrl to domain + path only
   if (validatedFilters.sourceUrl) {
     try {
@@ -82,8 +82,12 @@ export const getTextRewrites = async (
       // Keep original if URL parsing fails
     }
   }
-  
-  const response = await sendDatabaseMessageForArray<TextRewrite>('getTextRewrites', { page, limit, filters: validatedFilters });
+
+  const response = await sendDatabaseMessageForArray<TextRewrite>('getTextRewrites', {
+    page,
+    limit,
+    filters: validatedFilters,
+  });
   // Validate each item in the array
   return response.map(item => TextRewriteSchema.parse(item));
 };
@@ -94,7 +98,7 @@ export const getTextRewrites = async (
 export const getTextRewriteCount = async (filters: TextRewriteFilters = {}): Promise<number> => {
   // Validate filters
   const validatedFilters = TextRewriteFiltersSchema.parse(filters);
-  
+
   // Normalize sourceUrl to domain + path only
   if (validatedFilters.sourceUrl) {
     try {
@@ -104,58 +108,51 @@ export const getTextRewriteCount = async (filters: TextRewriteFilters = {}): Pro
       // Keep original if URL parsing fails
     }
   }
-  
+
   return sendDatabaseMessageForNumber('getTextRewriteCount', { filters: validatedFilters });
 };
 
 /**
  * Delete a single text rewrite via offscreen document
  */
-export const deleteTextRewrite = async (id: number): Promise<boolean> => {
-  return await sendDatabaseMessageForBoolean('deleteTextRewrite', { id });
-};
+export const deleteTextRewrite = async (id: number): Promise<boolean> =>
+  await sendDatabaseMessageForBoolean('deleteTextRewrite', { id });
 
 /**
  * Delete multiple text rewrites via offscreen document
  */
-export const deleteTextRewrites = async (ids: number[]): Promise<boolean> => {
-  return await sendDatabaseMessageForBoolean('deleteTextRewrites', { ids });
-};
+export const deleteTextRewrites = async (ids: number[]): Promise<boolean> =>
+  await sendDatabaseMessageForBoolean('deleteTextRewrites', { ids });
 
 /**
  * Clear all text rewrites via offscreen document
  */
-export const clearAllTextRewrites = async (): Promise<boolean> => {
-  return await sendDatabaseMessageForBoolean('clearAllTextRewrites');
-};
+export const clearAllTextRewrites = async (): Promise<boolean> =>
+  await sendDatabaseMessageForBoolean('clearAllTextRewrites');
 
 /**
  * Get text rewrite by ID via offscreen document
  */
-export const getTextRewriteById = async (id: number): Promise<TextRewrite | null> => {
-  return sendDatabaseMessageForItem<TextRewrite>('getTextRewriteById', { id }, TextRewriteSchema);
-};
+export const getTextRewriteById = async (id: number): Promise<TextRewrite | null> =>
+  sendDatabaseMessageForItem<TextRewrite>('getTextRewriteById', { id }, TextRewriteSchema);
 
 /**
  * Get text rewrites by language via offscreen document
  */
-export const getTextRewritesByLanguage = async (language: string): Promise<TextRewrite[]> => {
-  return sendDatabaseMessageForArray<TextRewrite>('getTextRewritesByLanguage', { language });
-};
+export const getTextRewritesByLanguage = async (language: string): Promise<TextRewrite[]> =>
+  sendDatabaseMessageForArray<TextRewrite>('getTextRewritesByLanguage', { language });
 
 /**
  * Get recent text rewrites via offscreen document
  */
-export const getRecentTextRewrites = async (days: number = 7, language?: string): Promise<TextRewrite[]> => {
-  return sendDatabaseMessageForArray<TextRewrite>('getRecentTextRewrites', { days, language });
-};
+export const getRecentTextRewrites = async (days: number = 7, language?: string): Promise<TextRewrite[]> =>
+  sendDatabaseMessageForArray<TextRewrite>('getRecentTextRewrites', { days, language });
 
 /**
  * Get text rewrites by URL via offscreen document
  */
-export const getTextRewritesByUrl = async (url: string): Promise<TextRewrite[]> => {
-  return sendDatabaseMessageForArray<TextRewrite>('getTextRewritesByUrl', { url });
-};
+export const getTextRewritesByUrl = async (url: string): Promise<TextRewrite[]> =>
+  sendDatabaseMessageForArray<TextRewrite>('getTextRewritesByUrl', { url });
 
 /**
  * Get text rewrites by readability score via offscreen document
@@ -163,38 +160,33 @@ export const getTextRewritesByUrl = async (url: string): Promise<TextRewrite[]> 
 export const getTextRewritesByReadability = async (
   minScore: number,
   maxScore: number,
-  language?: string
-): Promise<TextRewrite[]> => {
-  return sendDatabaseMessageForArray<TextRewrite>('getTextRewritesByReadability', { minScore, maxScore, language });
-};
+  language?: string,
+): Promise<TextRewrite[]> =>
+  sendDatabaseMessageForArray<TextRewrite>('getTextRewritesByReadability', { minScore, maxScore, language });
 
 /**
  * Get vocabulary words in a text via offscreen document
  */
-export const getVocabularyWordsInText = async (textId: number): Promise<VocabularyItem[]> => {
-  return sendDatabaseMessageForArray<VocabularyItem>('getVocabularyWordsInText', { textId });
-};
+export const getVocabularyWordsInText = async (textId: number): Promise<VocabularyItem[]> =>
+  sendDatabaseMessageForArray<VocabularyItem>('getVocabularyWordsInText', { textId });
 
 /**
  * Get text rewrites containing a vocabulary word via offscreen document
  */
-export const getTextRewritesContainingWord = async (vocabularyId: number): Promise<TextRewrite[]> => {
-  return sendDatabaseMessageForArray<TextRewrite>('getTextRewritesContainingWord', { vocabularyId });
-};
+export const getTextRewritesContainingWord = async (vocabularyId: number): Promise<TextRewrite[]> =>
+  sendDatabaseMessageForArray<TextRewrite>('getTextRewritesContainingWord', { vocabularyId });
 
 /**
  * Reset text rewrites database via offscreen document
  */
-export const resetTextRewritesDatabase = async (): Promise<boolean> => {
-  return await sendDatabaseMessageForBoolean('resetTextRewritesDatabase');
-};
+export const resetTextRewritesDatabase = async (): Promise<boolean> =>
+  await sendDatabaseMessageForBoolean('resetTextRewritesDatabase');
 
 /**
  * Ensure database is initialized via offscreen document
  */
-export const ensureDatabaseInitialized = async (): Promise<boolean> => {
-  return sendDatabaseMessageForBoolean('ensureDatabaseInitialized');
-};
+export const ensureDatabaseInitialized = async (): Promise<boolean> =>
+  sendDatabaseMessageForBoolean('ensureDatabaseInitialized');
 
 /**
  * Migrate language codes to normalize inconsistent language labels via offscreen document

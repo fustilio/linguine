@@ -3,13 +3,13 @@ import 'webextension-polyfill';
 // Offscreen document lifecycle management
 let creating: Promise<void> | null = null; // Global promise to avoid concurrency issues
 
-async function setupOffscreenDocument(path: string): Promise<void> {
+const setupOffscreenDocument = async (path: string): Promise<void> => {
   // Check all windows controlled by the service worker to see if one
   // of them is the offscreen document with the given path
   const offscreenUrl = chrome.runtime.getURL(path);
   const existingContexts = await chrome.runtime.getContexts({
     contextTypes: ['OFFSCREEN_DOCUMENT'],
-    documentUrls: [offscreenUrl]
+    documentUrls: [offscreenUrl],
   });
 
   if (existingContexts.length > 0) {
@@ -23,20 +23,20 @@ async function setupOffscreenDocument(path: string): Promise<void> {
   } else {
     creating = chrome.offscreen.createDocument({
       url: path,
-      reasons: ["WORKERS", "LOCAL_STORAGE"],
+      reasons: ['WORKERS', 'LOCAL_STORAGE'],
       justification: 'Access OPFS for SQLite database operations',
     });
     await creating;
     creating = null;
     console.log('✅ Offscreen document created');
   }
-}
+};
 
 // Initialize offscreen document on startup
-async function initializeOffscreenDocument(): Promise<void> {
+const initializeOffscreenDocument = async (): Promise<void> => {
   await setupOffscreenDocument('offscreen.html');
   console.log('✅ Offscreen document initialized');
-}
+};
 
 // Initialize on startup
 initializeOffscreenDocument().catch(error => {
@@ -98,19 +98,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       case 'scanAllRewritesAvailability':
         // Forward bulk text availability scan to content script (async callback)
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
           if (tabs[0]?.id) {
-            chrome.tabs.sendMessage(tabs[0].id, {
-              action: 'scanAllRewritesAvailability',
-              data: message.data
-            }, (response) => {
-              if (chrome.runtime.lastError) {
-                console.error('Failed to send bulk text availability scan to content script:', chrome.runtime.lastError);
-                sendResponse({ success: false, error: chrome.runtime.lastError.message });
-              } else {
-                sendResponse(response || { success: true, data: [] });
-              }
-            });
+            chrome.tabs.sendMessage(
+              tabs[0].id,
+              {
+                action: 'scanAllRewritesAvailability',
+                data: message.data,
+              },
+              response => {
+                if (chrome.runtime.lastError) {
+                  console.error(
+                    'Failed to send bulk text availability scan to content script:',
+                    chrome.runtime.lastError,
+                  );
+                  sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                } else {
+                  sendResponse(response || { success: true, data: [] });
+                }
+              },
+            );
           } else {
             sendResponse({ success: false, error: 'No active tab found' });
           }
@@ -119,19 +126,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       case 'checkTextAvailability':
         // Forward text availability check to content script (async callback)
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
           if (tabs[0]?.id) {
-            chrome.tabs.sendMessage(tabs[0].id, {
-              action: 'checkTextAvailability',
-              data: message.data
-            }, (response) => {
-              if (chrome.runtime.lastError) {
-                console.error('Failed to send text availability check to content script:', chrome.runtime.lastError);
-                sendResponse({ success: false, error: chrome.runtime.lastError.message });
-              } else {
-                sendResponse(response || { success: true, data: { available: false } });
-              }
-            });
+            chrome.tabs.sendMessage(
+              tabs[0].id,
+              {
+                action: 'checkTextAvailability',
+                data: message.data,
+              },
+              response => {
+                if (chrome.runtime.lastError) {
+                  console.error('Failed to send text availability check to content script:', chrome.runtime.lastError);
+                  sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                } else {
+                  sendResponse(response || { success: true, data: { available: false } });
+                }
+              },
+            );
           } else {
             sendResponse({ success: false, error: 'No active tab found' });
           }
@@ -140,19 +151,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       case 'scrollToText':
         // Forward scroll request to content script (async callback)
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
           if (tabs[0]?.id) {
-            chrome.tabs.sendMessage(tabs[0].id, {
-              action: 'scrollToText',
-              data: message.data
-            }, (response) => {
-              if (chrome.runtime.lastError) {
-                console.error('Failed to send scroll message to content script:', chrome.runtime.lastError);
-                sendResponse({ success: false, error: chrome.runtime.lastError.message });
-              } else {
-                sendResponse(response || { success: true });
-              }
-            });
+            chrome.tabs.sendMessage(
+              tabs[0].id,
+              {
+                action: 'scrollToText',
+                data: message.data,
+              },
+              response => {
+                if (chrome.runtime.lastError) {
+                  console.error('Failed to send scroll message to content script:', chrome.runtime.lastError);
+                  sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                } else {
+                  sendResponse(response || { success: true });
+                }
+              },
+            );
           } else {
             sendResponse({ success: false, error: 'No active tab found' });
           }
@@ -223,18 +238,18 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Handle extension icon click
-chrome.action.onClicked.addListener(async (tab) => {
+chrome.action.onClicked.addListener(async tab => {
   console.log('Extension icon clicked on tab:', tab.id);
-  
+
   // Ensure offscreen document exists before any operations
   await setupOffscreenDocument('offscreen.html');
-  
+
   // Send ping to offscreen document
   try {
     const response = await chrome.runtime.sendMessage({
       type: 'ping',
       target: 'offscreen',
-      data: 'Extension icon clicked'
+      data: 'Extension icon clicked',
     });
     console.log('Offscreen response:', response);
   } catch (error) {
@@ -250,7 +265,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     (tab.url.startsWith('http://') || tab.url.startsWith('https://'))
   ) {
     // Check if content script needs to be reinjected
-    chrome.tabs.sendMessage(tabId, { action: 'ping' }, response => {
+    chrome.tabs.sendMessage(tabId, { action: 'ping' }, () => {
       if (chrome.runtime.lastError) {
         // Content script not loaded, inject it
         chrome.scripting
@@ -267,26 +282,27 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // Handle tab activation to refresh sidebar data
-chrome.tabs.onActivated.addListener(async (activeInfo) => {
+chrome.tabs.onActivated.addListener(async activeInfo => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
-    
+
     // Only refresh for web pages
     if (tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
       // Send message to side panel to refresh data for the new tab
-      chrome.runtime.sendMessage({
-        action: 'tabChanged',
-        data: {
-          tabId: activeInfo.tabId,
-          url: tab.url,
-          title: tab.title
-        }
-      }).catch(() => {
-        // Side panel might not be open, that's okay
-      });
+      chrome.runtime
+        .sendMessage({
+          action: 'tabChanged',
+          data: {
+            tabId: activeInfo.tabId,
+            url: tab.url,
+            title: tab.title,
+          },
+        })
+        .catch(() => {
+          // Side panel might not be open, that's okay
+        });
     }
   } catch (error) {
     console.error('Failed to handle tab activation:', error);
   }
 });
-

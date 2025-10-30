@@ -1,9 +1,8 @@
 import './Popup.css';
 
-import { t } from '@extension/i18n';
 import { PROJECT_URL_OBJECT, useStorage, withErrorBoundary, withSuspense } from '@extension/shared';
-import { wordReplacerStorage, DEFAULT_REWRITER_OPTIONS, DEFAULT_REWRITER_PROMPT } from '@extension/storage';
-import { cn, ErrorDisplay, LoadingSpinner, ToggleButton } from '@extension/ui';
+import { wordReplacerStorage } from '@extension/storage';
+import { cn, ErrorDisplay, LoadingSpinner, Switch, ThemeToggleIcon } from '@extension/ui';
 import { useEffect, useState } from 'react';
 
 // const notificationOptions = {
@@ -20,14 +19,11 @@ const Popup = () => {
   const wordReplacerState = useStorage(wordReplacerStorage);
 
   // Local state for UI
-  const [isExpanded, setIsExpanded] = useState(false);
   const [currentTab, setCurrentTab] = useState<chrome.tabs.Tab | null>(null);
-  const [saveStatus, setSaveStatus] = useState('');
 
   // Get safe values with fallbacks
   const isActive = wordReplacerState?.isActive ?? false;
   const widgetSize = wordReplacerState?.widgetSize ?? 'small';
-  const rewriterOptions = wordReplacerState?.rewriterOptions ?? DEFAULT_REWRITER_OPTIONS;
 
   // Load state on mount
   useEffect(() => {
@@ -113,28 +109,11 @@ const Popup = () => {
     }
   };
 
-  // Save rewriter options
-  const handleSaveSettings = async () => {
-    try {
-      await wordReplacerStorage.updateRewriterOptions(rewriterOptions);
-
-      // Get the updated state from storage
-      const updatedState = await wordReplacerStorage.get();
-
-      // Notify content script with updated state
-      await notifyContentScriptWithUpdatedState(updatedState);
-
-      // Show save confirmation
-      setSaveStatus('✓ Saved!');
-      setTimeout(() => setSaveStatus(''), 2000);
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-      setSaveStatus('✗ Save failed');
-      setTimeout(() => setSaveStatus(''), 2000);
-    }
-  };
-
   const goGithubSite = () => chrome.tabs.create(PROJECT_URL_OBJECT);
+
+  const openOptionsPage = () => {
+    chrome.runtime.openOptionsPage();
+  };
 
   // const injectContentScript = async () => {
   //   const [tab] = await chrome.tabs.query({ currentWindow: true, active: true });
@@ -182,12 +161,78 @@ const Popup = () => {
         </div>
       </div>
 
-      <div className="p-4">
-        {/* Theme Toggle */}
-        <div className="mb-6 flex justify-center">
-          <ToggleButton>{t('toggleTheme')}</ToggleButton>
-        </div>
+      {/* Compact Icon Settings Row */}
+      <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+        <div className="flex items-center justify-center gap-4">
+          {/* Extension Toggle Switch */}
+          <div className="flex items-center gap-2">
+            <Switch checked={isActive} onCheckedChange={() => toggleActive()} size="md" aria-label="Toggle extension" />
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{isActive ? 'On' : 'Off'}</span>
+          </div>
 
+          {/* Widget Size Group */}
+          <div className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white p-1 dark:border-gray-600 dark:bg-gray-800">
+            {[
+              { value: 'small', label: 'S' },
+              { value: 'medium', label: 'M' },
+              { value: 'large', label: 'L' },
+            ].map(option => (
+              <button
+                key={option.value}
+                onClick={async () => {
+                  const newSize = option.value as 'small' | 'medium' | 'large';
+                  await wordReplacerStorage.updateWidgetSize(newSize);
+
+                  // Get the updated state from storage
+                  const updatedState = await wordReplacerStorage.get();
+
+                  // Notify content script with updated state
+                  await notifyContentScriptWithUpdatedState(updatedState);
+                }}
+                className={cn(
+                  'flex h-7 w-7 items-center justify-center rounded text-xs font-semibold transition-all',
+                  'hover:bg-gray-100 dark:hover:bg-gray-700',
+                  widgetSize === option.value
+                    ? 'bg-[#667eea] text-white shadow-sm'
+                    : 'text-gray-700 dark:text-gray-300',
+                )}
+                title={`Widget Size: ${option.label}`}>
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Theme Toggle Icon */}
+          <ThemeToggleIcon size="md" />
+
+          {/* Settings Button Icon */}
+          <button
+            onClick={openOptionsPage}
+            aria-label="Open settings"
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-lg border transition-all',
+              'border-gray-300 bg-white text-gray-700 hover:scale-110 active:scale-95',
+              'dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300',
+            )}
+            title="Open settings">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.42-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.42-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2H2a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.42-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2" />
+              <path d="M12.22 22h-.44a2 2 0 0 1-2-2v-.18a2 2 0 0 0-1-1.73l-.43-.25a2 2 0 0 0-2 0l-.42.25a2 2 0 0 0-1 1.73v.18a2 2 0 0 1-2 2h-.44a2 2 0 0 1-2-2v-.18a2 2 0 0 0-1-1.73l-.43-.25a2 2 0 0 0-2 0l-.42.25a2 2 0 0 0-1 1.73v.18a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-.18a2 2 0 0 0-1-1.73l-.43-.25a2 2 0 0 0-2 0l-.42.25a2 2 0 0 0-1 1.73v.18a2 2 0 0 1-2 2" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div className="p-4">
         {/* Status Section */}
         <div className="mb-5">
           <div
@@ -199,77 +244,13 @@ const Popup = () => {
             )}>
             {isActive ? 'Extension is active' : 'Extension is inactive'}
           </div>
-
-          <div className="mb-3 flex items-center justify-between rounded-lg bg-[#f8f9fa] p-3 dark:bg-gray-700">
-            <span className="text-black dark:text-gray-200">Enable Extension</span>
-            <button
-              onClick={toggleActive}
-              onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  toggleActive();
-                }
-              }}
-              aria-label="Toggle extension"
-              aria-pressed={isActive}
-              className={cn(
-                'relative h-6 w-11 cursor-pointer rounded-full border-none transition-[background] duration-300',
-                'after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white',
-                "after:transition-transform after:duration-300 after:content-['']",
-                isActive ? 'bg-[#4caf50] after:translate-x-5' : 'bg-[#ddd]',
-              )}></button>
-          </div>
-
-          {/* <button
-            className={cn(
-              'w-full rounded px-4 py-2 font-semibold shadow transition-transform hover:scale-105',
-              'bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700',
-            )}
-            onClick={injectContentScript}>
-            {t('injectButton')}
-          </button> */}
-        </div>
-
-        {/* Widget Size Section */}
-        <div className="mb-5">
-          <h3 className={cn('mb-2 text-sm font-semibold text-[#444] dark:text-gray-200')}>Widget Size</h3>
-          <div className="rounded-lg bg-[#f8f9fa] p-3 dark:bg-gray-700">
-            <div className="flex gap-1">
-              {[
-                { value: 'small', label: 'Small', size: '50px' },
-                { value: 'medium', label: 'Medium', size: '70px' },
-                { value: 'large', label: 'Large', size: '90px' },
-              ].map(option => (
-                <button
-                  key={option.value}
-                  onClick={async () => {
-                    const newSize = option.value as 'small' | 'medium' | 'large';
-                    await wordReplacerStorage.updateWidgetSize(newSize);
-
-                    // Get the updated state from storage
-                    const updatedState = await wordReplacerStorage.get();
-
-                    // Notify content script with updated state
-                    await notifyContentScriptWithUpdatedState(updatedState);
-                  }}
-                  className={cn(
-                    'flex-1 cursor-pointer rounded border px-3 py-2 text-xs font-medium transition-all duration-200',
-                    widgetSize === option.value
-                      ? 'border-[#667eea] bg-[#667eea] text-white shadow-sm'
-                      : 'border-[#d1d5db] bg-white text-gray-700 hover:border-[#667eea] hover:bg-[#f0f4ff] dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-[#667eea] dark:hover:bg-gray-700',
-                  )}>
-                  <div className="text-center font-semibold">{option.label}</div>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Instructions Section */}
         <div className="mb-5">
           <h3 className={cn('mb-2 text-sm font-semibold text-[#444] dark:text-gray-200')}>How to Use</h3>
           <div className={cn('mt-2 text-[13px] leading-relaxed text-[#555] dark:text-gray-300')}>
-            <strong>1. Enable the extension</strong> using the toggle above
+            <strong>1. Enable the extension</strong> using the icon above
             <br />
             <strong>2. Select text</strong> on any webpage
             <br />
@@ -288,122 +269,6 @@ const Popup = () => {
             <span className="text-[10px] opacity-70">
               Doesn't work? Linguine requires chrome://flags/#rewriter-api-for-gemini-nano to be enabled.
             </span>
-          </div>
-        </div>
-
-        {/* AI Settings Section */}
-        <div className="mb-5">
-          <div className="mt-3 rounded-lg bg-[#f8f9fa] p-3 dark:bg-gray-700">
-            <button
-              className="flex w-full cursor-pointer items-center justify-between border-none bg-transparent py-2 hover:opacity-80"
-              onClick={() => setIsExpanded(!isExpanded)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setIsExpanded(!isExpanded);
-                }
-              }}
-              aria-expanded={isExpanded}
-              aria-controls="ai-settings-content">
-              <h3 className="m-0 text-sm font-semibold text-[#444] dark:text-gray-200">AI Rewriter Settings</h3>
-              <span className={cn('transition-transform duration-300', isExpanded && 'rotate-90')}>▶</span>
-            </button>
-
-            <div
-              id="ai-settings-content"
-              className={cn(
-                'overflow-hidden transition-[max-height] duration-300 ease-in-out',
-                isExpanded ? 'max-h-[600px]' : 'max-h-0',
-              )}>
-              <div className="mt-3">
-                {/* Shared Context */}
-                <div className="mb-3">
-                  <label
-                    htmlFor="sharedContext"
-                    className="mb-1 block text-xs font-medium text-[#444] dark:text-gray-200">
-                    Context (Instructions for AI)
-                  </label>
-                  <textarea
-                    id="sharedContext"
-                    value={rewriterOptions.sharedContext}
-                    onChange={e =>
-                      wordReplacerStorage.updateRewriterOptions({
-                        sharedContext: e.target.value,
-                      })
-                    }
-                    className="min-h-[60px] w-full resize-y rounded border border-[#d1d5db] bg-white p-2 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                    placeholder={`e.g., ${DEFAULT_REWRITER_PROMPT}`}
-                  />
-                </div>
-
-                {/* Tone */}
-                <div className="mb-3">
-                  <label htmlFor="tone" className="mb-1 block text-xs font-medium text-[#444] dark:text-gray-200">
-                    Tone
-                  </label>
-                  <select
-                    id="tone"
-                    value={rewriterOptions.tone}
-                    onChange={e =>
-                      wordReplacerStorage.updateRewriterOptions({
-                        tone: e.target.value,
-                      })
-                    }
-                    className="w-full cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                    <option value="as-is">As-is (keep original)</option>
-                    <option value="more-formal">More Formal</option>
-                    <option value="more-casual">More Casual</option>
-                    <option value="neutral">Neutral</option>
-                  </select>
-                </div>
-
-                {/* Format */}
-                <div className="mb-3">
-                  <label htmlFor="format" className="mb-1 block text-xs font-medium text-[#444] dark:text-gray-200">
-                    Format
-                  </label>
-                  <select
-                    id="format"
-                    value={rewriterOptions.format}
-                    onChange={e =>
-                      wordReplacerStorage.updateRewriterOptions({
-                        format: e.target.value,
-                      })
-                    }
-                    className="w-full cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                    <option value="as-is">As-is (keep original)</option>
-                    <option value="plain-text">Plain Text</option>
-                    <option value="markdown">Markdown</option>
-                  </select>
-                </div>
-
-                {/* Length */}
-                <div className="mb-3">
-                  <label htmlFor="length" className="mb-1 block text-xs font-medium text-[#444] dark:text-gray-200">
-                    Length
-                  </label>
-                  <select
-                    id="length"
-                    value={rewriterOptions.length}
-                    onChange={e =>
-                      wordReplacerStorage.updateRewriterOptions({
-                        length: e.target.value,
-                      })
-                    }
-                    className="w-full cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1.5 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                    <option value="as-is">As-is (keep original)</option>
-                    <option value="shorter">Shorter</option>
-                    <option value="longer">Longer</option>
-                  </select>
-                </div>
-
-                <button
-                  onClick={handleSaveSettings}
-                  className="mt-2 w-full cursor-pointer rounded border-none bg-[#667eea] px-4 py-2 text-[13px] text-white transition-[background] duration-200 hover:bg-[#5a67d8] disabled:cursor-not-allowed disabled:bg-[#ccc] dark:bg-blue-600 dark:hover:bg-blue-700 dark:disabled:bg-gray-600">
-                  {saveStatus || 'Save Settings'}
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>

@@ -16,11 +16,7 @@ export const Badge = ({ children, variant = 'default', size = 'md', className }:
     lg: 'px-3 py-1 text-sm',
   };
 
-  return (
-    <span className={cn(badge({ variant }), sizeClasses[size], className)}>
-      {children}
-    </span>
-  );
+  return <span className={cn(badge({ variant }), sizeClasses[size], className)}>{children}</span>;
 };
 
 interface StatusBadgeProps {

@@ -14,61 +14,31 @@ interface StatsCardProps {
   };
 }
 
-export const StatsCard = ({ 
-  title, 
-  value, 
-  subtitle, 
-  className, 
-  icon, 
-  trend 
-}: StatsCardProps) => {
-  
+export const StatsCard = ({ title, value, subtitle, className, icon, trend }: StatsCardProps) => {
   return (
-    <div className={cn(
-      'rounded-lg border p-4 border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800',
-      className
-    )}>
+    <div
+      className={cn('rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800', className)}>
       <div className="flex items-center justify-between">
         <div>
-          <p className={cn(
-            'text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400'
-          )}>
+          <p className={cn('text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400')}>
             {title}
           </p>
-          <p className={cn(
-            'text-2xl font-bold text-gray-900 dark:text-gray-100'
-          )}>
-            {value}
-          </p>
-          {subtitle && (
-            <p className={cn(
-              'text-sm text-gray-500 dark:text-gray-400'
-            )}>
-              {subtitle}
-            </p>
-          )}
+          <p className={cn('text-2xl font-bold text-gray-900 dark:text-gray-100')}>{value}</p>
+          {subtitle && <p className={cn('text-sm text-gray-500 dark:text-gray-400')}>{subtitle}</p>}
         </div>
-        {icon && (
-          <div className="text-gray-400">
-            {icon}
-          </div>
-        )}
+        {icon && <div className="text-gray-400">{icon}</div>}
       </div>
       {trend && (
         <div className="mt-2 flex items-center">
-          <span className={cn(
-            'text-sm font-medium',
-            trend.isPositive 
-              ? 'text-green-600 dark:text-green-400'
-              : 'text-red-600 dark:text-red-400'
-          )}>
-            {trend.isPositive ? '+' : ''}{trend.value}%
+          <span
+            className={cn(
+              'text-sm font-medium',
+              trend.isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
+            )}>
+            {trend.isPositive ? '+' : ''}
+            {trend.value}%
           </span>
-          <span className={cn(
-            'ml-1 text-xs text-gray-500 dark:text-gray-400'
-          )}>
-            vs last period
-          </span>
+          <span className={cn('ml-1 text-xs text-gray-500 dark:text-gray-400')}>vs last period</span>
         </div>
       )}
     </div>
@@ -90,10 +60,6 @@ export const StatsGrid = ({ children, columns = 4, className }: StatsGridProps) 
     5: 'grid-cols-1 md:grid-cols-5',
     6: 'grid-cols-1 md:grid-cols-6',
   };
-  
-  return (
-    <div className={cn('grid gap-4', gridClasses[columns], className)}>
-      {children}
-    </div>
-  );
+
+  return <div className={cn('grid gap-4', gridClasses[columns], className)}>{children}</div>;
 };

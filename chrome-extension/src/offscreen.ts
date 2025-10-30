@@ -1,5 +1,6 @@
 // offscreen.ts - Handles all database operations via OPFS
 
+import { DatabaseActionRequestSchema, TextRewriteSchema, VocabularyItemSchema } from '@extension/api';
 import {
   // Vocabulary operations
   getAllVocabularyForSummary,
@@ -13,7 +14,7 @@ import {
   resetVocabularyDatabase,
   populateDummyVocabulary,
   ensureDatabaseInitialized,
-  
+
   // Text rewrites operations
   addTextRewrite,
   getTextRewrites,
@@ -30,27 +31,14 @@ import {
   getTextRewritesContainingWord,
   resetTextRewritesDatabase,
   migrateLanguageCodes,
-
-  getDatabaseManager
+  getDatabaseManager,
 } from '@extension/sqlite';
-
-import {
-  DatabaseActionRequestSchema,
-  TextRewriteResponseSchema,
-  TextRewritesArrayResponseSchema,
-  VocabularyItemResponseSchema,
-  VocabularyItemsArrayResponseSchema,
-  BooleanResponseSchema,
-  NumberResponseSchema,
-  TextRewriteSchema,
-  VocabularyItemSchema,
-} from '@extension/api';
 import { z } from 'zod';
 
 console.log('Offscreen document loaded');
 
 // Initialize database on startup
-async function initializeDatabase() {
+const initializeDatabase = async () => {
   try {
     const dbManager = getDatabaseManager();
     await dbManager.ensureInitialized();
@@ -58,28 +46,28 @@ async function initializeDatabase() {
   } catch (error) {
     console.error('❌ Failed to initialize database:', error);
   }
-}
+};
 
 // Initialize database
 initializeDatabase();
 
 // Helper function to validate and send response
-function sendValidatedResponse<T>(
+const sendValidatedResponse = <T>(
   sendResponse: (response: { success: boolean; data?: unknown; error?: string }) => void,
   responseData: T,
   schema?: z.ZodType<T>,
-  errorMessage?: string
-): void {
+  errorMessage?: string,
+): void => {
   try {
     let result: { success: boolean; data?: unknown; error?: string };
-    
+
     if (schema) {
       const validated = schema.parse(responseData);
       result = { success: true, data: validated };
     } else {
       result = { success: true, data: responseData };
     }
-    
+
     try {
       sendResponse(result);
     } catch (responseError) {
@@ -88,9 +76,9 @@ function sendValidatedResponse<T>(
     }
   } catch (validationError) {
     console.error('Response validation failed:', validationError);
-    const errorResult = { 
-      success: false, 
-      error: errorMessage || 'Response validation failed' 
+    const errorResult = {
+      success: false,
+      error: errorMessage || 'Response validation failed',
     };
     try {
       sendResponse(errorResult);
@@ -98,8 +86,7 @@ function sendValidatedResponse<T>(
       console.error('Failed to send error response:', responseError);
     }
   }
-}
-
+};
 
 // Handle messages from the service worker
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -111,7 +98,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Return true to keep message channel open for async operations
   const handleMessage = async () => {
     try {
-
       // If no target is specified, check if it's a database action
       // (for backward compatibility with messages that don't have explicit target)
       const databaseActions = [
@@ -154,9 +140,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!baseValidation.success) {
         console.error('❌ Invalid database message structure:', baseValidation.error);
         console.error('Message:', message);
-        sendResponse({ 
-          success: false, 
-          error: `Invalid message structure: ${baseValidation.error.message}` 
+        sendResponse({
+          success: false,
+          error: `Invalid message structure: ${baseValidation.error.message}`,
         });
         return;
       }
@@ -167,7 +153,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           case 'ping':
             sendResponse({ success: true, pong: true, message: 'Offscreen document is ready' });
             return;
-          
+
           default:
             console.warn('Unknown message type:', message.type);
             sendResponse({ success: false, error: `Unknown message type: ${message.type}` });
@@ -178,15 +164,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Handle legacy action-based messages with validation
       switch (message.action) {
         // Vocabulary operations
-        case 'getAllVocabularyForSummary':
+        case 'getAllVocabularyForSummary': {
           const vocabSummary = await getAllVocabularyForSummary();
-          sendValidatedResponse(sendResponse, vocabSummary, VocabularyItemSchema.array(), 'Failed to get vocabulary summary');
+          sendValidatedResponse(
+            sendResponse,
+            vocabSummary,
+            VocabularyItemSchema.array(),
+            'Failed to get vocabulary summary',
+          );
           break;
+        }
 
-        case 'addVocabularyItem':
+        case 'addVocabularyItem': {
           const newVocabItem = await addVocabularyItem(message.data);
           sendValidatedResponse(sendResponse, newVocabItem, VocabularyItemSchema, 'Failed to add vocabulary item');
           break;
+        }
 
         case 'deleteVocabularyItem':
           await deleteVocabularyItem(message.data.id);
@@ -208,15 +201,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: true });
           break;
 
-        case 'getVocabulary':
+        case 'getVocabulary': {
           const vocabData = await getVocabulary(message.data.page, message.data.limit, message.data.languageFilter);
           sendValidatedResponse(sendResponse, vocabData, VocabularyItemSchema.array(), 'Failed to get vocabulary');
           break;
+        }
 
-        case 'getVocabularyCount':
+        case 'getVocabularyCount': {
           const vocabCount = await getVocabularyCount(message.data.languageFilter);
           sendValidatedResponse(sendResponse, vocabCount, z.number(), 'Failed to get vocabulary count');
           break;
+        }
 
         case 'resetVocabularyDatabase':
           await resetVocabularyDatabase();
@@ -239,22 +234,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
           } catch (error) {
             console.error('Error in addTextRewrite:', error);
-            sendResponse({ 
-              success: false, 
-              error: error instanceof Error ? error.message : 'Unknown error' 
+            sendResponse({
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
             });
           }
           break;
 
-        case 'getTextRewrites':
+        case 'getTextRewrites': {
           const rewrites = await getTextRewrites(message.data.page, message.data.limit, message.data.filters);
           sendValidatedResponse(sendResponse, rewrites, TextRewriteSchema.array(), 'Failed to get text rewrites');
           break;
+        }
 
-        case 'getTextRewriteCount':
+        case 'getTextRewriteCount': {
           const rewriteCount = await getTextRewriteCount(message.data.filters);
           sendValidatedResponse(sendResponse, rewriteCount, z.number(), 'Failed to get text rewrite count');
           break;
+        }
 
         case 'deleteTextRewrite':
           await deleteTextRewrite(message.data.id);
@@ -271,7 +268,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: true });
           break;
 
-        case 'getTextRewriteById':
+        case 'getTextRewriteById': {
           const rewriteById = await getTextRewriteById(message.data.id);
           if (rewriteById) {
             sendValidatedResponse(sendResponse, rewriteById, TextRewriteSchema, 'Failed to get text rewrite');
@@ -279,66 +276,101 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ success: true, data: null });
           }
           break;
+        }
 
-        case 'getTextRewritesByLanguage':
+        case 'getTextRewritesByLanguage': {
           const rewritesByLang = await getTextRewritesByLanguage(message.data.language);
-          sendValidatedResponse(sendResponse, rewritesByLang, TextRewriteSchema.array(), 'Failed to get text rewrites by language');
+          sendValidatedResponse(
+            sendResponse,
+            rewritesByLang,
+            TextRewriteSchema.array(),
+            'Failed to get text rewrites by language',
+          );
           break;
-
-        case 'getRecentTextRewrites':
+        }
+        case 'getRecentTextRewrites': {
           const recentRewrites = await getRecentTextRewrites(message.data.days, message.data.language);
-          sendValidatedResponse(sendResponse, recentRewrites, TextRewriteSchema.array(), 'Failed to get recent text rewrites');
+          sendValidatedResponse(
+            sendResponse,
+            recentRewrites,
+            TextRewriteSchema.array(),
+            'Failed to get recent text rewrites',
+          );
           break;
-
-        case 'getTextRewritesByUrl':
+        }
+        case 'getTextRewritesByUrl': {
           const rewritesByUrl = await getTextRewritesByUrl(message.data.url);
-          sendValidatedResponse(sendResponse, rewritesByUrl, TextRewriteSchema.array(), 'Failed to get text rewrites by URL');
+          sendValidatedResponse(
+            sendResponse,
+            rewritesByUrl,
+            TextRewriteSchema.array(),
+            'Failed to get text rewrites by URL',
+          );
           break;
-
-        case 'getTextRewritesByReadability':
-          const rewritesByReadability = await getTextRewritesByReadability(message.data.minScore, message.data.maxScore, message.data.language);
-          sendValidatedResponse(sendResponse, rewritesByReadability, TextRewriteSchema.array(), 'Failed to get text rewrites by readability');
+        }
+        case 'getTextRewritesByReadability': {
+          const rewritesByReadability = await getTextRewritesByReadability(
+            message.data.minScore,
+            message.data.maxScore,
+            message.data.language,
+          );
+          sendValidatedResponse(
+            sendResponse,
+            rewritesByReadability,
+            TextRewriteSchema.array(),
+            'Failed to get text rewrites by readability',
+          );
           break;
-
-        case 'getVocabularyWordsInText':
+        }
+        case 'getVocabularyWordsInText': {
           const vocabInText = await getVocabularyWordsInText(message.data.textId);
-          sendValidatedResponse(sendResponse, vocabInText, VocabularyItemSchema.array(), 'Failed to get vocabulary words in text');
+          sendValidatedResponse(
+            sendResponse,
+            vocabInText,
+            VocabularyItemSchema.array(),
+            'Failed to get vocabulary words in text',
+          );
           break;
-
-        case 'getTextRewritesContainingWord':
+        }
+        case 'getTextRewritesContainingWord': {
           const textRewritesWithWord = await getTextRewritesContainingWord(message.data.vocabularyId);
-          sendValidatedResponse(sendResponse, textRewritesWithWord, TextRewriteSchema.array(), 'Failed to get text rewrites containing word');
+          sendValidatedResponse(
+            sendResponse,
+            textRewritesWithWord,
+            TextRewriteSchema.array(),
+            'Failed to get text rewrites containing word',
+          );
           break;
-
-        case 'resetTextRewritesDatabase':
+        }
+        case 'resetTextRewritesDatabase': {
           await resetTextRewritesDatabase();
           sendResponse({ success: true });
           break;
-
-        case 'ensureDatabaseInitialized':
+        }
+        case 'ensureDatabaseInitialized': {
           await ensureDatabaseInitialized();
           sendResponse({ success: true });
           break;
-
-        case 'migrateLanguageCodes':
+        }
+        case 'migrateLanguageCodes': {
           const migrationResult = await migrateLanguageCodes();
           sendValidatedResponse(
-            sendResponse, 
-            migrationResult, 
+            sendResponse,
+            migrationResult,
             z.object({ updated: z.number(), errors: z.number() }),
-            'Failed to migrate language codes'
+            'Failed to migrate language codes',
           );
           break;
-
+        }
         default:
           console.warn('Unknown action:', message.action);
           sendResponse({ success: false, error: `Unknown action: ${message.action}` });
       }
     } catch (error) {
       console.error('Error handling message:', error);
-      sendResponse({ 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      sendResponse({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   };
@@ -347,16 +379,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage().catch(error => {
     console.error('Error in message handler:', error);
     try {
-      sendResponse({ 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Internal error' 
+      sendResponse({
+        success: false,
+        error: error instanceof Error ? error.message : 'Internal error',
       });
     } catch (responseError) {
       // Channel may already be closed
       console.error('Failed to send error response:', responseError);
     }
   });
-  
+
   return true;
 });
 

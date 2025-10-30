@@ -31,7 +31,7 @@ export const VocabularyStats = ({ items }: VocabularyStatsProps) => {
 
   if (total === 0) {
     return (
-      <div className={cn('rounded-lg border p-4 border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800')}>
+      <div className={cn('rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800')}>
         <p className={cn('text-sm text-gray-500 dark:text-gray-400')}>No vocabulary data</p>
       </div>
     );
@@ -40,7 +40,7 @@ export const VocabularyStats = ({ items }: VocabularyStatsProps) => {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
       {/* Overall Stats */}
-      <div className={cn('rounded-lg border p-4 border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800')}>
+      <div className={cn('rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800')}>
         <h4 className={cn('mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400')}>
           Total Words
         </h4>
@@ -48,7 +48,7 @@ export const VocabularyStats = ({ items }: VocabularyStatsProps) => {
       </div>
 
       {/* Knowledge Level Breakdown */}
-      <div className={cn('rounded-lg border p-4 border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800')}>
+      <div className={cn('rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800')}>
         <h4 className={cn('mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400')}>
           Mastery
         </h4>
@@ -78,7 +78,7 @@ export const VocabularyStats = ({ items }: VocabularyStatsProps) => {
       </div>
 
       {/* Top Languages */}
-      <div className={cn('rounded-lg border p-4 border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800')}>
+      <div className={cn('rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800')}>
         <h4 className={cn('mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400')}>
           Top Languages
         </h4>
@@ -99,4 +99,3 @@ export const VocabularyStats = ({ items }: VocabularyStatsProps) => {
     </div>
   );
 };
-

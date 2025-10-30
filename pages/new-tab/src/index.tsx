@@ -13,7 +13,7 @@ const init = () => {
   root.render(
     <ThemeProvider>
       <NewTab />
-    </ThemeProvider>
+    </ThemeProvider>,
   );
 };
 

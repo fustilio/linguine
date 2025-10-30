@@ -15,11 +15,7 @@ const EXAMPLE_QUERIES = [
   'What are my strengths?',
 ];
 
-export const QueryInterface = ({
-  onQuery,
-  isLoading = false,
-  availableLanguages = [],
-}: QueryInterfaceProps) => {
+export const QueryInterface = ({ onQuery, isLoading = false, availableLanguages = [] }: QueryInterfaceProps) => {
   const [query, setQuery] = useState('');
   const [localHistory, setLocalHistory] = useState<string[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all');

@@ -10,9 +10,7 @@ interface TableProps {
 export const Table = ({ children, className }: TableProps) => {
   return (
     <div className={cn('overflow-x-auto', className)}>
-      <table className={themeVariants.table()}>
-        {children}
-      </table>
+      <table className={themeVariants.table()}>{children}</table>
     </div>
   );
 };
@@ -22,11 +20,7 @@ interface TableHeaderProps {
 }
 
 export const TableHeader = ({ children }: TableHeaderProps) => {
-  return (
-    <thead className={themeVariants.tableHeader()}>
-      {children}
-    </thead>
-  );
+  return <thead className={themeVariants.tableHeader()}>{children}</thead>;
 };
 
 interface TableBodyProps {
@@ -34,11 +28,7 @@ interface TableBodyProps {
 }
 
 export const TableBody = ({ children }: TableBodyProps) => {
-  return (
-    <tbody className={themeVariants.tableRow()}>
-      {children}
-    </tbody>
-  );
+  return <tbody className={themeVariants.tableRow()}>{children}</tbody>;
 };
 
 interface TableRowProps {
@@ -48,14 +38,7 @@ interface TableRowProps {
 }
 
 export const TableRow = ({ children, isSelected, className }: TableRowProps) => {
-  return (
-    <tr className={cn(
-      isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : '',
-      className
-    )}>
-      {children}
-    </tr>
-  );
+  return <tr className={cn(isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : '', className)}>{children}</tr>;
 };
 
 interface TableCellProps {
@@ -66,13 +49,14 @@ interface TableCellProps {
 
 export const TableCell = ({ children, className, header = false }: TableCellProps) => {
   const Component = header ? 'th' : 'td';
-  
+
   return (
-    <Component className={cn(
-      themeVariants.tableCell(),
-      header && 'text-left text-xs font-medium uppercase tracking-wider',
-      className
-    )}>
+    <Component
+      className={cn(
+        themeVariants.tableCell(),
+        header && 'text-left text-xs font-medium uppercase tracking-wider',
+        className,
+      )}>
       {children}
     </Component>
   );
@@ -86,33 +70,31 @@ interface TableHeaderCellProps {
   onSort?: () => void;
 }
 
-export const TableHeaderCell = ({ 
-  children, 
-  className, 
-  sortable, 
-  sortDirection, 
-  onSort 
-}: TableHeaderCellProps) => {
-  
+export const TableHeaderCell = ({ children, className, sortable, sortDirection, onSort }: TableHeaderCellProps) => {
   return (
-    <th className={cn(
-      themeVariants.tableCell(),
-      'text-left text-xs font-medium uppercase tracking-wider',
-      sortable && 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700',
-      className
-    )} onClick={sortable ? onSort : undefined}>
+    <th
+      className={cn(
+        themeVariants.tableCell(),
+        'text-left text-xs font-medium uppercase tracking-wider',
+        sortable && 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700',
+        className,
+      )}
+      onClick={sortable ? onSort : undefined}>
       <div className="flex items-center gap-1">
         {children}
         {sortable && (
           <div className="flex flex-col">
-            <span className={cn(
-              'text-xs',
-              sortDirection === 'asc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'
-            )}>▲</span>
-            <span className={cn(
-              'text-xs -mt-1',
-              sortDirection === 'desc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'
-            )}>▼</span>
+            <span
+              className={cn('text-xs', sortDirection === 'asc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400')}>
+              ▲
+            </span>
+            <span
+              className={cn(
+                '-mt-1 text-xs',
+                sortDirection === 'desc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400',
+              )}>
+              ▼
+            </span>
           </div>
         )}
       </div>

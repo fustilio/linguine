@@ -38,8 +38,7 @@ export const VocabularyList = ({
         )}>
         <input type="checkbox" checked={selectedItems.has(item.id)} onChange={() => onToggleItemSelected(item.id)} />
         <span className="flex-1 text-left">
-          {item.text}{' '}
-          <span className={cn('text-sm text-gray-500 dark:text-gray-400')}>({item.language})</span>
+          {item.text} <span className={cn('text-sm text-gray-500 dark:text-gray-400')}>({item.language})</span>
         </span>
         <div className="flex items-center gap-2">
           <span>Level:</span>

@@ -4,13 +4,13 @@
 // This script runs on every webpage and handles both word replacement and selection
 // Users can select text to add replacements and see replacements applied in real-time
 
+import { rewriterManager } from './chrome-ai/index.js';
 import { FloatingWidget } from './floating-widget.js';
+import { generateFragmentStringHashFromRange } from './text-fragments-api.js';
 import { addTextRewrite } from './text-rewrites-api.js';
 import { normalizeLanguageCode } from '@extension/shared';
 import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 import type { WidgetSize } from './floating-widget.js';
-import { rewriterManager } from './chrome-ai/index.js';
-import { generateFragmentStringHashFromRange } from './text-fragments-api.js';
 
 type RewriterOptions = {
   sharedContext?: string;
@@ -125,7 +125,7 @@ export class WordReplacer {
       if (message.target === 'offscreen') {
         return false; // Don't handle messages intended for offscreen
       }
-      
+
       this.handleMessage(message, sender, sendResponse);
       return true; // Keep the message channel open for async responses
     });
@@ -1507,7 +1507,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // we generate this before replacing the text in the DOM so that we can save the fragment to the database
       // Generate URL fragment for text anchor
       const urlFragment = this.generateTextFragment(range);
-   
 
       // Replace the selected text in the DOM with the rewritten version
       this.replaceSelectedTextInDOM(range, rewrittenText);
@@ -1604,7 +1603,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       });
       // Track if save is in progress to prevent duplicate saves
       let isSaving = false;
-      
+
       applyBtn.addEventListener('click', async e => {
         try {
           e.preventDefault();
@@ -1622,17 +1621,17 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
             wrapper.style.backgroundColor = 'transparent';
             wrapper.style.padding = '0';
             wrapper.classList.remove('rewriter-highlight');
-            
+
             // Remove buttons
             if (buttonContainer && buttonContainer.parentNode) {
               buttonContainer.remove();
             }
-            
+
             // Clear current highlight reference
             if (this.currentHighlight === wrapper) {
               this.currentHighlight = null;
             }
-            
+
             return;
           }
 
@@ -1642,18 +1641,20 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
           applyBtn.disabled = true;
           applyBtn.style.opacity = '0.5';
           applyBtn.style.cursor = 'not-allowed';
-          
+
           let saveSuccessful = false;
           try {
-            const rewriterSettings = wrapper.dataset.rewriterSettings || JSON.stringify({
-              sharedContext: 'Make this text easier to understand for language learners.',
-              tone: this.rewriterOptions.tone || 'more-casual',
-              format: this.rewriterOptions.format || 'plain-text',
-              length: this.rewriterOptions.length || 'shorter',
-            });
-            
+            const rewriterSettings =
+              wrapper.dataset.rewriterSettings ||
+              JSON.stringify({
+                sharedContext: 'Make this text easier to understand for language learners.',
+                tone: this.rewriterOptions.tone || 'more-casual',
+                format: this.rewriterOptions.format || 'plain-text',
+                length: this.rewriterOptions.length || 'shorter',
+              });
+
             const urlFragment = wrapper.dataset.urlFragment || null;
-            
+
             const savedRewrite = await addTextRewrite({
               original_text: originalText,
               rewritten_text: rewrittenText,
@@ -1665,7 +1666,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
             if (savedRewrite) {
               saveSuccessful = true;
-              
+
               // Notify side panel about new rewrite
               try {
                 await chrome.runtime.sendMessage({
@@ -1673,8 +1674,8 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
                   target: 'sidepanel',
                   data: {
                     rewrite: savedRewrite,
-                    url: window.location.href
-                  }
+                    url: window.location.href,
+                  },
                 });
               } catch {
                 // Side panel might not be open, that's okay

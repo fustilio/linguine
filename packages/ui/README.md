@@ -81,6 +81,43 @@ export default withErrorBoundary(withSuspense(Page, <LoadingSpinner />), ErrorDi
 > [!TIP]
 > You are able to set other size of the loading spinner by passing the `size` prop to the `<LoadingSpinner />`.
 
+## Theme System
+
+The UI package includes a theme system powered by `next-themes` and `chrome.storage`. For complete documentation, see [Theme System Documentation](../../docs/theme-system.md).
+
+### Quick Start
+
+1. **Wrap your app with ThemeProvider**:
+
+```tsx
+import { ThemeProvider } from '@extension/ui';
+
+root.render(
+  <ThemeProvider>
+    <YourApp />
+  </ThemeProvider>
+);
+```
+
+2. **Use the theme toggle button**:
+
+```tsx
+import { ToggleButton } from '@extension/ui';
+
+<ToggleButton>Toggle Theme</ToggleButton>
+```
+
+### Key Components
+
+- `ThemeProvider` - Theme context provider (wraps next-themes)
+- `ToggleButton` - Theme toggle button component
+
+The theme system:
+- Uses `chrome.storage` as the source of truth
+- Only works on extension pages (popup, side-panel, options, etc.)
+- Supports light, dark, and system preferences
+- Prevents FOUC (Flash of Unstyled Content)
+
 ## Modifying the tailwind config of the UI library
 
 Modify the `tailwind.config.ts` file to make global style changes to the package.

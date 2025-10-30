@@ -2,8 +2,8 @@
 
 import { exampleThemeStorage } from '@extension/storage';
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
-import type { ThemeProviderProps } from 'next-themes';
 import { useEffect } from 'react';
+import type { ThemeProviderProps } from 'next-themes';
 
 /**
  * Checks if we're in an extension page context
@@ -13,10 +13,12 @@ const isExtensionPageContext = (): boolean => {
   try {
     const protocol = window.location.protocol;
     const href = window.location.href;
-    return protocol === 'chrome-extension:' || 
-           protocol === 'moz-extension:' ||
-           href.startsWith('chrome-extension://') ||
-           href.startsWith('moz-extension://');
+    return (
+      protocol === 'chrome-extension:' ||
+      protocol === 'moz-extension:' ||
+      href.startsWith('chrome-extension://') ||
+      href.startsWith('moz-extension://')
+    );
   } catch {
     return false;
   }
@@ -46,7 +48,7 @@ const mapStorageToNextTheme = (theme: 'light' | 'dark' | null | undefined): 'lig
  * Uses chrome.storage (via exampleThemeStorage) as the source of truth
  * localStorage is only used as a cache for next-themes compatibility
  */
-export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
+export const ThemeProvider = ({ children, ...props }: ThemeProviderProps) => {
   useEffect(() => {
     // Only setup theme for extension pages
     if (!isExtensionPageContext()) {
@@ -59,10 +61,13 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
         // Read from chrome.storage (source of truth)
         const stored = await exampleThemeStorage.get();
         const storedTheme = stored?.theme;
-        const shouldBeDark = storedTheme === 'dark' || 
-          (!storedTheme && typeof window !== 'undefined' && window.matchMedia && 
-           window.matchMedia('(prefers-color-scheme: dark)').matches);
-        
+        const shouldBeDark =
+          storedTheme === 'dark' ||
+          (!storedTheme &&
+            typeof window !== 'undefined' &&
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+
         if (typeof document !== 'undefined') {
           document.documentElement.classList.toggle('dark', shouldBeDark);
         }
@@ -72,7 +77,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
           const nextTheme = mapStorageToNextTheme(storedTheme);
           localStorage.setItem('theme', nextTheme);
         }
-      } catch (error) {
+      } catch {
         // Fallback to system preference
         if (typeof document !== 'undefined' && typeof window !== 'undefined' && window.matchMedia) {
           const shouldBeDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -85,25 +90,30 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
 
     // Subscribe to chrome.storage changes (source of truth)
     const unsubscribe = exampleThemeStorage.subscribe(() => {
-      exampleThemeStorage.get().then(stored => {
-        if (stored && typeof localStorage !== 'undefined') {
-          const nextTheme = mapStorageToNextTheme(stored.theme);
-          const currentLocal = localStorage.getItem('theme');
-          
-          if (currentLocal !== nextTheme) {
-            // Update localStorage cache
-            localStorage.setItem('theme', nextTheme);
-            // Trigger storage event for next-themes to react
-            window.dispatchEvent(new StorageEvent('storage', {
-              key: 'theme',
-              newValue: nextTheme,
-              storageArea: localStorage,
-            }));
+      exampleThemeStorage
+        .get()
+        .then(stored => {
+          if (stored && typeof localStorage !== 'undefined') {
+            const nextTheme = mapStorageToNextTheme(stored.theme);
+            const currentLocal = localStorage.getItem('theme');
+
+            if (currentLocal !== nextTheme) {
+              // Update localStorage cache
+              localStorage.setItem('theme', nextTheme);
+              // Trigger storage event for next-themes to react
+              window.dispatchEvent(
+                new StorageEvent('storage', {
+                  key: 'theme',
+                  newValue: nextTheme,
+                  storageArea: localStorage,
+                }),
+              );
+            }
           }
-        }
-      }).catch(() => {
-        // Ignore errors
-      });
+        })
+        .catch(() => {
+          // Ignore errors
+        });
     });
 
     // Sync localStorage changes (from next-themes) back to chrome.storage
@@ -112,11 +122,11 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       if (e.key === 'theme' && e.newValue) {
         const storageTheme = mapNextThemeToStorage(e.newValue);
         // Write to chrome.storage (source of truth)
-        exampleThemeStorage.setTheme(
-          storageTheme === 'dark' ? 'dark' : storageTheme === 'light' ? 'light' : 'system'
-        ).catch(() => {
-          // Ignore errors
-        });
+        exampleThemeStorage
+          .setTheme(storageTheme === 'dark' ? 'dark' : storageTheme === 'light' ? 'light' : 'system')
+          .catch(() => {
+            // Ignore errors
+          });
       }
     };
 
@@ -140,9 +150,8 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       attribute="class"
       defaultTheme="system"
       enableSystem
-      disableTransitionOnChange
-    >
+      disableTransitionOnChange>
       {children}
     </NextThemesProvider>
   );
-}
+};

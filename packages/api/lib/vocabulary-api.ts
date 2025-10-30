@@ -54,30 +54,26 @@ export const addVocabularyItem = async (item: NewVocabularyItem): Promise<Vocabu
 /**
  * Delete a vocabulary item via offscreen document
  */
-export const deleteVocabularyItem = async (id: number): Promise<boolean> => {
-  return await sendDatabaseMessageForBoolean('deleteVocabularyItem', { id });
-};
+export const deleteVocabularyItem = async (id: number): Promise<boolean> =>
+  await sendDatabaseMessageForBoolean('deleteVocabularyItem', { id });
 
 /**
  * Delete multiple vocabulary items via offscreen document
  */
-export const deleteVocabularyItems = async (ids: number[]): Promise<boolean> => {
-  return await sendDatabaseMessageForBoolean('deleteVocabularyItems', { ids });
-};
+export const deleteVocabularyItems = async (ids: number[]): Promise<boolean> =>
+  await sendDatabaseMessageForBoolean('deleteVocabularyItems', { ids });
 
 /**
  * Update vocabulary item knowledge level via offscreen document
  */
-export const updateVocabularyItemKnowledgeLevel = async (id: number, level: number): Promise<boolean> => {
-  return await sendDatabaseMessageForBoolean('updateVocabularyItemKnowledgeLevel', { id, level });
-};
+export const updateVocabularyItemKnowledgeLevel = async (id: number, level: number): Promise<boolean> =>
+  await sendDatabaseMessageForBoolean('updateVocabularyItemKnowledgeLevel', { id, level });
 
 /**
  * Update multiple vocabulary items knowledge levels via offscreen document
  */
-export const updateVocabularyItemKnowledgeLevels = async (ids: number[], levelChange: 1 | -1): Promise<boolean> => {
-  return await sendDatabaseMessageForBoolean('updateVocabularyItemKnowledgeLevels', { ids, levelChange });
-};
+export const updateVocabularyItemKnowledgeLevels = async (ids: number[], levelChange: 1 | -1): Promise<boolean> =>
+  await sendDatabaseMessageForBoolean('updateVocabularyItemKnowledgeLevels', { ids, levelChange });
 
 /**
  * Get vocabulary items with pagination via offscreen document
@@ -85,7 +81,7 @@ export const updateVocabularyItemKnowledgeLevels = async (ids: number[], levelCh
 export const getVocabulary = async (
   page: number = 1,
   limit: number = 10,
-  languageFilter?: string | null
+  languageFilter?: string | null,
 ): Promise<VocabularyItem[]> => {
   const response = await sendDatabaseMessageForArray<VocabularyItem>('getVocabulary', { page, limit, languageFilter });
   // Validate each item in the array
@@ -95,27 +91,23 @@ export const getVocabulary = async (
 /**
  * Get vocabulary count via offscreen document
  */
-export const getVocabularyCount = async (languageFilter?: string | null): Promise<number> => {
-  return sendDatabaseMessageForNumber('getVocabularyCount', { languageFilter });
-};
+export const getVocabularyCount = async (languageFilter?: string | null): Promise<number> =>
+  sendDatabaseMessageForNumber('getVocabularyCount', { languageFilter });
 
 /**
  * Reset vocabulary database via offscreen document
  */
-export const resetVocabularyDatabase = async (): Promise<boolean> => {
-  return await sendDatabaseMessageForBoolean('resetVocabularyDatabase');
-};
+export const resetVocabularyDatabase = async (): Promise<boolean> =>
+  await sendDatabaseMessageForBoolean('resetVocabularyDatabase');
 
 /**
  * Populate dummy vocabulary via offscreen document
  */
-export const populateDummyVocabulary = async (): Promise<boolean> => {
-  return await sendDatabaseMessageForBoolean('populateDummyVocabulary');
-};
+export const populateDummyVocabulary = async (): Promise<boolean> =>
+  await sendDatabaseMessageForBoolean('populateDummyVocabulary');
 
 /**
  * Ensure vocabulary database is initialized via offscreen document
  */
-export const ensureVocabularyDatabaseInitialized = async (): Promise<boolean> => {
-  return sendDatabaseMessageForBoolean('ensureDatabaseInitialized');
-};
+export const ensureVocabularyDatabaseInitialized = async (): Promise<boolean> =>
+  sendDatabaseMessageForBoolean('ensureDatabaseInitialized');

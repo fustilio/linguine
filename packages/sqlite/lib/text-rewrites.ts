@@ -1,7 +1,7 @@
-import { ManualSqliteClient } from './manual.js';
-import type { TextRewrite, NewTextRewrite, VocabularyItem } from './types.js';
 import { getDatabaseManager } from './database-manager.js';
+import { ManualSqliteClient } from './manual.js';
 import { normalizeLanguageCode } from '@extension/shared';
+import type { TextRewrite, NewTextRewrite, VocabularyItem } from './types.js';
 
 const getDb = () => {
   const client = ManualSqliteClient.getInstance();
@@ -478,11 +478,7 @@ const addTextRewrite = async (
       created_at: now,
     };
 
-    const result = await db
-      .insertInto('text_rewrites')
-      .values(insertValues)
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    const result = await db.insertInto('text_rewrites').values(insertValues).returningAll().executeTakeFirstOrThrow();
 
     return result;
   } catch (error) {

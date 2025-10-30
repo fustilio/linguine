@@ -1,10 +1,10 @@
 // Database API Utilities
 // Shared utilities for message passing to offscreen document
 
-import { z } from 'zod';
 import { LanguageCodeSchema } from '@extension/shared';
+import { z } from 'zod';
 
-export interface DatabaseResponse<T = unknown> {
+interface DatabaseResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -15,12 +15,12 @@ export interface DatabaseResponse<T = unknown> {
 /**
  * Message target types - specifies which component should handle the message
  */
-export type MessageTarget = 'background' | 'offscreen' | 'sidepanel' | 'content' | 'popup' | 'options';
+type MessageTarget = 'background' | 'offscreen' | 'sidepanel' | 'content' | 'popup' | 'options';
 
 /**
  * Base database request schema with explicit target
  */
-export const DatabaseRequestSchema = z.object({
+const DatabaseRequestSchema = z.object({
   action: z.string(),
   target: z.enum(['background', 'offscreen', 'sidepanel', 'content', 'popup', 'options']).optional(),
   data: z.unknown().optional(),
@@ -29,7 +29,7 @@ export const DatabaseRequestSchema = z.object({
 /**
  * Generic database response schema
  */
-export const DatabaseResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
+const DatabaseResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
   z.object({
     success: z.boolean(),
     data: dataSchema.optional(),
@@ -39,7 +39,7 @@ export const DatabaseResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
 /**
  * Text Rewrite schemas
  */
-export const TextRewriteSchema = z.object({
+const TextRewriteSchema = z.object({
   id: z.number(),
   original_text: z.string(),
   rewritten_text: z.string(),
@@ -52,7 +52,7 @@ export const TextRewriteSchema = z.object({
   created_at: z.string(),
 });
 
-export const TextRewriteDataSchema = z.object({
+const TextRewriteDataSchema = z.object({
   original_text: z.string().min(1),
   rewritten_text: z.string().min(1),
   language: LanguageCodeSchema,
@@ -61,7 +61,7 @@ export const TextRewriteDataSchema = z.object({
   url_fragment: z.string().nullable().optional(),
 });
 
-export const TextRewriteFiltersSchema = z.object({
+const TextRewriteFiltersSchema = z.object({
   language: LanguageCodeSchema.optional(),
   minReadability: z.number().min(0).max(100).optional(),
   maxReadability: z.number().min(0).max(100).optional(),
@@ -69,13 +69,16 @@ export const TextRewriteFiltersSchema = z.object({
   sourceUrl: z.string().url().optional(),
 });
 
-export const AddTextRewriteRequestSchema = z.object({
+const AddTextRewriteRequestSchema = z.object({
   action: z.literal('addTextRewrite'),
-  target: z.enum(['background', 'offscreen', 'sidepanel', 'content', 'popup', 'options']).optional().default('offscreen'),
+  target: z
+    .enum(['background', 'offscreen', 'sidepanel', 'content', 'popup', 'options'])
+    .optional()
+    .default('offscreen'),
   data: TextRewriteDataSchema,
 });
 
-export const GetTextRewritesRequestSchema = z.object({
+const GetTextRewritesRequestSchema = z.object({
   action: z.literal('getTextRewrites'),
   data: z.object({
     page: z.number().positive().optional(),
@@ -84,42 +87,42 @@ export const GetTextRewritesRequestSchema = z.object({
   }),
 });
 
-export const GetTextRewriteCountRequestSchema = z.object({
+const GetTextRewriteCountRequestSchema = z.object({
   action: z.literal('getTextRewriteCount'),
   data: z.object({
     filters: TextRewriteFiltersSchema.optional(),
   }),
 });
 
-export const DeleteTextRewriteRequestSchema = z.object({
+const DeleteTextRewriteRequestSchema = z.object({
   action: z.literal('deleteTextRewrite'),
   data: z.object({
     id: z.number().positive(),
   }),
 });
 
-export const DeleteTextRewritesRequestSchema = z.object({
+const DeleteTextRewritesRequestSchema = z.object({
   action: z.literal('deleteTextRewrites'),
   data: z.object({
     ids: z.array(z.number().positive()),
   }),
 });
 
-export const GetTextRewriteByIdRequestSchema = z.object({
+const GetTextRewriteByIdRequestSchema = z.object({
   action: z.literal('getTextRewriteById'),
   data: z.object({
     id: z.number().positive(),
   }),
 });
 
-export const GetTextRewritesByLanguageRequestSchema = z.object({
+const GetTextRewritesByLanguageRequestSchema = z.object({
   action: z.literal('getTextRewritesByLanguage'),
   data: z.object({
     language: LanguageCodeSchema,
   }),
 });
 
-export const GetRecentTextRewritesRequestSchema = z.object({
+const GetRecentTextRewritesRequestSchema = z.object({
   action: z.literal('getRecentTextRewrites'),
   data: z.object({
     days: z.number().positive(),
@@ -127,14 +130,14 @@ export const GetRecentTextRewritesRequestSchema = z.object({
   }),
 });
 
-export const GetTextRewritesByUrlRequestSchema = z.object({
+const GetTextRewritesByUrlRequestSchema = z.object({
   action: z.literal('getTextRewritesByUrl'),
   data: z.object({
     url: z.string().url(),
   }),
 });
 
-export const GetTextRewritesByReadabilityRequestSchema = z.object({
+const GetTextRewritesByReadabilityRequestSchema = z.object({
   action: z.literal('getTextRewritesByReadability'),
   data: z.object({
     minScore: z.number().min(0).max(100),
@@ -146,7 +149,7 @@ export const GetTextRewritesByReadabilityRequestSchema = z.object({
 /**
  * Vocabulary schemas
  */
-export const VocabularyItemSchema = z.object({
+const VocabularyItemSchema = z.object({
   id: z.number(),
   text: z.string(),
   language: z.string(),
@@ -155,31 +158,31 @@ export const VocabularyItemSchema = z.object({
   created_at: z.string(),
 });
 
-export const NewVocabularyItemSchema = z.object({
+const NewVocabularyItemSchema = z.object({
   text: z.string().min(1),
   language: LanguageCodeSchema,
 });
 
-export const AddVocabularyItemRequestSchema = z.object({
+const AddVocabularyItemRequestSchema = z.object({
   action: z.literal('addVocabularyItem'),
   data: NewVocabularyItemSchema,
 });
 
-export const DeleteVocabularyItemRequestSchema = z.object({
+const DeleteVocabularyItemRequestSchema = z.object({
   action: z.literal('deleteVocabularyItem'),
   data: z.object({
     id: z.number().positive(),
   }),
 });
 
-export const DeleteVocabularyItemsRequestSchema = z.object({
+const DeleteVocabularyItemsRequestSchema = z.object({
   action: z.literal('deleteVocabularyItems'),
   data: z.object({
     ids: z.array(z.number().positive()),
   }),
 });
 
-export const UpdateVocabularyItemKnowledgeLevelRequestSchema = z.object({
+const UpdateVocabularyItemKnowledgeLevelRequestSchema = z.object({
   action: z.literal('updateVocabularyItemKnowledgeLevel'),
   data: z.object({
     id: z.number().positive(),
@@ -187,7 +190,7 @@ export const UpdateVocabularyItemKnowledgeLevelRequestSchema = z.object({
   }),
 });
 
-export const UpdateVocabularyItemKnowledgeLevelsRequestSchema = z.object({
+const UpdateVocabularyItemKnowledgeLevelsRequestSchema = z.object({
   action: z.literal('updateVocabularyItemKnowledgeLevels'),
   data: z.object({
     ids: z.array(z.number().positive()),
@@ -195,7 +198,7 @@ export const UpdateVocabularyItemKnowledgeLevelsRequestSchema = z.object({
   }),
 });
 
-export const GetVocabularyRequestSchema = z.object({
+const GetVocabularyRequestSchema = z.object({
   action: z.literal('getVocabulary'),
   data: z.object({
     page: z.number().positive().optional(),
@@ -204,21 +207,21 @@ export const GetVocabularyRequestSchema = z.object({
   }),
 });
 
-export const GetVocabularyCountRequestSchema = z.object({
+const GetVocabularyCountRequestSchema = z.object({
   action: z.literal('getVocabularyCount'),
   data: z.object({
     languageFilter: LanguageCodeSchema.nullable().optional(),
   }),
 });
 
-export const GetVocabularyWordsInTextRequestSchema = z.object({
+const GetVocabularyWordsInTextRequestSchema = z.object({
   action: z.literal('getVocabularyWordsInText'),
   data: z.object({
     textId: z.number().positive(),
   }),
 });
 
-export const GetTextRewritesContainingWordRequestSchema = z.object({
+const GetTextRewritesContainingWordRequestSchema = z.object({
   action: z.literal('getTextRewritesContainingWord'),
   data: z.object({
     vocabularyId: z.number().positive(),
@@ -228,7 +231,7 @@ export const GetTextRewritesContainingWordRequestSchema = z.object({
 /**
  * Union of all request schemas
  */
-export const DatabaseActionRequestSchema = z.discriminatedUnion('action', [
+const DatabaseActionRequestSchema = z.discriminatedUnion('action', [
   AddTextRewriteRequestSchema,
   GetTextRewritesRequestSchema,
   GetTextRewriteCountRequestSchema,
@@ -260,12 +263,12 @@ export const DatabaseActionRequestSchema = z.discriminatedUnion('action', [
 /**
  * Response schemas
  */
-export const TextRewriteResponseSchema = DatabaseResponseSchema(TextRewriteSchema);
-export const TextRewritesArrayResponseSchema = DatabaseResponseSchema(z.array(TextRewriteSchema));
-export const VocabularyItemResponseSchema = DatabaseResponseSchema(VocabularyItemSchema);
-export const VocabularyItemsArrayResponseSchema = DatabaseResponseSchema(z.array(VocabularyItemSchema));
-export const BooleanResponseSchema = DatabaseResponseSchema(z.boolean());
-export const NumberResponseSchema = DatabaseResponseSchema(z.number());
+const TextRewriteResponseSchema = DatabaseResponseSchema(TextRewriteSchema);
+const TextRewritesArrayResponseSchema = DatabaseResponseSchema(z.array(TextRewriteSchema));
+const VocabularyItemResponseSchema = DatabaseResponseSchema(VocabularyItemSchema);
+const VocabularyItemsArrayResponseSchema = DatabaseResponseSchema(z.array(VocabularyItemSchema));
+const BooleanResponseSchema = DatabaseResponseSchema(z.boolean());
+const NumberResponseSchema = DatabaseResponseSchema(z.number());
 
 /**
  * Check if the extension context is still valid
@@ -274,7 +277,7 @@ const isExtensionContextValid = (): boolean => {
   try {
     // Try to access chrome.runtime to check if context is valid
     return chrome.runtime && chrome.runtime.id !== undefined;
-  } catch (error) {
+  } catch {
     return false;
   }
 };
@@ -300,13 +303,13 @@ const ensureOffscreenDocument = async (): Promise<void> => {
 /**
  * Generic function to send messages directly to the offscreen document with retry logic
  */
-export const sendDatabaseMessage = async <T = unknown>(
+const sendDatabaseMessage = async <T = unknown>(
   action: string,
   data?: unknown,
-  retryCount: number = 0
+  retryCount: number = 0,
 ): Promise<DatabaseResponse<T>> => {
   const maxRetries = 2;
-  
+
   try {
     // Check if extension context is valid before sending message
     if (!isExtensionContextValid()) {
@@ -336,20 +339,21 @@ export const sendDatabaseMessage = async <T = unknown>(
     } else {
       // Response is null/undefined or doesn't have expected structure
       console.error(`❌ No valid response received for ${action}. Response:`, response);
-      return { 
-        success: false, 
-        error: 'No valid response received from offscreen document' 
+      return {
+        success: false,
+        error: 'No valid response received from offscreen document',
       };
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`❌ Error sending message for ${action}:`, errorMessage);
-    
+
     // Check if this is an extension context invalidation error
-    if (errorMessage.includes('Extension context invalidated') || 
-        errorMessage.includes('Receiving end does not exist') ||
-        errorMessage.includes('Could not establish connection')) {
-      
+    if (
+      errorMessage.includes('Extension context invalidated') ||
+      errorMessage.includes('Receiving end does not exist') ||
+      errorMessage.includes('Could not establish connection')
+    ) {
       // If we haven't exceeded max retries, wait and retry
       if (retryCount < maxRetries) {
         console.log(`🔄 Retrying ${action} in 1 second... (attempt ${retryCount + 1}/${maxRetries})`);
@@ -357,16 +361,16 @@ export const sendDatabaseMessage = async <T = unknown>(
         return sendDatabaseMessage<T>(action, data, retryCount + 1);
       } else {
         console.error(`❌ Max retries exceeded for ${action}. Extension may need to be reloaded.`);
-        return { 
-          success: false, 
-          error: 'Extension context invalidated. Please reload the extension or refresh the page.' 
+        return {
+          success: false,
+          error: 'Extension context invalidated. Please reload the extension or refresh the page.',
         };
       }
     }
-    
-    return { 
-      success: false, 
-      error: errorMessage
+
+    return {
+      success: false,
+      error: errorMessage,
     };
   }
 };
@@ -374,10 +378,7 @@ export const sendDatabaseMessage = async <T = unknown>(
 /**
  * Generic function to send messages that return arrays
  */
-export const sendDatabaseMessageForArray = async <T = unknown>(
-  action: string,
-  data?: unknown
-): Promise<T[]> => {
+const sendDatabaseMessageForArray = async <T = unknown>(action: string, data?: unknown): Promise<T[]> => {
   const response = await sendDatabaseMessage<T[]>(action, data);
   return response.success ? response.data || [] : [];
 };
@@ -385,13 +386,13 @@ export const sendDatabaseMessageForArray = async <T = unknown>(
 /**
  * Generic function to send messages that return single items
  */
-export const sendDatabaseMessageForItem = async <T = unknown>(
+const sendDatabaseMessageForItem = async <T = unknown>(
   action: string,
   data?: unknown,
-  responseSchema?: z.ZodType<T>
+  responseSchema?: z.ZodType<T>,
 ): Promise<T | null> => {
   const response = await sendDatabaseMessage<T>(action, data);
-  
+
   if (response.success && response.data) {
     // Validate response data if schema is provided
     if (responseSchema) {
@@ -406,17 +407,14 @@ export const sendDatabaseMessageForItem = async <T = unknown>(
     }
     return response.data;
   }
-  
+
   return null;
 };
 
 /**
  * Generic function to send messages that return booleans
  */
-export const sendDatabaseMessageForBoolean = async (
-  action: string,
-  data?: unknown
-): Promise<boolean> => {
+const sendDatabaseMessageForBoolean = async (action: string, data?: unknown): Promise<boolean> => {
   const response = await sendDatabaseMessage(action, data);
   return response.success;
 };
@@ -424,10 +422,52 @@ export const sendDatabaseMessageForBoolean = async (
 /**
  * Generic function to send messages that return numbers
  */
-export const sendDatabaseMessageForNumber = async (
-  action: string,
-  data?: unknown
-): Promise<number> => {
+const sendDatabaseMessageForNumber = async (action: string, data?: unknown): Promise<number> => {
   const response = await sendDatabaseMessage<number>(action, data);
   return response.success ? response.data || 0 : 0;
+};
+
+// Export all types
+export type { DatabaseResponse, MessageTarget };
+
+// Export all schemas and functions
+export {
+  DatabaseRequestSchema,
+  DatabaseResponseSchema,
+  TextRewriteSchema,
+  TextRewriteDataSchema,
+  TextRewriteFiltersSchema,
+  AddTextRewriteRequestSchema,
+  GetTextRewritesRequestSchema,
+  GetTextRewriteCountRequestSchema,
+  DeleteTextRewriteRequestSchema,
+  DeleteTextRewritesRequestSchema,
+  GetTextRewriteByIdRequestSchema,
+  GetTextRewritesByLanguageRequestSchema,
+  GetRecentTextRewritesRequestSchema,
+  GetTextRewritesByUrlRequestSchema,
+  GetTextRewritesByReadabilityRequestSchema,
+  VocabularyItemSchema,
+  NewVocabularyItemSchema,
+  AddVocabularyItemRequestSchema,
+  DeleteVocabularyItemRequestSchema,
+  DeleteVocabularyItemsRequestSchema,
+  UpdateVocabularyItemKnowledgeLevelRequestSchema,
+  UpdateVocabularyItemKnowledgeLevelsRequestSchema,
+  GetVocabularyRequestSchema,
+  GetVocabularyCountRequestSchema,
+  GetVocabularyWordsInTextRequestSchema,
+  GetTextRewritesContainingWordRequestSchema,
+  DatabaseActionRequestSchema,
+  TextRewriteResponseSchema,
+  TextRewritesArrayResponseSchema,
+  VocabularyItemResponseSchema,
+  VocabularyItemsArrayResponseSchema,
+  BooleanResponseSchema,
+  NumberResponseSchema,
+  sendDatabaseMessage,
+  sendDatabaseMessageForArray,
+  sendDatabaseMessageForItem,
+  sendDatabaseMessageForBoolean,
+  sendDatabaseMessageForNumber,
 };

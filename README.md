@@ -45,6 +45,7 @@
 - [Environment variables](#env-variables)
     - [Add new](#env-variables-new)
     - [Set via CLI](#env-variables-cli-set)
+- [Theme System](#theme-system)
 - [Troubleshooting](#troubleshooting)
     - [Hot module reload seems to have frozen](#hot-module-reload-seems-to-have-frozen)
     - [Imports not resolving correctly](#imports-not-resolving-correctly)
@@ -127,6 +128,40 @@ the build speed and development experience by using Vite and Turborepo.
 > In Firefox, you load add-ons in temporary mode. That means they'll disappear after each browser close. You have to
 > load the add-on on every browser launch.
 
+## Theme System <a name="theme-system"></a>
+
+The extension includes a theme system that supports light mode, dark mode, and system preferences. The theme state is persisted using `chrome.storage` and works across all extension pages (popup, side-panel, options, etc.).
+
+For detailed documentation on the theme system, including setup, usage, and API reference, see [Theme System Documentation](docs/theme-system.md).
+
+### Quick Start
+
+1. Wrap your root component with `ThemeProvider`:
+
+```tsx
+import { ThemeProvider } from '@extension/ui';
+
+root.render(
+  <ThemeProvider>
+    <YourApp />
+  </ThemeProvider>
+);
+```
+
+2. Use the `ToggleButton` component:
+
+```tsx
+import { ToggleButton } from '@extension/ui';
+
+<ToggleButton>Toggle Theme</ToggleButton>
+```
+
+The theme system automatically:
+- Initializes theme before React renders (prevents FOUC)
+- Persists theme preferences across extension pages
+- Syncs between chrome.storage and localStorage
+- Respects system preferences when no explicit preference is set
+
 ## Install dependency for turborepo: <a name="install-dependency"></a>
 
 ### For root: <a name="install-dependency-for-root"></a>
@@ -197,10 +232,10 @@ Some shared packages:
 - `hmr` - custom HMR plugin for Vite, injection script for reload/refresh, HMR dev-server
 - `i18n` - custom internationalization package; provides i18n function with type safety and other validation
 - `shared` - shared code for the entire project (types, constants, custom hooks, components etc.)
-- `storage` - helpers for easier integration with [storage](https://developer.chrome.com/docs/extensions/reference/api/storage), e.g. local/session storages
-- `tailwind-config` - shared Tailwind config for entire project
+- `storage` - helpers for easier integration with [storage](https://developer.chrome.com/docs/extensions/reference/api/storage), e.g. local/session storages; includes theme storage management
+- `tailwind-config` - shared Tailwind config for entire project (includes dark mode configuration)
 - `tsconfig` - shared tsconfig for the entire project
-- `ui` - function to merge your Tailwind config with the global one; you can save components here
+- `ui` - function to merge your Tailwind config with the global one; you can save components here; includes theme system components (`ThemeProvider`, `ToggleButton`)
 - `vite-config` - shared Vite config for the entire project
 
 Other useful packages:
