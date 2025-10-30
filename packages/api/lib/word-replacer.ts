@@ -1371,10 +1371,19 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     const endContainer = range.endContainer;
     const endOffset = range.endOffset;
 
+    console.log('🔍 replaceSelectedTextInDOMWithWrapper called', {
+      isSameContainer: startContainer === endContainer,
+      isTextNode: startContainer.nodeType === Node.TEXT_NODE,
+      startOffset,
+      endOffset,
+      selectedText: range.toString(),
+    });
+
     // Case 1: Selection is within a single text node (most common for mid-paragraph selections)
     const isSingleTextNode = startContainer === endContainer && startContainer.nodeType === Node.TEXT_NODE;
 
     if (isSingleTextNode) {
+      console.log('✅ Using single text node approach (no markers)');
       const textNode = startContainer as Text;
       const originalText = textNode.nodeValue || '';
 
@@ -1401,6 +1410,8 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
       return;
     }
+
+    console.log('⚠️ Using marker approach for multi-node selection');
 
     // Case 2: Multi-node selection - fall back to marker approach but search more carefully
     // Create a unique marker to locate the replaced text
@@ -1470,11 +1481,60 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       const expandedRange = this.expandSelectionToWordBoundaries(originalRange);
       const expandedText = expandedRange.toString().trim();
 
-      // Use the expanded text as the target for rewriting
-      const originalText = expandedText || selectedText;
+      // Check if the selection is within an existing rewriter wrapper
+      const ancestorNode = expandedRange.commonAncestorContainer;
+      let existingWrapper: HTMLElement | null = null;
 
-      // Use the expanded range for DOM replacement
-      const range = expandedRange;
+      // Traverse up to find if we're inside a rewriter-highlight span
+      let node: Node | null = ancestorNode;
+      while (node && node !== document.body) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const element = node as HTMLElement;
+          if (element.classList && element.classList.contains('rewriter-highlight')) {
+            existingWrapper = element;
+            break;
+          }
+        }
+        node = node.parentNode;
+      }
+
+      // If we found an existing wrapper, extract the original text and remove the wrapper
+      let originalText = expandedText || selectedText;
+      let actualRange = expandedRange;
+
+      if (existingWrapper) {
+        console.log('🔄 Found existing rewriter wrapper, extracting original text');
+
+        // Get the original text from the data attribute
+        const storedOriginalText = existingWrapper.dataset.originalText;
+        if (storedOriginalText) {
+          originalText = storedOriginalText;
+          console.log('📝 Using stored original text:', originalText);
+        }
+
+        // Remove the associated button container if it exists
+        const buttonContainer = existingWrapper.nextElementSibling;
+        if (buttonContainer && buttonContainer.classList.contains('rewriter-buttons')) {
+          buttonContainer.remove();
+        }
+
+        // Replace the wrapper with a text node containing the original text
+        const textNode = document.createTextNode(originalText);
+        const parent = existingWrapper.parentNode;
+        if (!parent) {
+          throw new Error('Cannot rewrite: existing wrapper has no parent');
+        }
+        parent.replaceChild(textNode, existingWrapper);
+
+        // Create a new range around this text node with explicit offsets
+        actualRange = document.createRange();
+        actualRange.setStart(textNode, 0);
+        actualRange.setEnd(textNode, textNode.length);
+      }
+
+      // Use the expanded text as the target for rewriting
+      // Use the actual range for DOM replacement (either original or newly created)
+      const range = actualRange;
 
       // Extract surrounding context for better rewriting
       const commonAncestor = range.commonAncestorContainer;
@@ -1769,6 +1829,9 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // Use replaceSelectedTextInDOM for robust text replacement, then wrap the result
       this.replaceSelectedTextInDOMWithWrapper(range, rewrittenText, wrapper, buttonContainer);
 
+      // Clean up any stray markers that might have been left in the document
+      this.cleanupStrayMarkers();
+
       // Update current highlight reference
       this.currentHighlight = wrapper;
 
@@ -1791,6 +1854,34 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       console.error('❌ Error rewriting selected text:', error);
       throw error;
     }
+  }
+
+  /**
+   * Clean up any stray marker patterns from the document
+   * These might be left over from failed or interrupted replacements
+   */
+  private cleanupStrayMarkers(): void {
+    const markerPattern = /__LINGUINE_\d+_[a-z0-9]+__/g;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const nodesToClean: Text[] = [];
+
+    let node;
+    while ((node = walker.nextNode())) {
+      const textNode = node as Text;
+      if (textNode.nodeValue && markerPattern.test(textNode.nodeValue)) {
+        nodesToClean.push(textNode);
+      }
+    }
+
+    nodesToClean.forEach(textNode => {
+      if (textNode.nodeValue) {
+        const cleaned = textNode.nodeValue.replace(markerPattern, '');
+        if (cleaned !== textNode.nodeValue) {
+          console.log('🧹 Cleaned stray markers from text node');
+          textNode.nodeValue = cleaned;
+        }
+      }
+    });
   }
 
   /**
