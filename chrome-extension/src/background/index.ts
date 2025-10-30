@@ -1,4 +1,5 @@
 import 'webextension-polyfill';
+import { queryWikimediaAPI, extractImageUrls } from '@extension/api';
 
 // Offscreen document lifecycle management
 let creating: Promise<void> | null = null; // Global promise to avoid concurrency issues
@@ -78,6 +79,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Handle messages that use async Chrome APIs with callbacks
   try {
     switch (message.action) {
+      case 'fetchWikimediaImages': {
+        (async () => {
+          try {
+            const { query, limit = 3 } = message.data || {};
+            console.log(`[BG] fetchWikimediaImages query: "${String(query)}" limit: ${limit}`);
+            if (!query || typeof query !== 'string') {
+              console.warn('[BG] fetchWikimediaImages: empty or invalid query');
+              sendResponse({ success: true, data: [] });
+              return;
+            }
+            const apiRes = await queryWikimediaAPI({ query, limit });
+            const urls = Array.from(new Set(extractImageUrls(apiRes).filter(Boolean)));
+            console.log('[BG] fetchWikimediaImages urls:', urls, 'for query:', String(query));
+            sendResponse({ success: true, data: urls });
+          } catch (err) {
+            console.error('Failed fetching Wikimedia images for query:', String((message.data || {}).query), err);
+            sendResponse({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
+          }
+        })();
+        return true;
+      }
       case 'wordSelected':
         sendResponse({ success: true });
         return false;

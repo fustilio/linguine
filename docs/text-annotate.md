@@ -40,6 +40,7 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 - `annotator.ts`: Orchestrates detection → segmentation → POS → translation with batching and progressive streaming, comprehensive timing
 - `simple-annotator.ts`: Lightweight mock annotator for demo/testing
 - `reading-mode-ui.ts`: DOM-based overlay; immediate plain text, progressive inline annotations, tooltips, progress bar, TTS
+- Wikimedia image enrichment: optional images per annotated chunk (up to 3), fetched via background
 - `styles.ts`: Styles for overlay, underlines, tooltips, progress bar
 - `text-annotate-manager.ts`: Entry point managing extraction, annotation, UI lifecycle, and message handling
 - `index.ts`: Public exports; re-exported by `packages/api/index.mts`
@@ -62,14 +63,13 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 2) Detect language
    - Chrome `LanguageDetector` with progress/availability handling, fallback to heuristic for short/low-confidence
 3) Segment
-   - Thai: `wordcut`
-   - Others: whitespace or simple heuristics
-4) POS chunking
-   - Chrome `LanguageModel` API prompt → structured chunks
-   - Fallback: word-level chunks
+   - Intl.Segmenter for all languages with granularity 'word' (fast, no AI)
+   - Fallback: whitespace/character heuristics
+4) Chunking
+   - Use Intl.Segmenter output directly as chunks with start/end offsets
 5) Translation (parallel batched)
    - Literal: Chrome `Translator`
-   - Contextual: Chrome `LanguageModel`
+   - Contextual: Chrome `LanguageModel` (optional, slower)
    - `Promise.all()` batching with configurable `BATCH_SIZE`
    - Progressive `onProgress` callback streams annotated chunks
 6) UI progressive rendering
@@ -83,6 +83,7 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 - Inline, in-place wrapping for annotations (preserve offsets)
 - Progress bar with locked total from pre-chunk estimate
 - Tooltips show POS + literal + contextual differences when applicable
+- Tooltips can include up to three Wikimedia images with simple prev/next controls
 - TTS (`SpeechSynthesisUtterance`) on word click (language fallback)
 - Close via header X, Esc key, or backdrop click
 
@@ -95,12 +96,15 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 
 ## Performance and Logging
 
-- Batching with `Promise.all()` (default `BATCH_SIZE = 3`)
+- Chunking: Intl.Segmenter reduces pre-chunking to milliseconds on modern Chrome
+- Batching with `Promise.all()` (default `BATCH_SIZE = 6`)
+- Image fetching done post-translation per chunk, cached per term, capped at 3 per chunk
 - Comprehensive timing metrics:
   - total time, text length, ms/char
   - total operations (chunks)
   - total translation time, avg ms/op
   - estimated sequential time, parallel speedup
+- Per-phase timings (extract, detect, segment, prechunk, translate, finalize) streamed to HUD
 - Demo mode: short Thai sample for end-to-end testing and timing
 - Robust console logs across all phases to diagnose “stuck” states
 
@@ -109,6 +113,7 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 - Popup → Content Script: `openReadingMode`, `closeReadingMode`
 - Content manages DOM overlay via `ReadingModeUI` (no React)
 - Internal progress via direct method calls and Chrome messaging (no CustomEvents)
+- Background fetch for images: UI/content asks background `fetchWikimediaImages` to avoid CORS; background calls Wikimedia API and returns URLs
 
 ## UI Details
 
@@ -127,6 +132,7 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 
 - Popup debug buttons at bottom; clearly labeled
 - Demo mode toggle via `useFullContent`
+- HUD (Tab to toggle) bottom-left: shows phase, k/N, per-phase timings (ms), batch ms, literal/contextual ops and ms
 - Logs show extraction preview, segments, chunk counts, and timing
 
 ## Roadmap

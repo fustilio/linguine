@@ -210,24 +210,30 @@ export class TextAnnotateManager {
         result = await annotateText(
           extracted,
           targetLanguage,
-          (chunks, isComplete, totalChunks, phase, metrics?: {
-            literalCount?: number;
-            contextualCount?: number;
-            literalTimeMs?: number;
-            contextualTimeMs?: number;
-            batchTimeMs?: number;
-          }) => {
-          console.log(
+          (
+            chunks,
+            isComplete,
+            totalChunks,
+            phase,
+            metrics?: {
+              literalCount?: number;
+              contextualCount?: number;
+              literalTimeMs?: number;
+              contextualTimeMs?: number;
+              batchTimeMs?: number;
+            },
+          ) => {
+            console.log(
               `[TextAnnotate] Progressive update: ${chunks.length} chunks, complete: ${isComplete}, total: ${totalChunks}, phase: ${phase}`,
-          );
+            );
 
-          // Update the reading mode UI with current chunks
+            // Update the reading mode UI with current chunks
             this.readingModeUI!.addAnnotations(chunks, isComplete, phase, metrics);
 
-          // Update total chunks if provided
-          if (totalChunks && this.readingModeUI) {
-            this.readingModeUI.setTotalChunks(totalChunks);
-          }
+            // Update total chunks if provided
+            if (totalChunks && this.readingModeUI) {
+              this.readingModeUI.setTotalChunks(totalChunks);
+            }
           },
         );
 

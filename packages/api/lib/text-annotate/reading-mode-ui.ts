@@ -3,6 +3,7 @@
  * Creates and manages the reading mode interface
  */
 
+import { getImagesForQuery } from './image-fetcher.js';
 import { getReadingModeStyles } from './styles.js';
 import type { AnnotatedChunk } from './types.js';
 
@@ -18,7 +19,17 @@ export class ReadingModeUI {
   private debugVisible = false;
   private debugPanel: HTMLElement | null = null;
   private lastDebugData: Record<string, unknown> | null = null;
-  private phaseTimes: Partial<Record<'extract' | 'detect' | 'segment' | 'prechunk' | 'translate' | 'finalize', number>> = {};
+  private phaseTimes: Partial<
+    Record<'extract' | 'detect' | 'segment' | 'prechunk' | 'translate' | 'finalize', number>
+  > = {};
+  // Runtime configuration
+  private config: { showImages: boolean; showPrefixes: boolean; imageSource: 'wikimedia' } = {
+    showImages: true,
+    showPrefixes: true,
+    imageSource: 'wikimedia',
+  };
+
+  private readonly storageKey = 'text-annotate-reading-mode-config';
 
   /**
    * Initialize reading mode UI
@@ -36,6 +47,11 @@ export class ReadingModeUI {
     document.body.appendChild(this.container);
     document.addEventListener('keydown', this.onKeyDown, true);
     this.isInitialized = true;
+
+    // Load persisted configuration (fire-and-forget)
+    this.loadConfig().then(() => {
+      this.applyConfigToOpenTooltips();
+    });
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
@@ -98,7 +114,13 @@ export class ReadingModeUI {
     chunks: AnnotatedChunk[],
     isComplete: boolean,
     phase?: string,
-    metrics?: { literalCount?: number; contextualCount?: number; literalTimeMs?: number; contextualTimeMs?: number; batchTimeMs?: number },
+    metrics?: {
+      literalCount?: number;
+      contextualCount?: number;
+      literalTimeMs?: number;
+      contextualTimeMs?: number;
+      batchTimeMs?: number;
+    },
   ): void {
     if (!this.contentArea) {
       console.warn('[ReadingModeUI] Content area not initialized');
@@ -225,6 +247,64 @@ export class ReadingModeUI {
     this.progressBar = this.createProgressBar();
     header.appendChild(this.progressBar);
 
+    // Controls row: toggles for images, prefixes, and source
+    const controls = document.createElement('div');
+    controls.className = 'text-annotate-controls';
+    controls.style.display = 'flex';
+    controls.style.gap = '12px';
+    controls.style.alignItems = 'center';
+    controls.style.justifyContent = 'center';
+    controls.style.marginTop = '4px';
+
+    // Icon button helper
+    const makeIconButton = (label: string, title: string): HTMLButtonElement => {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.title = title;
+      btn.style.border = '1px solid #e5e7eb';
+      btn.style.background = '#fff';
+      btn.style.borderRadius = '6px';
+      btn.style.padding = '2px 6px';
+      btn.style.cursor = 'pointer';
+      btn.style.fontSize = '12px';
+      return btn;
+    };
+
+    // Show Images toggle (🖼)
+    const imgBtn = makeIconButton('🖼', 'Toggle images');
+    const updateImgBtn = () => {
+      imgBtn.style.opacity = this.config.showImages ? '1' : '0.5';
+    };
+    updateImgBtn();
+    imgBtn.onclick = () => {
+      this.config.showImages = !this.config.showImages;
+      updateImgBtn();
+      this.applyConfigToOpenTooltips();
+      this.saveConfig().catch(() => {});
+    };
+    controls.appendChild(imgBtn);
+
+    // Show Prefixes toggle (🔤)
+    const prefBtn = makeIconButton('🔤', 'Toggle "Literal:"/"Contextual:" prefixes');
+    const updatePrefBtn = () => {
+      prefBtn.style.opacity = this.config.showPrefixes ? '1' : '0.5';
+    };
+    updatePrefBtn();
+    prefBtn.onclick = () => {
+      this.config.showPrefixes = !this.config.showPrefixes;
+      updatePrefBtn();
+      this.applyConfigToOpenTooltips();
+      this.saveConfig().catch(() => {});
+    };
+    controls.appendChild(prefBtn);
+
+    // Image Source (future-proof, currently only Wikimedia)
+    const srcLabel = document.createElement('span');
+    srcLabel.textContent = 'Image source: Wikimedia';
+    controls.appendChild(srcLabel);
+
+    header.appendChild(controls);
+
     return header;
   }
 
@@ -315,6 +395,17 @@ export class ReadingModeUI {
   private updateDebugPanel(data: Record<string, unknown>): void {
     if (!this.debugPanel) return;
     this.lastDebugData = data;
+    type DebugMetrics = {
+      phase?: string;
+      completed?: number;
+      total?: number;
+      literalCount?: number;
+      contextualCount?: number;
+      literalTimeMs?: number;
+      contextualTimeMs?: number;
+      batchTimeMs?: number;
+      phaseTimes?: Partial<Record<'extract' | 'detect' | 'segment' | 'prechunk' | 'translate' | 'finalize', number>>;
+    };
     const {
       phase,
       completed,
@@ -324,17 +415,23 @@ export class ReadingModeUI {
       literalTimeMs,
       contextualTimeMs,
       batchTimeMs,
-      posTimeMs,
       phaseTimes,
-    } = data as any;
+    } = data as DebugMetrics;
 
     if (phaseTimes && typeof phaseTimes === 'object') {
       this.phaseTimes = { ...this.phaseTimes, ...phaseTimes };
     }
-    const phasesOrder: Array<keyof typeof this.phaseTimes> = ['extract', 'detect', 'segment', 'prechunk', 'translate', 'finalize'];
+    const phasesOrder: Array<keyof typeof this.phaseTimes> = [
+      'extract',
+      'detect',
+      'segment',
+      'prechunk',
+      'translate',
+      'finalize',
+    ];
     const phasesRows = phasesOrder
       .filter(p => this.phaseTimes[p] != null)
-      .map(p => `<div class="dbg-row"><strong>${p}:</strong> ${Math.round(Number(this.phaseTimes[p]))} ms</div>`) 
+      .map(p => `<div class="dbg-row"><strong>${p}:</strong> ${Math.round(Number(this.phaseTimes[p]))} ms</div>`)
       .join('');
 
     this.debugPanel.innerHTML = `
@@ -479,14 +576,47 @@ export class ReadingModeUI {
     const tooltip = this.createTooltip(chunk);
     span.appendChild(tooltip);
 
-    // Show tooltip on hover
-    span.addEventListener('mouseenter', () => {
+    // Hover behavior with grace period: keep open while mouse is over span or tooltip
+    let hideTimer: number | null = null;
+    const showTooltip = () => {
+      if (hideTimer != null) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+      // Close any other open tooltips before showing this one
+      this.closeOtherTooltips(tooltip);
       tooltip.style.display = 'block';
-    });
+      tooltip.style.pointerEvents = 'auto';
+      if (!tooltip.getAttribute('data-images-loaded')) {
+        this.loadImagesForChunkIntoTooltip(chunk, tooltip).catch(() => {});
+      }
+      // Append contextual line once available (no placeholder beforehand) only when they differ
+      const differs = !!chunk.translation?.differs;
+      const contextualText = chunk.translation?.contextual || '';
+      if (differs && contextualText && !tooltip.querySelector('.text-annotate-tooltip-contextual')) {
+        const contextualDiv = document.createElement('div');
+        contextualDiv.className = 'text-annotate-tooltip-contextual';
+        contextualDiv.textContent = this.config.showPrefixes ? `Contextual: ${contextualText}` : contextualText;
+        tooltip.appendChild(contextualDiv);
+      }
+    };
+    const scheduleHide = () => {
+      if (hideTimer != null) {
+        clearTimeout(hideTimer);
+      }
+      hideTimer = window.setTimeout(() => {
+        const stillHovering = span.matches(':hover') || tooltip.matches(':hover');
+        if (!stillHovering) {
+          tooltip.style.display = 'none';
+        }
+        hideTimer = null;
+      }, 400);
+    };
 
-    span.addEventListener('mouseleave', () => {
-      tooltip.style.display = 'none';
-    });
+    span.addEventListener('mouseenter', showTooltip);
+    tooltip.addEventListener('mouseenter', showTooltip);
+    span.addEventListener('mouseleave', scheduleHide);
+    tooltip.addEventListener('mouseleave', scheduleHide);
 
     // Add click handler for text-to-speech
     span.addEventListener('click', e => {
@@ -504,27 +634,186 @@ export class ReadingModeUI {
     const tooltip = document.createElement('div');
     tooltip.className = 'text-annotate-tooltip';
     tooltip.style.display = 'none';
+    // Left-align text content by default
+    tooltip.style.textAlign = 'left';
 
-    if (chunk.translation.differs) {
-      // Show both translations when they differ
-      const literalDiv = document.createElement('div');
-      literalDiv.className = 'text-annotate-tooltip-literal';
-      literalDiv.textContent = `Literal: ${chunk.translation.literal}`;
-      tooltip.appendChild(literalDiv);
+    // Image viewer container (populated lazily) - placed first
+    const imgContainer = document.createElement('div');
+    imgContainer.className = 'text-annotate-tooltip-image-viewer';
+    imgContainer.style.display = 'none';
+    imgContainer.style.alignItems = 'center';
+    imgContainer.style.justifyContent = 'center';
+    imgContainer.style.gap = '6px';
+    imgContainer.style.marginTop = '6px';
+    imgContainer.style.marginBottom = '6px';
+    tooltip.appendChild(imgContainer);
 
-      const contextualDiv = document.createElement('div');
-      contextualDiv.className = 'text-annotate-tooltip-contextual';
-      contextualDiv.textContent = `Contextual: ${chunk.translation.contextual}`;
-      tooltip.appendChild(contextualDiv);
-    } else {
-      // Show single translation
-      const translationDiv = document.createElement('div');
-      translationDiv.className = 'text-annotate-tooltip-translation';
+    // Show literal first; omit contextual placeholder until needed
+    const translationDiv = document.createElement('div');
+    translationDiv.className = 'text-annotate-tooltip-translation';
+    const same = !chunk.translation.differs;
+    tooltip.setAttribute('data-same', same ? 'true' : 'false');
+    if (same) {
       translationDiv.textContent = chunk.translation.contextual || chunk.translation.literal;
-      tooltip.appendChild(translationDiv);
+      translationDiv.style.color = '#ffffff';
+    } else {
+      translationDiv.textContent = this.config.showPrefixes
+        ? `Literal: ${chunk.translation.literal}`
+        : chunk.translation.literal;
+      // Lighter blue for literal text
+      translationDiv.style.color = '#3b82f6';
     }
+    tooltip.appendChild(translationDiv);
 
     return tooltip;
+  }
+
+  private closeOtherTooltips(current: HTMLElement): void {
+    const tooltips = document.querySelectorAll('.text-annotate-tooltip');
+    tooltips.forEach(t => {
+      const el = t as HTMLElement;
+      if (el !== current) {
+        el.style.display = 'none';
+      }
+    });
+  }
+
+  private async loadImagesForChunkIntoTooltip(chunk: AnnotatedChunk, tooltip: HTMLElement): Promise<void> {
+    const imgContainer = tooltip.querySelector('.text-annotate-tooltip-image-viewer') as HTMLElement | null;
+    if (!imgContainer) return;
+
+    // Build queries: contextual -> literal (English only); if not available, do nothing
+    const sanitize = (s: string | undefined | null): string | null => {
+      if (!s) return null;
+      let q = s;
+      // remove parenthetical notes
+      q = q.replace(/\([^)]*\)/g, '');
+      // choose first option before '/'
+      q = q.split('/')[0];
+      // choose first before ','
+      q = q.split(',')[0];
+      // keep only latin letters, spaces and hyphens
+      q = q.replace(/[^a-zA-Z\-\s]/g, '').trim();
+      if (!/[a-zA-Z]/.test(q)) return null;
+      // collapse whitespace
+      q = q.replace(/\s+/g, ' ').trim();
+      return q || null;
+    };
+
+    const queries: string[] = [];
+    const c = sanitize(chunk.translation?.contextual?.trim());
+    const l = sanitize(chunk.translation?.literal?.trim());
+    if (c) queries.push(c);
+    if (l && l !== c) queries.push(l);
+    if (queries.length === 0) {
+      tooltip.setAttribute('data-images-loaded', 'true');
+      return;
+    }
+
+    const collected: string[] = [];
+    for (const q of queries) {
+      if (!q || collected.length >= 3) break;
+      const imgs = await getImagesForQuery(q, 3 - collected.length);
+      for (const u of imgs) {
+        if (!collected.includes(u)) collected.push(u);
+        if (collected.length >= 3) break;
+      }
+    }
+
+    if (!this.config.showImages || !collected.length) {
+      tooltip.setAttribute('data-images-loaded', 'true');
+      return;
+    }
+
+    // Render viewer
+    let idx = 0;
+    imgContainer.innerHTML = '';
+    const img = document.createElement('img');
+    img.src = collected[idx];
+    img.alt = chunk.translation.contextual || chunk.translation.literal || chunk.text;
+    img.style.width = '120px';
+    img.style.height = '120px';
+    img.style.objectFit = 'cover';
+    img.style.borderRadius = '8px';
+    img.style.display = 'block';
+    img.style.margin = '0 auto';
+    // Click image to cycle to next
+    img.onclick = e => {
+      e.stopPropagation();
+      if (collected.length <= 1) return;
+      idx = (idx + 1) % collected.length;
+      img.src = collected[idx];
+    };
+
+    imgContainer.appendChild(img);
+    imgContainer.style.display = 'flex';
+    tooltip.setAttribute('data-images-loaded', 'true');
+  }
+
+  private applyConfigToOpenTooltips(): void {
+    const tooltips = document.querySelectorAll('.text-annotate-tooltip');
+    tooltips.forEach(t => {
+      const tooltip = t as HTMLElement;
+      // Update image container visibility
+      const imgContainer = tooltip.querySelector('.text-annotate-tooltip-image-viewer') as HTMLElement | null;
+      if (imgContainer) {
+        if (
+          this.config.showImages &&
+          tooltip.getAttribute('data-images-loaded') === 'true' &&
+          imgContainer.childElementCount > 0
+        ) {
+          imgContainer.style.display = 'flex';
+        } else {
+          imgContainer.style.display = 'none';
+        }
+      }
+      // Update prefixes for literal/contextual
+      const literalEl = tooltip.querySelector('.text-annotate-tooltip-translation') as HTMLElement | null;
+      const contextualEl = tooltip.querySelector('.text-annotate-tooltip-contextual') as HTMLElement | null;
+      if (literalEl) {
+        const same = tooltip.getAttribute('data-same') === 'true';
+        if (same) {
+          // Keep single white line with no prefixes regardless of toggle
+          const text = literalEl.textContent || '';
+          const stripped = text.replace(/^\s*Literal:\s*/i, '');
+          literalEl.textContent = stripped;
+          literalEl.style.color = '#ffffff';
+        } else {
+          // Extract original text without prefix if previously set
+          const text = literalEl.textContent || '';
+          const stripped = text.replace(/^\s*Literal:\s*/i, '');
+          literalEl.textContent = this.config.showPrefixes ? `Literal: ${stripped}` : stripped;
+          literalEl.style.color = '#3b82f6';
+        }
+      }
+      if (contextualEl) {
+        const text = contextualEl.textContent || '';
+        const stripped = text.replace(/^\s*Contextual:\s*/i, '');
+        contextualEl.textContent = this.config.showPrefixes ? `Contextual: ${stripped}` : stripped;
+      }
+      tooltip.style.textAlign = 'left';
+    });
+  }
+
+  private async loadConfig(): Promise<void> {
+    try {
+      const raw = localStorage.getItem(this.storageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<typeof this.config>;
+      this.config.showImages = parsed.showImages ?? this.config.showImages;
+      this.config.showPrefixes = parsed.showPrefixes ?? this.config.showPrefixes;
+      if (parsed.imageSource) this.config.imageSource = parsed.imageSource;
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  private async saveConfig(): Promise<void> {
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify(this.config));
+    } catch {
+      // ignore storage errors
+    }
   }
 
   /**

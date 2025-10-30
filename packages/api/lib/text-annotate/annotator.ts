@@ -229,7 +229,11 @@ export const annotateText = async (
           );
 
           // Add batch results to annotated chunks with global indices
-          const batchResults: Array<{ chunk: { text: string; start?: number; end?: number }; translation: any; translationTime: number }> = [];
+          const batchResults: Array<{
+            chunk: { text: string; start?: number; end?: number };
+            translation: any;
+            translationTime: number;
+          }> = [];
           for (const r of batchResultsSettled) {
             if (r.status === 'fulfilled') {
               batchResults.push(r.value);

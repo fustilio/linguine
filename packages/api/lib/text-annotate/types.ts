@@ -31,6 +31,7 @@ export interface ChunkTranslation {
  */
 export interface AnnotatedChunk extends POSChunk {
   translation: ChunkTranslation;
+  imageUrls?: string[];
 }
 
 /**

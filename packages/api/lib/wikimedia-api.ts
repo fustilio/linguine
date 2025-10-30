@@ -47,7 +47,11 @@ export const queryWikimediaAPI = async (params: { query: string; limit: number }
   console.log('Querying Wikimedia API...');
 
   const res = await fetch(
-    `https://commons.wikimedia.org/w/api.php?action=query&generator=images&prop=imageinfo&gimlimit=${params.limit}&redirects=1&titles=${params.query}&iiprop=url&format=json`,
+    // Use generator=search to find File: pages directly by keyword
+    `https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*` +
+      `&generator=search&gsrsearch=${encodeURIComponent(params.query)}` +
+      `&gsrlimit=${params.limit}&gsrnamespace=6` + // namespace 6 = File
+      `&prop=imageinfo&iiprop=url`,
   );
 
   if (!res.ok) {
@@ -56,15 +60,19 @@ export const queryWikimediaAPI = async (params: { query: string; limit: number }
 
   const data = await res.json();
 
-  // Validate the response using Zod schema
-  try {
-    const validatedData = WikimediaAPIResponseSchema.parse(data);
-    return validatedData;
-  } catch (error) {
-    console.error('Wikimedia API response validation failed:', error);
-    console.error('Raw response:', data);
-    throw new Error('Invalid Wikimedia API response format');
+  // Validate the response using Zod schema; fallback to empty structure if missing pages
+  const parsed = WikimediaAPIResponseSchema.safeParse(data);
+  if (parsed.success) {
+    return parsed.data;
   }
+  console.error('Wikimedia API response validation failed:', parsed.error);
+  console.error('Raw response:', data);
+  // Fallback: return empty pages so callers can continue gracefully
+  const fallback: WikimediaAPIResponse = {
+    batchcomplete: typeof data?.batchcomplete === 'string' ? data.batchcomplete : undefined,
+    query: { pages: {} },
+  } as WikimediaAPIResponse;
+  return fallback;
 };
 
 /**
