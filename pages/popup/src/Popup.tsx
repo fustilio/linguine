@@ -59,7 +59,7 @@ const Popup = () => {
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          files: ['content-runtime/index.iife.js'],
+          files: ['content-runtime/all.iife.js'],
         });
       } catch (error) {
         console.error('Failed to inject content script:', error);
@@ -291,7 +291,7 @@ const Popup = () => {
                 try {
                   await chrome.scripting.executeScript({
                     target: { tabId: currentTab.id },
-                    files: ['content-runtime/index.iife.js'],
+                    files: ['content-runtime/all.iife.js'],
                   });
                   console.log('Content script re-injected, try again');
                 } catch (injectError) {
@@ -308,6 +308,38 @@ const Popup = () => {
           </button>
           <p className={cn('mt-2 text-[11px] leading-relaxed text-[#666] dark:text-gray-400')}>
             Extract page content and annotate with AI translations
+          </p>
+        </div>
+
+        {/* Undo Section */}
+        <div className="mb-5">
+          <h3 className={cn('mb-3 text-sm font-semibold text-[#444] dark:text-gray-200')}>Undo</h3>
+          <button
+            onClick={async () => {
+              if (!currentTab?.id) return;
+              try {
+                console.log('[Popup] Undo clicked, tabId:', currentTab.id);
+                await checkContentScript(currentTab);
+                await new Promise(resolve => setTimeout(resolve, 50));
+                const response = await chrome.tabs.sendMessage(currentTab.id, { action: 'undoAllRewrites' });
+                console.log('[Popup] Undo response:', response);
+                if (!response?.success) {
+                  console.warn('[Popup] Undo failed:', response?.error);
+                }
+              } catch (error) {
+                console.error('[Popup] Failed to undo rewrites:', error);
+              }
+            }}
+            className={cn(
+              'w-full rounded-lg px-4 py-2.5 font-medium transition-colors',
+              'bg-red-500 text-white hover:bg-red-600',
+              'dark:bg-red-600 dark:hover:bg-red-500',
+            )}
+            title="Undo all on-page rewrites">
+            ↩ Undo All Rewrites
+          </button>
+          <p className={cn('mt-2 text-[11px] leading-relaxed text-[#666] dark:text-gray-400')}>
+            Restores all simplified segments back to their original text on this page.
           </p>
         </div>
 
@@ -341,7 +373,7 @@ const Popup = () => {
                   try {
                     await chrome.scripting.executeScript({
                       target: { tabId: currentTab.id },
-                      files: ['content-runtime/index.iife.js'],
+                      files: ['content-runtime/all.iife.js'],
                     });
                     console.log('Content script re-injected, try again');
                   } catch (injectError) {

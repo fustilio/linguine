@@ -6,10 +6,12 @@
 
 import { rewriterManager } from './chrome-ai/index.js';
 import { FloatingWidget } from './floating-widget.js';
+import { detectLanguageFromText } from './text-annotate/language-detector.js';
 import { generateFragmentStringHashFromRange } from './text-fragments-api.js';
 import { addTextRewrite } from './text-rewrites-api.js';
+import { undoManager } from './undo-manager.js';
 import { normalizeLanguageCode } from '@extension/shared';
-import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
+import { DEFAULT_REWRITER_PROMPT, wordReplacerStorage, languageStorage } from '@extension/storage';
 import type { WidgetSize } from './floating-widget.js';
 
 type RewriterOptions = {
@@ -25,6 +27,16 @@ type RewriterOptions = {
 
 type DownloadMonitor = {
   addEventListener(type: 'downloadprogress', listener: (event: ProgressEvent) => void): void;
+};
+
+type WordReplacerStorageRewriterOptions = {
+  sharedContext: string;
+  tone: string;
+  format: string;
+  length: string;
+  expectedInputLanguages: string[];
+  expectedContextLanguages: string[];
+  outputLanguage: string;
 };
 
 export class WordReplacer {
@@ -43,6 +55,7 @@ export class WordReplacer {
   private handleSelection?: ((event: MouseEvent) => void) | null;
   private floatingWidget: FloatingWidget | null;
   private dragOffset: { x: number; y: number };
+  private interactiveWrappers: Set<HTMLElement>;
 
   private constructor() {
     this.replacements = new Map();
@@ -69,6 +82,7 @@ export class WordReplacer {
     // Floating widget state
     this.floatingWidget = null;
     this.dragOffset = { x: 0, y: 0 };
+    this.interactiveWrappers = new Set();
 
     // Initialize the extension
     this.init();
@@ -154,26 +168,30 @@ export class WordReplacer {
 
   async loadSettings() {
     try {
-      const result = await chrome.storage.sync.get(['wordReplacer']);
-      const settings = result.wordReplacer || {};
+      const storageState = await wordReplacerStorage.get();
 
-      this.isActive = settings.isActive || false;
-      this.highlightColor = settings.highlightColor || '#fbbf24';
-      this.replacements = new Map(settings.replacements || []);
-      this.widgetSize = settings.widgetSize || 'small';
+      this.isActive = storageState?.isActive ?? false;
+      this.widgetSize = storageState?.widgetSize ?? 'small';
 
-      // Load rewriter options
+      // Load rewriter options from storage; keep defaults consistent with storage package
       this.rewriterOptions = {
-        sharedContext: settings.rewriterOptions?.sharedContext || DEFAULT_REWRITER_PROMPT,
-        tone: settings.rewriterOptions?.tone || 'more-casual',
-        format: settings.rewriterOptions?.format || 'plain-text',
-        length: settings.rewriterOptions?.length || 'shorter',
-        expectedInputLanguages: settings.rewriterOptions?.expectedInputLanguages || ['en'],
-        expectedContextLanguages: settings.rewriterOptions?.expectedContextLanguages || ['en'],
-        outputLanguage: settings.rewriterOptions?.outputLanguage || 'en',
+        sharedContext: storageState?.rewriterOptions?.sharedContext ?? DEFAULT_REWRITER_PROMPT,
+        tone: (storageState?.rewriterOptions?.tone as unknown as RewriterTone) ?? ('as-is' as unknown as RewriterTone),
+        format:
+          (storageState?.rewriterOptions?.format as unknown as RewriterFormat) ??
+          ('as-is' as unknown as RewriterFormat),
+        length:
+          (storageState?.rewriterOptions?.length as unknown as RewriterLength) ??
+          ('shorter' as unknown as RewriterLength),
+        expectedInputLanguages: storageState?.rewriterOptions?.expectedInputLanguages ?? ['en'],
+        expectedContextLanguages: storageState?.rewriterOptions?.expectedContextLanguages ?? ['en'],
+        outputLanguage: storageState?.rewriterOptions?.outputLanguage ?? 'en',
       };
 
-      console.log('Word Replacer: Settings loaded', {
+      // Non-persisted fields (kept local for now)
+      this.highlightColor = '#fbbf24';
+
+      console.log('Word Replacer: Settings loaded (storage)', {
         isActive: this.isActive,
         replacements: this.replacements.size,
         rewriterOptions: this.rewriterOptions,
@@ -185,15 +203,15 @@ export class WordReplacer {
 
   async saveSettings() {
     try {
-      const settings = {
+      await wordReplacerStorage.set(current => ({
+        ...current,
         isActive: this.isActive,
-        highlightColor: this.highlightColor,
-        replacements: Array.from(this.replacements.entries()),
         widgetSize: this.widgetSize,
-        rewriterOptions: this.rewriterOptions,
-      };
-
-      await chrome.storage.sync.set({ wordReplacer: settings });
+        rewriterOptions: {
+          ...current.rewriterOptions,
+          ...this.rewriterOptions,
+        },
+      }));
     } catch (error) {
       console.error('Word Replacer: Error saving settings', error);
     }
@@ -216,31 +234,28 @@ export class WordReplacer {
 
           const wasActive = this.isActive;
 
-          // Update state
+          // Update state and persist via storage
           if (state.isActive !== undefined) {
             this.isActive = state.isActive;
+            await wordReplacerStorage.set(current => ({ ...current, isActive: this.isActive }));
           }
           if (state.widgetSize) {
             this.widgetSize = state.widgetSize;
-            // Recreate widget if it exists to apply new size
+            await wordReplacerStorage.updateWidgetSize(this.widgetSize);
             if (this.floatingWidget) {
               this.removeFloatingWidget();
               this.createFloatingWidget();
             }
           }
           if (state.rewriterOptions) {
-            // Shallow merge two objects
-            this.rewriterOptions = {
-              ...this.rewriterOptions,
-              ...state.rewriterOptions,
-            };
-
-            // Reinitialize the rewriter singleton with new options
+            this.rewriterOptions = { ...this.rewriterOptions, ...state.rewriterOptions };
+            await wordReplacerStorage.updateRewriterOptions(
+              state.rewriterOptions as Partial<WordReplacerStorageRewriterOptions>,
+            );
             try {
               await this.reinitializeRewriter();
             } catch (error) {
               console.warn('Failed to reinitialize rewriter with new options:', error);
-              // Don't fail the entire operation if rewriter reinit fails
             }
           }
 
@@ -327,13 +342,14 @@ export class WordReplacer {
             ...this.rewriterOptions,
             ...(message.options as Partial<RewriterOptions>),
           };
+          await wordReplacerStorage.updateRewriterOptions(
+            message.options as Partial<WordReplacerStorageRewriterOptions>,
+          );
 
-          // Reinitialize the rewriter singleton with new options
           try {
             await this.reinitializeRewriter();
           } catch (error) {
             console.warn('Failed to reinitialize rewriter with new options:', error);
-            // Don't fail the entire operation if rewriter reinit fails
           }
 
           this.saveSettings();
@@ -345,6 +361,18 @@ export class WordReplacer {
             success: true,
             options: this.rewriterOptions,
           });
+          break;
+
+        case 'undoAllRewrites':
+          try {
+            console.log('[WordReplacer] undoAllRewrites message received');
+            const stats = undoManager.undoAll();
+            console.log('[WordReplacer] undoAllRewrites completed', stats);
+            sendResponse({ success: true, ...stats });
+          } catch (error) {
+            console.error('[WordReplacer] undoAllRewrites failed', error);
+            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+          }
           break;
 
         case 'ping':
@@ -693,8 +721,14 @@ export class WordReplacer {
       // Extract surrounding context for better rewriting
       const contextInfo = this.extractSurroundingContext(highlightSpan, originalText);
 
-      // Initialize rewriter
-      const rewriter = await this.initRewriter();
+      // Determine languages for this rewrite
+      const detectedLang = await detectLanguageFromText(contextInfo.fullContext || originalText);
+      const detectedBase = this.toBaseLang(normalizeLanguageCode(detectedLang || 'en-US'));
+      const nativeState = await languageStorage.get();
+      const nativeBase = this.toBaseLang(nativeState?.nativeLanguage || 'en-US');
+
+      // Initialize rewriter with per-call language settings
+      const rewriter = await rewriterManager.getRewriter(this.buildRewriterOptions(detectedBase, nativeBase));
 
       if (!rewriter) {
         throw new Error('Failed to initialize rewriter');
@@ -912,6 +946,8 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
         // Update current highlight reference
         this.currentHighlight = wrapper;
+        // Track for undo
+        undoManager.registerWrapper(wrapper);
       }
     } catch (error: unknown) {
       console.error('❌ Error rewriting highlighted text:', error);
@@ -939,6 +975,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       parent.normalize();
 
       // Clear the reference
+      undoManager.unregisterWrapper(this.currentHighlight);
       this.currentHighlight = null;
     }
   }
@@ -1055,10 +1092,30 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
   }
 
   removeHighlights() {
+    // Remove interactive wrappers via manager
+    try {
+      undoManager.removeAllInteractiveKeepCurrent();
+    } catch (e) {
+      console.warn('Word Replacer: removeAllInteractiveKeepCurrent failed, falling back', e);
+      const wrappers = document.querySelectorAll('.rewriter-highlight');
+      wrappers.forEach(node => {
+        const wrapper = node as HTMLElement;
+        const buttons = wrapper.nextElementSibling;
+        if (buttons && buttons.classList.contains('rewriter-buttons')) {
+          buttons.remove();
+        }
+        const parent = wrapper.parentNode;
+        if (parent) {
+          parent.replaceChild(document.createTextNode(wrapper.textContent || ''), wrapper);
+          (parent as HTMLElement).normalize();
+        }
+      });
+    }
+
     // Remove current highlight reference
     this.currentHighlight = null;
 
-    // Remove all word replacer highlights
+    // Remove all word replacer highlights (legacy)
     const highlights = document.querySelectorAll('.word-replacer-highlight');
     highlights.forEach(highlight => {
       const parent = highlight.parentNode;
@@ -1067,12 +1124,54 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         parent.normalize();
       }
     });
+  }
 
-    // Remove processed markers
+  /**
+   * Undo all interactive rewrites on the page, restoring original text
+   */
+  private undoAllRewrites() {
+    const start = performance.now();
+    let wrappersFound = 0;
+    let buttonsRemoved = 0;
+    let restored = 0;
+    let processedCleared = 0;
+
+    console.log('[WordReplacer] Undo started');
+
+    // Clear current highlight reference
+    this.currentHighlight = null;
+
+    // Restore original text for all interactive rewrite wrappers
+    const wrappers = document.querySelectorAll('.rewriter-highlight');
+    wrappersFound = wrappers.length;
+    console.log('[WordReplacer] Found wrappers:', wrappersFound);
+    wrappers.forEach(node => {
+      const wrapper = node as HTMLElement;
+      const originalText = wrapper.dataset.originalText || wrapper.textContent || '';
+      const buttons = wrapper.nextElementSibling;
+      if (buttons && buttons.classList.contains('rewriter-buttons')) {
+        buttonsRemoved += 1;
+        buttons.remove();
+      }
+      const parent = wrapper.parentNode;
+      if (parent) {
+        restored += 1;
+        parent.replaceChild(document.createTextNode(originalText), wrapper);
+        (parent as HTMLElement).normalize();
+      }
+    });
+
+    // Remove processed markers so future replacements can run cleanly
     const processed = document.querySelectorAll('.word-replacer-processed');
     processed.forEach(element => {
+      processedCleared += 1;
       element.classList.remove('word-replacer-processed');
     });
+
+    const durationMs = Math.round(performance.now() - start);
+    const stats = { wrappersFound, buttonsRemoved, restored, processedCleared, durationMs };
+    console.log('[WordReplacer] Undo finished', stats);
+    return stats;
   }
 
   /**
@@ -1107,21 +1206,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    */
   async initRewriter() {
     try {
-      const options: RewriterOptions = {
-        sharedContext: this.rewriterOptions.sharedContext || undefined,
-        expectedInputLanguages: this.rewriterOptions.expectedInputLanguages || ['en'],
-        expectedContextLanguages: this.rewriterOptions.expectedContextLanguages || ['en'],
-        outputLanguage: this.rewriterOptions.outputLanguage || 'en',
-        tone: this.rewriterOptions.tone !== 'as-is' ? this.rewriterOptions.tone : undefined,
-        format: this.rewriterOptions.format !== 'as-is' ? this.rewriterOptions.format : undefined,
-        length: this.rewriterOptions.length !== 'as-is' ? this.rewriterOptions.length : undefined,
-        monitor: (m: DownloadMonitor) => {
-          m.addEventListener('downloadprogress', (e: ProgressEvent) => {
-            this.downloadProgress = Math.round((e.loaded / e.total) * 100);
-          });
-        },
-      };
-
+      const options: RewriterOptions = this.buildRewriterOptions();
       return await rewriterManager.getRewriter(options);
     } catch (error) {
       console.error('Failed to initialize Rewriter:', error);
@@ -1135,26 +1220,36 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    */
   async reinitializeRewriter(): Promise<void> {
     try {
-      const options: RewriterOptions = {
-        sharedContext: this.rewriterOptions.sharedContext || undefined,
-        expectedInputLanguages: this.rewriterOptions.expectedInputLanguages || ['en'],
-        expectedContextLanguages: this.rewriterOptions.expectedContextLanguages || ['en'],
-        outputLanguage: this.rewriterOptions.outputLanguage || 'en',
-        tone: this.rewriterOptions.tone !== 'as-is' ? this.rewriterOptions.tone : undefined,
-        format: this.rewriterOptions.format !== 'as-is' ? this.rewriterOptions.format : undefined,
-        length: this.rewriterOptions.length !== 'as-is' ? this.rewriterOptions.length : undefined,
-        monitor: (m: DownloadMonitor) => {
-          m.addEventListener('downloadprogress', (e: ProgressEvent) => {
-            this.downloadProgress = Math.round((e.loaded / e.total) * 100);
-          });
-        },
-      };
-
+      const options: RewriterOptions = this.buildRewriterOptions();
       await rewriterManager.getRewriter(options);
     } catch (error) {
       console.error('Failed to reinitialize Rewriter:', error);
       throw error;
     }
+  }
+
+  private toBaseLang(lang: string | undefined): string {
+    const code = lang || 'en-US';
+    return code.split('-')[0].toLowerCase();
+  }
+
+  private buildRewriterOptions(detectedBaseLang?: string, nativeBaseLang?: string): RewriterOptions {
+    const detected = detectedBaseLang || this.toBaseLang(this.rewriterOptions.outputLanguage || 'en');
+    const native = nativeBaseLang || this.rewriterOptions.expectedContextLanguages?.[0] || 'en';
+    return {
+      sharedContext: this.rewriterOptions.sharedContext || undefined,
+      expectedInputLanguages: [detected],
+      expectedContextLanguages: [native],
+      outputLanguage: detected,
+      tone: this.rewriterOptions.tone !== 'as-is' ? this.rewriterOptions.tone : undefined,
+      format: this.rewriterOptions.format !== 'as-is' ? this.rewriterOptions.format : undefined,
+      length: this.rewriterOptions.length !== 'as-is' ? this.rewriterOptions.length : undefined,
+      monitor: (m: DownloadMonitor) => {
+        m.addEventListener('downloadprogress', (e: ProgressEvent) => {
+          this.downloadProgress = Math.round((e.loaded / e.total) * 100);
+        });
+      },
+    };
   }
 
   /**
@@ -1560,8 +1655,14 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         contextInfo = this.extractSurroundingContext(contextElement, originalText);
       }
 
-      // Initialize rewriter
-      const rewriter = await this.initRewriter();
+      // Determine languages for this rewrite
+      const detectedLang = await detectLanguageFromText(contextInfo.fullContext || originalText);
+      const detectedBase = this.toBaseLang(normalizeLanguageCode(detectedLang || 'en-US'));
+      const nativeState = await languageStorage.get();
+      const nativeBase = this.toBaseLang(nativeState?.nativeLanguage || 'en-US');
+
+      // Initialize rewriter with per-call language settings
+      const rewriter = await rewriterManager.getRewriter(this.buildRewriterOptions(detectedBase, nativeBase));
 
       if (!rewriter) {
         throw new Error('Failed to initialize rewriter');
@@ -1813,6 +1914,8 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
             if (this.currentHighlight === wrapper) {
               this.currentHighlight = null;
             }
+            // No longer interactive; remove from registry
+            undoManager.unregisterWrapper(wrapper);
             isSaving = false;
           } else {
             // Save failed - keep buttons visible so user can try again
@@ -1837,6 +1940,8 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
       // Use replaceSelectedTextInDOM for robust text replacement, then wrap the result
       this.replaceSelectedTextInDOMWithWrapper(range, rewrittenText, wrapper, buttonContainer);
+      // Track for undo
+      undoManager.registerWrapper(wrapper);
 
       // Clean up any stray markers that might have been left in the document
       this.cleanupStrayMarkers();
