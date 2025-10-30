@@ -53,7 +53,9 @@ export class ChromeAIManager extends BaseChromeAIManager<ChromeAIManager> {
         return await LanguageModel.availability();
       });
 
-      const options: LanguageModelCreateOptions = {};
+      const options: LanguageModelCreateOptions = {} as LanguageModelCreateOptions;
+      // Specify an output language to improve output quality/safety attestation
+      (options as any).outputLanguage = 'en';
       if (systemPrompt) {
         options.initialPrompts = [{ role: 'system', content: systemPrompt }];
       }

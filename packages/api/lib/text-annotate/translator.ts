@@ -11,6 +11,23 @@ import type { ChunkTranslation, SupportedLanguage } from './types.js';
 /**
  * Translates a chunk both literally and contextually
  */
+// Simple module-level metrics for timing
+const translatorMetrics = {
+  literalCount: 0,
+  contextualCount: 0,
+  literalTimeMs: 0,
+  contextualTimeMs: 0,
+};
+
+export const getAndResetTranslatorMetrics = () => {
+  const snapshot = { ...translatorMetrics };
+  translatorMetrics.literalCount = 0;
+  translatorMetrics.contextualCount = 0;
+  translatorMetrics.literalTimeMs = 0;
+  translatorMetrics.contextualTimeMs = 0;
+  return snapshot;
+};
+
 const translateChunk = async (
   chunkText: string,
   sourceLanguage: SupportedLanguage,
@@ -21,14 +38,22 @@ const translateChunk = async (
   try {
     // Get literal translation using Translator API
     console.log('[TextAnnotate] Getting literal translation...');
+    const literalStart = performance.now();
     const literal = await translateText(chunkText, sourceLanguage, targetLanguage);
+    const literalEnd = performance.now();
+    translatorMetrics.literalCount += 1;
+    translatorMetrics.literalTimeMs += literalEnd - literalStart;
     console.log('[TextAnnotate] Literal translation:', literal);
 
     // Get contextual translation using LanguageModel API
     let contextual = literal;
     if (context && context !== chunkText) {
       console.log('[TextAnnotate] Getting contextual translation...');
+      const contextualStart = performance.now();
       contextual = await translateContextually(chunkText, sourceLanguage, targetLanguage, context);
+      const contextualEnd = performance.now();
+      translatorMetrics.contextualCount += 1;
+      translatorMetrics.contextualTimeMs += contextualEnd - contextualStart;
       console.log('[TextAnnotate] Contextual translation:', contextual);
     }
 

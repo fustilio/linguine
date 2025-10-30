@@ -90,6 +90,19 @@ export class TextAnnotateManager {
     );
     this.readingModeUI.show();
 
+    // Pre-warm models (non-blocking)
+    try {
+      const aiManager = (await import('../chrome-ai/language-model-manager.js')).ChromeAIManager.getInstance();
+      aiManager.initializeMainSession().catch(() => {});
+      // Kick Translator via convenience function once; it will cache internally
+      (async () => {
+        try {
+          const { translateText } = await import('../chrome-ai/convenience-functions.js');
+          await translateText('ping', 'th-TH' as any, 'en-US' as any);
+        } catch {}
+      })();
+    } catch {}
+
     // Process in background
     console.log('[TextAnnotate] Starting background processing...');
     try {
@@ -194,19 +207,29 @@ export class TextAnnotateManager {
         );
 
         // Use progressive annotation with streaming updates
-        result = await annotateText(extracted, targetLanguage, (chunks, isComplete, totalChunks, phase) => {
+        result = await annotateText(
+          extracted,
+          targetLanguage,
+          (chunks, isComplete, totalChunks, phase, metrics?: {
+            literalCount?: number;
+            contextualCount?: number;
+            literalTimeMs?: number;
+            contextualTimeMs?: number;
+            batchTimeMs?: number;
+          }) => {
           console.log(
-            `[TextAnnotate] Progressive update: ${chunks.length} chunks, complete: ${isComplete}, total: ${totalChunks}, phase: ${phase}`,
+              `[TextAnnotate] Progressive update: ${chunks.length} chunks, complete: ${isComplete}, total: ${totalChunks}, phase: ${phase}`,
           );
 
           // Update the reading mode UI with current chunks
-          this.readingModeUI!.addAnnotations(chunks, isComplete, phase);
+            this.readingModeUI!.addAnnotations(chunks, isComplete, phase, metrics);
 
           // Update total chunks if provided
           if (totalChunks && this.readingModeUI) {
             this.readingModeUI.setTotalChunks(totalChunks);
           }
-        });
+          },
+        );
 
         const aiEndTime = performance.now();
         console.log(

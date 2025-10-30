@@ -15,6 +15,10 @@ export class ReadingModeUI {
   private plainText = '';
   private totalChunks = 0;
   private annotatedChunks: AnnotatedChunk[] = [];
+  private debugVisible = false;
+  private debugPanel: HTMLElement | null = null;
+  private lastDebugData: Record<string, unknown> | null = null;
+  private phaseTimes: Partial<Record<'extract' | 'detect' | 'segment' | 'prechunk' | 'translate' | 'finalize', number>> = {};
 
   /**
    * Initialize reading mode UI
@@ -37,6 +41,9 @@ export class ReadingModeUI {
   private onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       this.hide();
+    } else if (e.key === 'Tab' && this.container && this.container.style.display !== 'none') {
+      e.preventDefault();
+      this.toggleDebugPanel();
     }
   };
 
@@ -87,7 +94,12 @@ export class ReadingModeUI {
   /**
    * Add annotations progressively
    */
-  public addAnnotations(chunks: AnnotatedChunk[], isComplete: boolean, phase?: string): void {
+  public addAnnotations(
+    chunks: AnnotatedChunk[],
+    isComplete: boolean,
+    phase?: string,
+    metrics?: { literalCount?: number; contextualCount?: number; literalTimeMs?: number; contextualTimeMs?: number; batchTimeMs?: number },
+  ): void {
     if (!this.contentArea) {
       console.warn('[ReadingModeUI] Content area not initialized');
       return;
@@ -98,6 +110,9 @@ export class ReadingModeUI {
 
     // Update progress bar
     this.updateProgressBar({ completed: chunks.length, total: this.totalChunks, isComplete, phase });
+    if (metrics) {
+      this.updateDebugPanel({ phase, ...metrics, completed: chunks.length, total: this.totalChunks });
+    }
 
     // Incrementally wrap ranges for each new chunk
     for (const chunk of chunks) {
@@ -174,11 +189,6 @@ export class ReadingModeUI {
     container.id = 'text-annotate-reading-mode';
     container.className = 'text-annotate-reading-mode';
     container.style.display = 'none';
-    container.addEventListener('click', e => {
-      if (e.target === container) {
-        this.hide();
-      }
-    });
     return container;
   }
 
@@ -286,6 +296,55 @@ export class ReadingModeUI {
       const phaseLabel = phase ? `${phase}` : 'loading';
       progressLabel.textContent = `${phaseLabel}... ${Math.min(completed, effectiveTotal)}/${effectiveTotal}`;
     }
+  }
+
+  private toggleDebugPanel(): void {
+    if (!this.container) return;
+    if (!this.debugPanel) {
+      this.debugPanel = document.createElement('div');
+      this.debugPanel.className = 'text-annotate-debug-panel';
+      this.container.appendChild(this.debugPanel);
+    }
+    this.debugVisible = !this.debugVisible;
+    this.debugPanel.style.display = this.debugVisible ? 'block' : 'none';
+    if (this.debugVisible && this.lastDebugData) {
+      this.updateDebugPanel(this.lastDebugData);
+    }
+  }
+
+  private updateDebugPanel(data: Record<string, unknown>): void {
+    if (!this.debugPanel) return;
+    this.lastDebugData = data;
+    const {
+      phase,
+      completed,
+      total,
+      literalCount,
+      contextualCount,
+      literalTimeMs,
+      contextualTimeMs,
+      batchTimeMs,
+      posTimeMs,
+      phaseTimes,
+    } = data as any;
+
+    if (phaseTimes && typeof phaseTimes === 'object') {
+      this.phaseTimes = { ...this.phaseTimes, ...phaseTimes };
+    }
+    const phasesOrder: Array<keyof typeof this.phaseTimes> = ['extract', 'detect', 'segment', 'prechunk', 'translate', 'finalize'];
+    const phasesRows = phasesOrder
+      .filter(p => this.phaseTimes[p] != null)
+      .map(p => `<div class="dbg-row"><strong>${p}:</strong> ${Math.round(Number(this.phaseTimes[p]))} ms</div>`) 
+      .join('');
+
+    this.debugPanel.innerHTML = `
+      <div class="dbg-row"><strong>Phase:</strong> ${phase ?? '-'} | <strong>${completed ?? 0}/${total ?? 0}</strong></div>
+      ${phasesRows}
+      <div class="dbg-row"><strong>Batch:</strong> ${Math.round(Number(batchTimeMs) || 0)} ms</div>
+      <div class="dbg-row"><strong>Literal:</strong> ${literalCount ?? 0} ops, ${Math.round(Number(literalTimeMs) || 0)} ms</div>
+      <div class="dbg-row"><strong>Contextual:</strong> ${contextualCount ?? 0} ops, ${Math.round(Number(contextualTimeMs) || 0)} ms</div>
+      <div class="dbg-hint">Press Tab to hide</div>
+    `;
   }
 
   /**

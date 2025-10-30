@@ -7,7 +7,7 @@ import { detectLanguageFromText, normalizeLanguageCode } from './language-detect
 import { chunkTextWithPOS } from './pos-chunker.js';
 import { segmentText } from './segmenter.js';
 import { extractPlainText } from './text-extractor.js';
-import { translateChunk } from './translator.js';
+import { translateChunk, getAndResetTranslatorMetrics } from './translator.js';
 import type { AnnotatedChunk, AnnotationResult, ExtractedText, SupportedLanguage } from './types.js';
 
 /**
@@ -21,6 +21,16 @@ export const annotateText = async (
     isComplete: boolean,
     totalChunks?: number,
     phase?: 'extract' | 'detect' | 'segment' | 'prechunk' | 'translate' | 'finalize',
+    metrics?: {
+      posTimeMs?: number;
+      batchTimeMs?: number;
+      literalCount?: number;
+      contextualCount?: number;
+      literalTimeMs?: number;
+      contextualTimeMs?: number;
+      phaseTimes?: Partial<Record<'extract' | 'detect' | 'segment' | 'prechunk' | 'translate' | 'finalize', number>>;
+      totalMs?: number;
+    }
   ) => void,
 ): Promise<AnnotationResult> => {
   const totalStartTime = performance.now();
@@ -31,7 +41,10 @@ export const annotateText = async (
   console.log('[TextAnnotate] Plain text length:', textLength);
 
   // Phase: extract
-  onProgress?.([], false, undefined, 'extract');
+  const extractEnd = performance.now();
+  onProgress?.([], false, undefined, 'extract', {
+    phaseTimes: { extract: extractEnd - totalStartTime },
+  });
 
   // Detect source language
   const languageStartTime = performance.now();
@@ -44,7 +57,9 @@ export const annotateText = async (
     detectedLanguage,
   );
   // Phase: detect
-  onProgress?.([], false, undefined, 'detect');
+  onProgress?.([], false, undefined, 'detect', {
+    phaseTimes: { detect: languageEndTime - languageStartTime },
+  });
 
   // Segment text by language
   console.log('[TextAnnotate] Segmenting text...');
@@ -56,14 +71,17 @@ export const annotateText = async (
     segments.length,
   );
   // Phase: segment
-  onProgress?.([], false, undefined, 'segment');
+  onProgress?.([], false, undefined, 'segment', {
+    phaseTimes: { segment: segmentEndTime - segmentStartTime },
+  });
 
   // Process each segment with parallel translation batching
   const annotatedChunks: AnnotatedChunk[] = [];
   console.log('[TextAnnotate] Processing segments...');
   let totalOperations = 0;
   let totalTranslationTime = 0;
-  const BATCH_SIZE = 3; // Process 3 chunks at a time for streaming effect
+  let translateAccumMs = 0;
+  const BATCH_SIZE = 6; // Tunable concurrency for demo speed
 
   // Total expected chunks and precomputed POS chunks per segment
   let totalExpectedChunks = 0;
@@ -109,28 +127,43 @@ export const annotateText = async (
     return withOffsets;
   };
 
-  // Precompute POS chunks for all target-language segments to know total upfront
+  // Precompute POS chunks for all target-language segments in parallel to know total upfront
+  const prechunkStart = performance.now();
+  const posPromises: Array<Promise<{ segmentIndex: number; chunks: Array<{ text: string; start?: number; end?: number }> }>> = [];
   for (let sIdx = 0; sIdx < segments.length; sIdx++) {
     const seg = segments[sIdx];
     if (seg.isTargetLanguage && seg.text.trim().length > 0) {
-      try {
-        const pos = await chunkTextWithPOS(seg.text, detectedLanguage);
-        const filtered = pos.filter(c => c.text && c.text.trim().length > 0);
-        const withOffsets = computeOffsets(seg.text, filtered);
-        precomputedChunks.push({ segmentIndex: sIdx, chunks: withOffsets });
-        totalExpectedChunks += withOffsets.length;
-      } catch {
-        // If chunking fails, count as 1 fallback
-        precomputedChunks.push({ segmentIndex: sIdx, chunks: [] });
-        totalExpectedChunks += 1;
-      }
+      posPromises.push(
+        (async () => {
+          try {
+            const pos = await chunkTextWithPOS(seg.text, detectedLanguage);
+            const filtered = pos.filter(c => c.text && c.text.trim().length > 0);
+            const withOffsets = computeOffsets(seg.text, filtered);
+            return { segmentIndex: sIdx, chunks: withOffsets };
+          } catch {
+            return { segmentIndex: sIdx, chunks: [] };
+          }
+        })(),
+      );
     } else {
       precomputedChunks.push({ segmentIndex: sIdx, chunks: [] });
     }
   }
+  const posResults = await Promise.allSettled(posPromises);
+  for (const res of posResults) {
+    if (res.status === 'fulfilled') {
+      precomputedChunks.push(res.value);
+      totalExpectedChunks += res.value.chunks.length || 1;
+    }
+  }
+  const prechunkEnd = performance.now();
+  const prechunkTimeMs = prechunkEnd - prechunkStart;
 
-  // Emit prechunk phase with locked total
-  onProgress?.([], false, totalExpectedChunks, 'prechunk');
+  // Emit prechunk phase with locked total and timing
+  (onProgress as any)?.([], false, totalExpectedChunks, 'prechunk', {
+    posTimeMs: prechunkTimeMs,
+    phaseTimes: { prechunk: prechunkTimeMs },
+  });
 
   for (const segment of segments) {
     if (!segment.isTargetLanguage && segment.text.trim().length === 0) {
@@ -162,7 +195,7 @@ export const annotateText = async (
 
           // Process batch in parallel
           const batchStartTime = performance.now();
-          const batchResults = await Promise.all(
+          const batchResultsSettled = await Promise.allSettled(
             batchChunks.map(async (chunk, index) => {
               const chunkIndex = batchStart + index + 1;
               console.log(`[TextAnnotate] Translating chunk ${chunkIndex}/${filteredPosChunks.length}:`, chunk.text);
@@ -189,12 +222,22 @@ export const annotateText = async (
           const batchTime = batchEndTime - batchStartTime;
           totalTranslationTime += batchTime;
           totalOperations += batchChunks.length;
+          translateAccumMs += batchTime;
 
           console.log(
             `[TextAnnotate] Batch ${batchNumber} completed in ${batchTime.toFixed(2)}ms (${batchChunks.length} chunks)`,
           );
 
           // Add batch results to annotated chunks with global indices
+          const batchResults: Array<{ chunk: { text: string; start?: number; end?: number }; translation: any; translationTime: number }> = [];
+          for (const r of batchResultsSettled) {
+            if (r.status === 'fulfilled') {
+              batchResults.push(r.value);
+            } else {
+              // Skip rejected item; could log error
+            }
+          }
+
           batchResults.forEach(result => {
             // Skip whitespace-only results
             if (!result.chunk.text || result.chunk.text.trim().length === 0) {
@@ -218,7 +261,15 @@ export const annotateText = async (
 
           // Send progressive update after each batch
           if (onProgress) {
-            onProgress([...annotatedChunks], false, totalExpectedChunks, 'translate');
+            const tMetrics = getAndResetTranslatorMetrics();
+            (onProgress as any)([...annotatedChunks], false, totalExpectedChunks, 'translate', {
+              literalCount: tMetrics.literalCount,
+              contextualCount: tMetrics.contextualCount,
+              literalTimeMs: tMetrics.literalTimeMs,
+              contextualTimeMs: tMetrics.contextualTimeMs,
+              batchTimeMs: batchTime,
+              phaseTimes: { translate: translateAccumMs },
+            });
           }
         }
 
@@ -289,7 +340,10 @@ export const annotateText = async (
 
   // Send final progress update
   if (onProgress) {
-    onProgress(annotatedChunks, true, totalExpectedChunks, 'finalize');
+    onProgress(annotatedChunks, true, totalExpectedChunks, 'finalize', {
+      phaseTimes: { finalize: totalEndTime - totalStartTime },
+      totalMs: totalEndTime - totalStartTime,
+    });
   }
 
   return {

@@ -172,6 +172,21 @@ export function getReadingModeStyles(): string {
       color: #ffffff;
     }
 
+    .text-annotate-debug-panel {
+      position: fixed;
+      bottom: 0.75rem;
+      left: 0.75rem;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.85rem;
+      z-index: 1000001;
+      display: none;
+    }
+    .text-annotate-debug-panel .dbg-row { margin: 2px 0; }
+    .text-annotate-debug-panel .dbg-hint { color: #aaa; font-size: 0.75rem; margin-top: 4px; }
+
     /* Mobile responsive */
     @media (max-width: 768px) {
       .text-annotate-content {

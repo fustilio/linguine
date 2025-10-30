@@ -7,6 +7,11 @@
 import { ChromeAIManager } from '../chrome-ai/language-model-manager.js';
 import type { POSChunk, POSChunkType, SupportedLanguage } from './types.js';
 
+// Simple in-memory cache for POS results within a page session
+const posCache: Map<string, POSChunk[]> = new Map();
+
+const cacheKey = (text: string, language: SupportedLanguage) => `${language}::${text}`;
+
 /**
  * Chunks text into POS groups using AI
  */
@@ -15,6 +20,17 @@ export async function chunkTextWithPOS(
   language: SupportedLanguage
 ): Promise<POSChunk[]> {
   console.log(`[TextAnnotate] chunkTextWithPOS: "${text.substring(0, 50)}..." (${language})`);
+  const key = cacheKey(text, language);
+  if (posCache.has(key)) {
+    return posCache.get(key)!;
+  }
+
+  // Fast path: very short strings → single token
+  if (text.trim().length <= 5) {
+    const quick = fallbackWordChunking(text, language);
+    posCache.set(key, quick);
+    return quick;
+  }
   const aiManager = ChromeAIManager.getInstance();
   
   try {
@@ -32,7 +48,7 @@ export async function chunkTextWithPOS(
 
     // Parse JSON response
     const chunks = parsePOSChunks(response);
-
+    posCache.set(key, chunks);
     return chunks;
   } catch (error) {
     console.error('Failed to chunk text with POS:', error);
@@ -43,7 +59,9 @@ export async function chunkTextWithPOS(
     }
     
     // Fallback to word-based chunking
-    return fallbackWordChunking(text, language);
+    const fb = fallbackWordChunking(text, language);
+    posCache.set(key, fb);
+    return fb;
   }
 }
 
