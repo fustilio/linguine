@@ -9,6 +9,7 @@ export * from './lib/text-rewrites-api.js';
 export * from './lib/text-fragments-api.js';
 export * from './lib/vocabulary-api.js';
 export * from './lib/database-api-utils.js';
+export * from './lib/wikimedia-api.js';
 export type * from './lib/types.js';
 export { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 export { FunctionCallingPromptAPI } from './lib/function-calling/function-calling-api.js';
