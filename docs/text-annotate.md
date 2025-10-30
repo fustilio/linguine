@@ -35,7 +35,7 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 - `language-detector.ts`: Uses Chrome `LanguageDetector` with character-based fallback
 - `text-extractor.ts`: Extracts content (Mozilla Readability, selection, selector) and plain text
 - `segmenter.ts`: Language-aware segmentation (Thai via `wordcut`)
-- `pos-chunker.ts`: POS chunking with `LanguageModel` + fallback word chunking
+- `pos-chunker.ts`: Fast token chunking with `Intl.Segmenter` (no AI); whitespace fallback
 - `translator.ts`: Literal translation with `Translator` and contextual translation with `LanguageModel` (graceful fallbacks, user gesture handling)
 - `annotator.ts`: Orchestrates detection → segmentation → POS → translation with batching and progressive streaming, comprehensive timing
 - `simple-annotator.ts`: Lightweight mock annotator for demo/testing
@@ -90,8 +90,8 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 
 - `LanguageDetector`: Used when available; fallback to heuristic
 - `Translator`: Literal translations; check availability per language pair
-- `LanguageModel`: POS chunking and contextual translations
-- User gesture requirement: handle `NotAllowedError` when models are `downloading/downloadable`; fall back gracefully
+- `LanguageModel`: Used for contextual translations only (no longer used for POS)
+- User gesture requirement: handle `NotAllowedError` gracefully; literal still works
 
 ## Performance and Logging
 

@@ -1,11 +1,8 @@
 /**
- * POS (Part-of-Speech) chunking using Chrome LanguageModel API
+ * Token chunking using Intl.Segmenter (no AI)
  */
 
-/// <reference types="dom-chromium-ai" />
-
-import { ChromeAIManager } from '../chrome-ai/language-model-manager.js';
-import type { POSChunk, POSChunkType, SupportedLanguage } from './types.js';
+import type { POSChunk, SupportedLanguage } from './types.js';
 
 // Simple in-memory cache for POS results within a page session
 const posCache: Map<string, POSChunk[]> = new Map();
@@ -13,12 +10,9 @@ const posCache: Map<string, POSChunk[]> = new Map();
 const cacheKey = (text: string, language: SupportedLanguage) => `${language}::${text}`;
 
 /**
- * Chunks text into POS groups using AI
+ * Chunks text into word-like tokens using Intl.Segmenter when available.
  */
-export async function chunkTextWithPOS(
-  text: string,
-  language: SupportedLanguage
-): Promise<POSChunk[]> {
+const chunkTextWithPOS = async (text: string, language: SupportedLanguage): Promise<POSChunk[]> => {
   console.log(`[TextAnnotate] chunkTextWithPOS: "${text.substring(0, 50)}..." (${language})`);
   const key = cacheKey(text, language);
   if (posCache.has(key)) {
@@ -31,98 +25,62 @@ export async function chunkTextWithPOS(
     posCache.set(key, quick);
     return quick;
   }
-  const aiManager = ChromeAIManager.getInstance();
-  
-  try {
-    // Initialize main session if needed
-    console.log('[TextAnnotate] Getting AI session...');
-    const session = await aiManager.getMainSession();
-    const model = session.model;
-    console.log('[TextAnnotate] AI session obtained');
 
-    // Create prompt for POS chunking
-    const prompt = createPOSChunkingPrompt(text, language);
-
-    // Get AI response
-    const response = await model.prompt(prompt, {});
-
-    // Parse JSON response
-    const chunks = parsePOSChunks(response);
-    posCache.set(key, chunks);
-    return chunks;
-  } catch (error) {
-    console.error('Failed to chunk text with POS:', error);
-    
-    // Check if it's a user gesture error
-    if (error instanceof Error && error.message.includes('user gesture')) {
-      console.warn('Chrome AI requires user gesture for POS chunking, using fallback');
+  // Use built-in Intl.Segmenter for supported languages to avoid AI latency
+  if (typeof (Intl as unknown as { Segmenter?: unknown }).Segmenter === 'function') {
+    try {
+      const base = String(language).split('-')[0] || 'en';
+      type SegRecord = { segment: string; index: number; isWordLike?: boolean };
+      const SegmenterCtor = (
+        Intl as unknown as {
+          Segmenter: new (
+            loc: string,
+            opts: { granularity: 'word' },
+          ) => { segment: (t: string) => Iterable<SegRecord> };
+        }
+      ).Segmenter;
+      const segmenter = new SegmenterCtor(base, { granularity: 'word' });
+      const chunks: POSChunk[] = [];
+      // Iterate word segments to compute positions
+      const iterable = segmenter.segment(text);
+      for (const seg of iterable as Iterable<SegRecord>) {
+        const segStr = seg.segment;
+        const segStart = seg.index;
+        const segEnd: number = segStart + segStr.length;
+        if (seg.isWordLike === false) {
+          // Preserve spaces/punct by skipping annotation but maintaining positions if needed later
+          continue;
+        }
+        if (segStr.trim().length === 0) {
+          continue;
+        }
+        chunks.push({
+          text: segStr,
+          type: 'single_word',
+          start: segStart,
+          end: segEnd,
+          language,
+        });
+      }
+      posCache.set(key, chunks);
+      return chunks;
+    } catch (err) {
+      console.warn('[TextAnnotate] Intl.Segmenter not available or failed, falling back:', err);
+      const fb = fallbackWordChunking(text, language);
+      posCache.set(key, fb);
+      return fb;
     }
-    
-    // Fallback to word-based chunking
-    const fb = fallbackWordChunking(text, language);
-    posCache.set(key, fb);
-    return fb;
   }
-}
-
-/**
- * Creates prompt for POS chunking
- */
-function createPOSChunkingPrompt(text: string, language: SupportedLanguage): string {
-  return `Analyze this ${language} text and identify parts of speech. Group words into meaningful chunks: noun phrases, verb phrases, adjective phrases, adverb phrases, prepositional phrases. For single words that don't form phrases, mark them as single_word.
-
-Text: "${text}"
-
-Return a JSON array with chunks. Each chunk should have:
-- "text": the chunk text
-- "type": one of "noun_phrase", "verb_phrase", "adjective_phrase", "adverb_phrase", "prepositional_phrase", or "single_word"
-- "start": character position where chunk starts in original text (0-indexed)
-- "end": character position where chunk ends (exclusive)
-
-Important: The start and end positions must exactly match the text in the original string. Ensure all chunks together cover the entire text without gaps or overlaps.
-
-Return ONLY valid JSON, no other text.`;
-}
-
-/**
- * Parses POS chunks from AI response
- */
-function parsePOSChunks(response: string): POSChunk[] {
-  try {
-    // Try to extract JSON from response (might have markdown code blocks)
-    let jsonStr = response.trim();
-    
-    // Remove markdown code blocks if present
-    if (jsonStr.startsWith('```json')) {
-      jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
-
-    const chunks: POSChunk[] = JSON.parse(jsonStr);
-    
-    // Validate chunks structure
-    if (!Array.isArray(chunks)) {
-      throw new Error('Response is not an array');
-    }
-
-    return chunks.map(chunk => ({
-      text: chunk.text || '',
-      type: (chunk.type || 'single_word') as POSChunkType,
-      start: Number(chunk.start) || 0,
-      end: Number(chunk.end) || 0,
-      language: chunk.language as SupportedLanguage | undefined,
-    }));
-  } catch (error) {
-    console.error('Failed to parse POS chunks:', error);
-    throw error;
-  }
-}
+  // Final fallback: whitespace/character-based segmentation
+  const fb = fallbackWordChunking(text, language);
+  posCache.set(key, fb);
+  return fb;
+};
 
 /**
  * Fallback word-based chunking when AI fails
  */
-function fallbackWordChunking(text: string, language: SupportedLanguage): POSChunk[] {
+const fallbackWordChunking = (text: string, language: SupportedLanguage): POSChunk[] => {
   const chunks: POSChunk[] = [];
   let currentPos = 0;
 
@@ -145,7 +103,7 @@ function fallbackWordChunking(text: string, language: SupportedLanguage): POSChu
   } else {
     // Other languages: word-based
     const words = text.split(/(\s+)/);
-    
+
     for (const word of words) {
       if (word.trim()) {
         chunks.push({
@@ -161,4 +119,6 @@ function fallbackWordChunking(text: string, language: SupportedLanguage): POSChu
   }
 
   return chunks;
-}
+};
+
+export { chunkTextWithPOS };
