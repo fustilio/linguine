@@ -1073,14 +1073,15 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    */
   async checkRewriterAvailability() {
     try {
-      if (!('Rewriter' in (window as any))) {
+      const windowWithAI = window as typeof window & { Rewriter?: typeof Rewriter };
+      if (!windowWithAI.Rewriter) {
         return {
           available: false,
           error: 'Rewriter API not found in browser',
         };
       }
 
-      const availability = await (window as any).Rewriter.availability();
+      const availability = await windowWithAI.Rewriter.availability();
       return {
         available: true,
         status: availability,
@@ -1364,6 +1365,44 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     wrapper: HTMLElement,
     buttonContainer: HTMLElement,
   ): void {
+    // Store the original range boundaries before any modifications
+    const startContainer = range.startContainer;
+    const startOffset = range.startOffset;
+    const endContainer = range.endContainer;
+    const endOffset = range.endOffset;
+
+    // Case 1: Selection is within a single text node (most common for mid-paragraph selections)
+    const isSingleTextNode = startContainer === endContainer && startContainer.nodeType === Node.TEXT_NODE;
+
+    if (isSingleTextNode) {
+      const textNode = startContainer as Text;
+      const originalText = textNode.nodeValue || '';
+
+      // Split the text into: before | selected | after
+      const before = originalText.substring(0, startOffset);
+      const after = originalText.substring(endOffset);
+
+      // Set the text node to only contain the "before" part
+      textNode.nodeValue = before;
+
+      // Set the wrapper content
+      wrapper.textContent = newText;
+
+      // Insert elements in the correct order: textNode | wrapper | buttonContainer | afterText
+      const parent = textNode.parentNode;
+      if (parent) {
+        parent.insertBefore(wrapper, textNode.nextSibling);
+        parent.insertBefore(buttonContainer, wrapper.nextSibling);
+
+        if (after) {
+          parent.insertBefore(document.createTextNode(after), buttonContainer.nextSibling);
+        }
+      }
+
+      return;
+    }
+
+    // Case 2: Multi-node selection - fall back to marker approach but search more carefully
     // Create a unique marker to locate the replaced text
     const marker = `__LINGUINE_${Date.now()}_${Math.random().toString(36).substr(2, 9)}__`;
     const markedText = `${marker}${newText}${marker}`;
@@ -1372,42 +1411,39 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     this.replaceSelectedTextInDOM(range, markedText);
 
     // Find and replace the marked text with our interactive wrapper
-    const container =
-      range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
-        ? (range.commonAncestorContainer as Element)
-        : range.commonAncestorContainer.parentElement;
+    // Start from the original start container's parent to narrow the search
+    const searchRoot =
+      (startContainer.nodeType === Node.ELEMENT_NODE ? startContainer : startContainer.parentElement) || document.body;
 
-    if (container) {
-      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-      let node;
+    const walker = document.createTreeWalker(searchRoot, NodeFilter.SHOW_TEXT);
+    let node;
 
-      while ((node = walker.nextNode())) {
-        const textNode = node as Text;
-        if (textNode.nodeValue?.includes(marker)) {
-          const text = textNode.nodeValue;
-          const startPos = text.indexOf(marker);
-          const endPos = text.lastIndexOf(marker) + marker.length;
+    while ((node = walker.nextNode())) {
+      const textNode = node as Text;
+      if (textNode.nodeValue?.includes(marker)) {
+        const text = textNode.nodeValue;
+        const startPos = text.indexOf(marker);
+        const endPos = text.lastIndexOf(marker) + marker.length;
 
-          if (startPos !== -1 && endPos !== -1) {
-            // Split the text node and insert our wrapper
-            const before = text.substring(0, startPos);
-            const after = text.substring(endPos);
+        if (startPos !== -1 && endPos !== -1) {
+          // Split the text node and insert our wrapper
+          const before = text.substring(0, startPos);
+          const after = text.substring(endPos);
 
-            textNode.nodeValue = before;
-            wrapper.textContent = newText;
+          textNode.nodeValue = before;
+          wrapper.textContent = newText;
 
-            const parent = textNode.parentNode;
-            if (parent) {
-              parent.insertBefore(wrapper, textNode.nextSibling);
-              parent.insertBefore(buttonContainer, wrapper.nextSibling);
+          const parent = textNode.parentNode;
+          if (parent) {
+            parent.insertBefore(wrapper, textNode.nextSibling);
+            parent.insertBefore(buttonContainer, wrapper.nextSibling);
 
-              if (after) {
-                parent.insertBefore(document.createTextNode(after), buttonContainer.nextSibling);
-              }
+            if (after) {
+              parent.insertBefore(document.createTextNode(after), buttonContainer.nextSibling);
             }
           }
-          break;
         }
+        break;
       }
     }
   }
@@ -1507,9 +1543,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       // we generate this before replacing the text in the DOM so that we can save the fragment to the database
       // Generate URL fragment for text anchor
       const urlFragment = this.generateTextFragment(range);
-
-      // Replace the selected text in the DOM with the rewritten version
-      this.replaceSelectedTextInDOM(range, rewrittenText);
 
       // Store both texts as data attributes
       wrapper.dataset.originalText = originalText;
