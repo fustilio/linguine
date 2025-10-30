@@ -62,3 +62,44 @@ export const translatorManager = TranslatorManager.getInstance();
 export const summarizerManager = SummarizerManager.getInstance();
 export const rewriterManager = RewriterManager.getInstance();
 export const languageDetectionManager = LanguageDetectionManager.getInstance();
+
+/**
+ * Write once with the Writer API and destroy the writer immediately.
+ * Uses expected languages to help the browser pick the right model.
+ */
+export const writeWithWriter = async (
+  prompt: string,
+  options?: {
+    context?: string;
+    expectedInputLanguages?: string[];
+    expectedContextLanguages?: string[];
+    outputLanguage?: string;
+    tone?: 'formal' | 'neutral' | 'casual';
+    format?: 'markdown' | 'plain-text';
+    length?: 'short' | 'medium' | 'long';
+  },
+): Promise<string> => {
+  const availability = await Writer.availability();
+  if (availability === 'unavailable') {
+    throw new Error('Writer API unavailable');
+  }
+
+  const writerOptions: any = {
+    tone: options?.tone ?? 'neutral',
+    format: options?.format ?? 'plain-text',
+    length: options?.length ?? 'short',
+  };
+  if (options?.expectedInputLanguages) writerOptions.expectedInputLanguages = options.expectedInputLanguages;
+  if (options?.expectedContextLanguages) writerOptions.expectedContextLanguages = options.expectedContextLanguages;
+  if (options?.outputLanguage) writerOptions.outputLanguage = options.outputLanguage;
+
+  const writer = await Writer.create(writerOptions);
+  try {
+    const result = await writer.write(prompt, options?.context ? { context: options.context } : undefined);
+    return typeof result === 'string' ? result : String(result ?? '');
+  } finally {
+    try {
+      writer.destroy();
+    } catch {}
+  }
+};

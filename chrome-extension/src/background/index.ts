@@ -257,6 +257,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Extension installed');
+  // Register selection-only context menu for Reading Mode
+  try {
+    chrome.contextMenus.remove('read_with_linguine', () => {
+      // Ignore errors on remove; we'll create fresh below
+      chrome.contextMenus.create({
+        id: 'read_with_linguine',
+        title: 'Read with Linguine',
+        contexts: ['selection'],
+      });
+    });
+  } catch {
+    // Fallback: create without remove if remove throws synchronously
+    chrome.contextMenus.create({
+      id: 'read_with_linguine',
+      title: 'Read with Linguine',
+      contexts: ['selection'],
+    });
+  }
+});
+
+// Handle context menu clicks
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId !== 'read_with_linguine' || !tab?.id) return;
+
+  try {
+    // Try sending to existing content script first
+    await chrome.tabs.sendMessage(tab.id, { action: 'openReadingMode', data: { mode: 'manual' } });
+  } catch {
+    // If no content runtime, inject and retry
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content-runtime/all.iife.js'],
+      });
+      await chrome.tabs.sendMessage(tab.id, { action: 'openReadingMode', data: { mode: 'manual' } });
+    } catch (e) {
+      console.error('Failed to open reading mode from context menu', e);
+    }
+  }
 });
 
 // Handle extension icon click

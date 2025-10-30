@@ -4,20 +4,24 @@
  */
 
 import { annotateText } from './annotator.js';
-import { cleanupLanguageDetector } from './language-detector.js';
+import { cleanupLanguageDetector, detectLanguageFromText } from './language-detector.js';
 import { ReadingModeUI } from './reading-mode-ui.js';
-import { simpleAnnotateText } from './simple-annotator.js';
 import {
   extractContentWithReadability,
   extractSelectedText,
   extractTextBySelector,
   extractPlainText,
 } from './text-extractor.js';
+import { generateTitleForContent } from './title-generator.js';
 import type { ExtractedText, AnnotationResult, SupportedLanguage } from './types.js';
 
 export class TextAnnotateManager {
   private static instance: TextAnnotateManager | null = null;
   private readingModeUI: ReadingModeUI | null = null;
+  private readonly ENABLE_TEXT_ANNOTATE_LOGS = false;
+  private taLog(...args: unknown[]): void {
+    if (this.ENABLE_TEXT_ANNOTATE_LOGS) console.log(...args);
+  }
 
   private constructor() {
     // Private constructor for singleton
@@ -40,18 +44,18 @@ export class TextAnnotateManager {
     useFullContent: boolean = true,
   ): Promise<void> {
     const startTime = performance.now();
-    console.log('[TextAnnotate] Starting openReadingModeAuto with URL:', url, 'useFullContent:', useFullContent);
+    this.taLog('[TextAnnotate] Starting openReadingModeAuto with URL:', url, 'useFullContent:', useFullContent);
 
     // Extract content
-    console.log('[TextAnnotate] Extracting content with Readability...');
+    this.taLog('[TextAnnotate] Extracting content with Readability...');
     const extracted = extractContentWithReadability(document, url);
-    console.log('[TextAnnotate] Content extracted:', extracted ? 'Success' : 'Failed');
+    this.taLog('[TextAnnotate] Content extracted:', extracted ? 'Success' : 'Failed');
 
     if (!extracted) {
       throw new Error('Failed to extract content from page');
     }
 
-    console.log('[TextAnnotate] Extracted content preview:', {
+    this.taLog('[TextAnnotate] Extracted content preview:', {
       title: extracted.title,
       contentLength: extracted.content?.length || 0,
       language: extracted.language,
@@ -59,7 +63,7 @@ export class TextAnnotateManager {
 
     // For demo purposes, use a short Thai text sample if not using full content
     if (!useFullContent && extracted.content && extracted.content.length > 200) {
-      console.log('[TextAnnotate] Using demo Thai text sample for testing');
+      this.taLog('[TextAnnotate] Using demo Thai text sample for testing');
       extracted.content = 'สวัสดีครับ คุณสบายดีไหม วันนี้อากาศดีมาก';
       extracted.title = 'Demo Thai Text';
     }
@@ -98,17 +102,21 @@ export class TextAnnotateManager {
       (async () => {
         try {
           const { translateText } = await import('../chrome-ai/convenience-functions.js');
-          await translateText('ping', 'th-TH' as any, 'en-US' as any);
-        } catch {}
+          await translateText('ping', 'th-TH', 'en-US');
+        } catch (err) {
+          console.debug('[TextAnnotate] Translator warmup failed (non-fatal):', err);
+        }
       })();
-    } catch {}
+    } catch (err) {
+      console.debug('[TextAnnotate] AI pre-warm skipped/failed (non-fatal):', err);
+    }
 
     // Process in background
-    console.log('[TextAnnotate] Starting background processing...');
+    this.taLog('[TextAnnotate] Starting background processing...');
     try {
       await this.processAndDisplay(extracted, targetLanguage);
       const endTime = performance.now();
-      console.log(
+      this.taLog(
         `[TextAnnotate] Background processing completed successfully in ${(endTime - startTime).toFixed(2)}ms`,
       );
     } catch (error) {
@@ -145,6 +153,29 @@ export class TextAnnotateManager {
       throw new Error('No text selected');
     }
 
+    // Generate a title for selection if one is not available
+    if (!extracted.title || extracted.title.trim().length === 0) {
+      try {
+        // Detect source language first so Writer can set expected languages
+        const plain = extractPlainText(extracted.content);
+        const detected = await detectLanguageFromText(plain);
+        if (detected && !extracted.language) {
+          extracted.language = detected;
+        }
+        const title = await generateTitleForContent(extracted.content, detected);
+        if (title) {
+          extracted.title = title;
+        }
+      } catch (e) {
+        console.debug('[TextAnnotate] Title generation failed (non-fatal):', e);
+      }
+    }
+    // Ensure reading mode UI is initialized for manual mode
+    if (!this.readingModeUI) {
+      this.readingModeUI = new ReadingModeUI();
+      this.readingModeUI.initialize();
+      this.readingModeUI.show();
+    }
     await this.processAndDisplay(extracted, targetLanguage);
   }
 
@@ -161,29 +192,14 @@ export class TextAnnotateManager {
     if (!extracted) {
       throw new Error(`No element found for selector: ${selector}`);
     }
-
+    // Ensure reading mode UI is initialized for selector mode
+    if (!this.readingModeUI) {
+      this.readingModeUI = new ReadingModeUI();
+      this.readingModeUI.initialize();
+      this.readingModeUI.show();
+    }
     await this.processAndDisplay(extracted, targetLanguage);
   }
-
-  /**
-   * Process extracted text and display in reading mode (simple version)
-   */
-  private async processAndDisplaySimple(extracted: ExtractedText, targetLanguage: SupportedLanguage): Promise<void> {
-    try {
-      // Use simple annotator for testing
-      const result: AnnotationResult = await simpleAnnotateText(extracted, targetLanguage);
-
-      // Display in reading mode
-      this.readingModeUI!.displayAnnotation(extracted.title, result.chunks, () => {
-        // onClose callback
-        this.readingModeUI?.hide();
-      });
-    } catch (error) {
-      console.error('Failed to annotate text:', error);
-      throw error;
-    }
-  }
-
   /**
    * Process extracted text and display in reading mode (with AI)
    */
@@ -191,6 +207,12 @@ export class TextAnnotateManager {
     const processStartTime = performance.now();
     console.log('[TextAnnotate] processAndDisplay started with targetLanguage:', targetLanguage);
     try {
+      // Defensive: ensure UI exists (manual/selector callers should set it up, but be safe)
+      if (!this.readingModeUI) {
+        this.readingModeUI = new ReadingModeUI();
+        this.readingModeUI.initialize();
+        this.readingModeUI.show();
+      }
       // Try AI annotation first, fallback to simple if it fails
       let result: AnnotationResult;
       try {
@@ -243,22 +265,8 @@ export class TextAnnotateManager {
           result.chunks.length,
         );
       } catch (aiError) {
-        console.warn('[TextAnnotate] AI annotation failed, falling back to simple annotation:', aiError);
-        console.log('[TextAnnotate] Attempting simple annotation...');
-        const simpleStartTime = performance.now();
-        result = await simpleAnnotateText(extracted, targetLanguage, (chunks, isComplete) => {
-          console.log(`[TextAnnotate] Simple progressive update: ${chunks.length} chunks, complete: ${isComplete}`);
-
-          // Update the reading mode UI with current chunks
-          this.readingModeUI!.displayAnnotation(extracted.title, chunks, () => {
-            this.readingModeUI?.hide();
-          });
-        });
-        const simpleEndTime = performance.now();
-        console.log(
-          `[TextAnnotate] Simple annotation completed in ${(simpleEndTime - simpleStartTime).toFixed(2)}ms, chunks:`,
-          result.chunks.length,
-        );
+        console.error('[TextAnnotate] AI annotation failed:', aiError);
+        throw aiError;
       }
 
       // Progressive path already rendered in-place; do not re-render final annotation

@@ -29,16 +29,20 @@ export const annotateText = async (
       literalTimeMs?: number;
       contextualTimeMs?: number;
       phaseTimes?: Partial<Record<'extract' | 'detect' | 'segment' | 'prechunk' | 'translate' | 'finalize', number>>;
-      totalMs?: number;
+      totalMs?: number,
     }
   ) => void,
 ): Promise<AnnotationResult> => {
+  const ENABLE_TEXT_ANNOTATE_LOGS = false;
+  const taLog = (...args: unknown[]) => {
+    if (ENABLE_TEXT_ANNOTATE_LOGS) console.log(...args);
+  };
   const totalStartTime = performance.now();
-  console.log('[TextAnnotate] annotateText started');
+  taLog('[TextAnnotate] annotateText started');
 
   const plainText = extractPlainText(extractedText.content);
   const textLength = plainText.length;
-  console.log('[TextAnnotate] Plain text length:', textLength);
+  taLog('[TextAnnotate] Plain text length:', textLength);
 
   // Phase: extract
   const extractEnd = performance.now();
@@ -52,7 +56,7 @@ export const annotateText = async (
     ? normalizeLanguageCode(extractedText.language)
     : (await detectLanguageFromText(plainText)) || targetLanguage;
   const languageEndTime = performance.now();
-  console.log(
+  taLog(
     `[TextAnnotate] Language detection completed in ${(languageEndTime - languageStartTime).toFixed(2)}ms:`,
     detectedLanguage,
   );
@@ -62,11 +66,11 @@ export const annotateText = async (
   });
 
   // Segment text by language
-  console.log('[TextAnnotate] Segmenting text...');
+  taLog('[TextAnnotate] Segmenting text...');
   const segmentStartTime = performance.now();
   const segments = segmentText(plainText, detectedLanguage);
   const segmentEndTime = performance.now();
-  console.log(
+  taLog(
     `[TextAnnotate] Segmentation completed in ${(segmentEndTime - segmentStartTime).toFixed(2)}ms, segments:`,
     segments.length,
   );
@@ -77,7 +81,7 @@ export const annotateText = async (
 
   // Process each segment with parallel translation batching
   const annotatedChunks: AnnotatedChunk[] = [];
-  console.log('[TextAnnotate] Processing segments...');
+  taLog('[TextAnnotate] Processing segments...');
   let totalOperations = 0;
   let totalTranslationTime = 0;
   let translateAccumMs = 0;
@@ -129,7 +133,12 @@ export const annotateText = async (
 
   // Precompute POS chunks for all target-language segments in parallel to know total upfront
   const prechunkStart = performance.now();
-  const posPromises: Array<Promise<{ segmentIndex: number; chunks: Array<{ text: string; start?: number; end?: number }> }>> = [];
+  const posPromises: Array<
+    Promise<{
+      segmentIndex: number;
+      chunks: Array<{ text: string; start?: number; end?: number }>;
+    }>
+  > = [];
   for (let sIdx = 0; sIdx < segments.length; sIdx++) {
     const seg = segments[sIdx];
     if (seg.isTargetLanguage && seg.text.trim().length > 0) {
@@ -160,7 +169,7 @@ export const annotateText = async (
   const prechunkTimeMs = prechunkEnd - prechunkStart;
 
   // Emit prechunk phase with locked total and timing
-  (onProgress as any)?.([], false, totalExpectedChunks, 'prechunk', {
+  onProgress?.([], false, totalExpectedChunks, 'prechunk', {
     posTimeMs: prechunkTimeMs,
     phaseTimes: { prechunk: prechunkTimeMs },
   });
@@ -173,16 +182,16 @@ export const annotateText = async (
 
     if (segment.isTargetLanguage) {
       // Process target language segment
-      console.log('[TextAnnotate] Processing target language segment:', segment.text.substring(0, 50) + '...');
+      taLog('[TextAnnotate] Processing target language segment:', segment.text.substring(0, 50) + '...');
       try {
         // Use precomputed POS groups
-        console.log('[TextAnnotate] Using precomputed POS groups...');
+        taLog('[TextAnnotate] Using precomputed POS groups...');
         const pre = precomputedChunks.find(p => p.segmentIndex === segments.indexOf(segment));
         const filteredPosChunks = pre ? pre.chunks : [];
-        console.log('[TextAnnotate] POS chunks created:', filteredPosChunks.length);
+        taLog('[TextAnnotate] POS chunks created:', filteredPosChunks.length);
 
         // Translate chunks in parallel batches
-        console.log('[TextAnnotate] Translating chunks in parallel batches...');
+        taLog('[TextAnnotate] Translating chunks in parallel batches...');
         const segmentStartTime = performance.now();
 
         for (let batchStart = 0; batchStart < filteredPosChunks.length; batchStart += BATCH_SIZE) {
@@ -191,14 +200,14 @@ export const annotateText = async (
           const batchNumber = Math.floor(batchStart / BATCH_SIZE) + 1;
           const totalBatches = Math.ceil(filteredPosChunks.length / BATCH_SIZE);
 
-          console.log(`[TextAnnotate] Processing batch ${batchNumber}/${totalBatches} (${batchChunks.length} chunks)`);
+          taLog(`[TextAnnotate] Processing batch ${batchNumber}/${totalBatches} (${batchChunks.length} chunks)`);
 
           // Process batch in parallel
           const batchStartTime = performance.now();
           const batchResultsSettled = await Promise.allSettled(
             batchChunks.map(async (chunk, index) => {
               const chunkIndex = batchStart + index + 1;
-              console.log(`[TextAnnotate] Translating chunk ${chunkIndex}/${filteredPosChunks.length}:`, chunk.text);
+              taLog(`[TextAnnotate] Translating chunk ${chunkIndex}/${filteredPosChunks.length}:`, chunk.text);
 
               const translationStartTime = performance.now();
               const translation = await translateChunk(
@@ -224,14 +233,14 @@ export const annotateText = async (
           totalOperations += batchChunks.length;
           translateAccumMs += batchTime;
 
-          console.log(
+          taLog(
             `[TextAnnotate] Batch ${batchNumber} completed in ${batchTime.toFixed(2)}ms (${batchChunks.length} chunks)`,
           );
 
           // Add batch results to annotated chunks with global indices
           const batchResults: Array<{
             chunk: { text: string; start?: number; end?: number };
-            translation: any;
+            translation: AnnotatedChunk['translation'];
             translationTime: number;
           }> = [];
           for (const r of batchResultsSettled) {
@@ -266,7 +275,7 @@ export const annotateText = async (
           // Send progressive update after each batch
           if (onProgress) {
             const tMetrics = getAndResetTranslatorMetrics();
-            (onProgress as any)([...annotatedChunks], false, totalExpectedChunks, 'translate', {
+            onProgress([...annotatedChunks], false, totalExpectedChunks, 'translate', {
               literalCount: tMetrics.literalCount,
               contextualCount: tMetrics.contextualCount,
               literalTimeMs: tMetrics.literalTimeMs,
@@ -278,11 +287,11 @@ export const annotateText = async (
         }
 
         const segmentEndTime = performance.now();
-        console.log(`[TextAnnotate] Segment completed in ${(segmentEndTime - segmentStartTime).toFixed(2)}ms`);
+        taLog(`[TextAnnotate] Segment completed in ${(segmentEndTime - segmentStartTime).toFixed(2)}ms`);
       } catch (error) {
         console.error('[TextAnnotate] Failed to process segment:', error);
         // Fallback: treat as single chunk
-        console.log('[TextAnnotate] Using fallback for segment');
+        taLog('[TextAnnotate] Using fallback for segment');
         const fallbackStartTime = performance.now();
         const translation = await translateChunk(segment.text, detectedLanguage, targetLanguage, segment.text);
         const fallbackEndTime = performance.now();
@@ -328,19 +337,19 @@ export const annotateText = async (
   const speedupFactor = totalOperations > 0 ? estimatedSequentialTime / totalTranslationTime : 1;
   const batchesProcessed = Math.ceil(totalOperations / BATCH_SIZE);
 
-  console.log('[TextAnnotate] === TIMING METRICS ===');
-  console.log(`[TextAnnotate] Total time: ${totalTime.toFixed(2)}ms`);
-  console.log(`[TextAnnotate] Text length: ${textLength} characters`);
-  console.log(`[TextAnnotate] Time per character: ${avgTimePerWord.toFixed(4)}ms`);
-  console.log(`[TextAnnotate] Total operations: ${totalOperations}`);
-  console.log(`[TextAnnotate] Batches processed: ${batchesProcessed}`);
-  console.log(`[TextAnnotate] Max concurrent operations: ${BATCH_SIZE}`);
-  console.log(`[TextAnnotate] Total translation time: ${totalTranslationTime.toFixed(2)}ms`);
-  console.log(`[TextAnnotate] Average time per operation: ${avgTimePerOperation.toFixed(2)}ms`);
-  console.log(`[TextAnnotate] Estimated sequential time: ${estimatedSequentialTime.toFixed(2)}ms`);
-  console.log(`[TextAnnotate] Parallel speedup factor: ${speedupFactor.toFixed(2)}x`);
-  console.log(`[TextAnnotate] Chunks created: ${annotatedChunks.length}`);
-  console.log(`[TextAnnotate] ========================`);
+  taLog('[TextAnnotate] === TIMING METRICS ===');
+  taLog(`[TextAnnotate] Total time: ${totalTime.toFixed(2)}ms`);
+  taLog(`[TextAnnotate] Text length: ${textLength} characters`);
+  taLog(`[TextAnnotate] Time per character: ${avgTimePerWord.toFixed(4)}ms`);
+  taLog(`[TextAnnotate] Total operations: ${totalOperations}`);
+  taLog(`[TextAnnotate] Batches processed: ${batchesProcessed}`);
+  taLog(`[TextAnnotate] Max concurrent operations: ${BATCH_SIZE}`);
+  taLog(`[TextAnnotate] Total translation time: ${totalTranslationTime.toFixed(2)}ms`);
+  taLog(`[TextAnnotate] Average time per operation: ${avgTimePerOperation.toFixed(2)}ms`);
+  taLog(`[TextAnnotate] Estimated sequential time: ${estimatedSequentialTime.toFixed(2)}ms`);
+  taLog(`[TextAnnotate] Parallel speedup factor: ${speedupFactor.toFixed(2)}x`);
+  taLog(`[TextAnnotate] Chunks created: ${annotatedChunks.length}`);
+  taLog(`[TextAnnotate] ========================`);
 
   // Send final progress update
   if (onProgress) {

@@ -39,7 +39,7 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 - `translator.ts`: Literal translation with `Translator` and contextual translation with `LanguageModel` (graceful fallbacks, user gesture handling)
 - `annotator.ts`: Orchestrates detection → segmentation → POS → translation with batching and progressive streaming, comprehensive timing
 - `simple-annotator.ts`: Lightweight mock annotator for demo/testing
-- `reading-mode-ui.ts`: DOM-based overlay; immediate plain text, progressive inline annotations, tooltips, progress bar, TTS
+- `reading-mode-ui.ts`: DOM-based overlay; immediate plain text, progressive inline annotations, tooltips (lazy image fetch on hover), progress bar, TTS, runtime icon controls
 - Wikimedia image enrichment: optional images per annotated chunk (up to 3), fetched via background
 - `styles.ts`: Styles for overlay, underlines, tooltips, progress bar
 - `text-annotate-manager.ts`: Entry point managing extraction, annotation, UI lifecycle, and message handling
@@ -82,8 +82,8 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 - Immediate plain text render
 - Inline, in-place wrapping for annotations (preserve offsets)
 - Progress bar with locked total from pre-chunk estimate
-- Tooltips show POS + literal + contextual differences when applicable
-- Tooltips can include up to three Wikimedia images with simple prev/next controls
+- Tooltips merge translations smartly: if literal and contextual are effectively identical (punctuation/case/synonym-insensitive), show a single combined line (white). Otherwise show Literal (light blue) then Contextual. Optional “Literal:”/“Contextual:” prefixes via toggle
+- Tooltips can include up to three Wikimedia images (lazy-fetched on hover); click image to cycle
 - TTS (`SpeechSynthesisUtterance`) on word click (language fallback)
 - Close via header X, Esc key, or backdrop click
 
@@ -99,6 +99,7 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 - Chunking: Intl.Segmenter reduces pre-chunking to milliseconds on modern Chrome
 - Batching with `Promise.all()` (default `BATCH_SIZE = 6`)
 - Image fetching done post-translation per chunk, cached per term, capped at 3 per chunk
+- Per-chunk translation logging: `[TextAnnotate] Translation: "<src>" (src → dst) | literal="…" | contextual="…"`
 - Comprehensive timing metrics:
   - total time, text length, ms/char
   - total operations (chunks)
@@ -113,13 +114,14 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 - Popup → Content Script: `openReadingMode`, `closeReadingMode`
 - Content manages DOM overlay via `ReadingModeUI` (no React)
 - Internal progress via direct method calls and Chrome messaging (no CustomEvents)
-- Background fetch for images: UI/content asks background `fetchWikimediaImages` to avoid CORS; background calls Wikimedia API and returns URLs
+- Background fetch for images: UI/content asks background `fetchWikimediaImages` to avoid CORS; background calls Wikimedia Commons API using generator=search (namespace File) and returns URLs
 
 ## UI Details
 
-- Two-row header: title + X top row (space-between); progress row centered below
+- Two-row header: title + X top row (space-between); progress row centered below; small icon controls row: 🖼 toggle images, 🔤 toggle prefixes (persisted)
 - Progress container has min-height and fades out to avoid layout shift
 - Spaces and punctuation are not annotated; whitespace-only chunks ignored
+- Single-open tooltip: opening one closes others; short grace period allows cursor to enter tooltip
 
 ## Error Handling
 

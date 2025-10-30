@@ -27,6 +27,7 @@ export {
   summarizeText,
   streamSummarizeText,
   rewriteText,
+  writeWithWriter,
   chromeAIManager,
   translatorManager,
   summarizerManager,
