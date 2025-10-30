@@ -6,6 +6,9 @@ export const DEFAULT_REWRITER_OPTIONS = {
   tone: 'as-is' as const,
   format: 'as-is' as const,
   length: 'shorter' as const,
+  expectedInputLanguages: ['en'] as string[], // Target language (language being learned)
+  expectedContextLanguages: ['en'] as string[], // Native language (for context/instructions)
+  outputLanguage: 'en' as string, // Output language (same as input for simplification)
 };
 
 export const DEFAULT_WORD_REPLACER_STATE = {

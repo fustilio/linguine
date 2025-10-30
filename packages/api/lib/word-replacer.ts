@@ -16,6 +16,7 @@ type RewriterOptions = {
   sharedContext?: string;
   expectedInputLanguages?: string[];
   expectedContextLanguages?: string[];
+  outputLanguage?: string;
   tone?: RewriterTone;
   format?: RewriterFormat;
   length?: RewriterLength;
@@ -57,6 +58,9 @@ export class WordReplacer {
       tone: 'as-is',
       format: 'as-is',
       length: 'shorter',
+      expectedInputLanguages: ['en'],
+      expectedContextLanguages: ['en'],
+      outputLanguage: 'ja',
     };
     this.widgetSize = 'small';
     this.downloadProgress = 0;
@@ -164,6 +168,9 @@ export class WordReplacer {
         tone: settings.rewriterOptions?.tone || 'more-casual',
         format: settings.rewriterOptions?.format || 'plain-text',
         length: settings.rewriterOptions?.length || 'shorter',
+        expectedInputLanguages: settings.rewriterOptions?.expectedInputLanguages || ['en'],
+        expectedContextLanguages: settings.rewriterOptions?.expectedContextLanguages || ['en'],
+        outputLanguage: settings.rewriterOptions?.outputLanguage || 'en',
       };
 
       console.log('Word Replacer: Settings loaded', {
@@ -1102,8 +1109,9 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     try {
       const options: RewriterOptions = {
         sharedContext: this.rewriterOptions.sharedContext || undefined,
-        expectedInputLanguages: ['en', 'ja', 'es'],
-        expectedContextLanguages: ['en', 'ja', 'es'],
+        expectedInputLanguages: this.rewriterOptions.expectedInputLanguages || ['en'],
+        expectedContextLanguages: this.rewriterOptions.expectedContextLanguages || ['en'],
+        outputLanguage: this.rewriterOptions.outputLanguage || 'en',
         tone: this.rewriterOptions.tone !== 'as-is' ? this.rewriterOptions.tone : undefined,
         format: this.rewriterOptions.format !== 'as-is' ? this.rewriterOptions.format : undefined,
         length: this.rewriterOptions.length !== 'as-is' ? this.rewriterOptions.length : undefined,
@@ -1129,8 +1137,9 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     try {
       const options: RewriterOptions = {
         sharedContext: this.rewriterOptions.sharedContext || undefined,
-        expectedInputLanguages: ['en', 'ja', 'es'],
-        expectedContextLanguages: ['en', 'ja', 'es'],
+        expectedInputLanguages: this.rewriterOptions.expectedInputLanguages || ['en'],
+        expectedContextLanguages: this.rewriterOptions.expectedContextLanguages || ['en'],
+        outputLanguage: this.rewriterOptions.outputLanguage || 'en',
         tone: this.rewriterOptions.tone !== 'as-is' ? this.rewriterOptions.tone : undefined,
         format: this.rewriterOptions.format !== 'as-is' ? this.rewriterOptions.format : undefined,
         length: this.rewriterOptions.length !== 'as-is' ? this.rewriterOptions.length : undefined,

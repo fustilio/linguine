@@ -72,6 +72,9 @@ export interface WordReplacerStateType {
     tone: string;
     format: string;
     length: string;
+    expectedInputLanguages: string[];
+    expectedContextLanguages: string[];
+    outputLanguage: string;
   };
 }
 

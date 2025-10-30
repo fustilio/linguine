@@ -68,16 +68,9 @@ const Popup = () => {
   };
 
   // Helper function to notify content script with updated state
-  const notifyContentScriptWithUpdatedState = async (updatedState: {
-    isActive: boolean;
-    widgetSize: 'small' | 'medium' | 'large';
-    rewriterOptions: {
-      sharedContext: string;
-      tone: string;
-      format: string;
-      length: string;
-    };
-  }) => {
+  const notifyContentScriptWithUpdatedState = async (
+    updatedState: Awaited<ReturnType<typeof wordReplacerStorage.get>>,
+  ) => {
     if (currentTab?.id) {
       try {
         await chrome.tabs.sendMessage(currentTab.id, {
