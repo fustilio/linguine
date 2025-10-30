@@ -49,6 +49,13 @@ export class ReadingModeUI {
   private isScrollLocked = false;
   private lockedScrollY = 0;
   private lucideReady = false;
+  // Control button refs for enabling/disabling at bounds
+  private btnDecFont: HTMLButtonElement | null = null;
+  private btnIncFont: HTMLButtonElement | null = null;
+  private btnDecLine: HTMLButtonElement | null = null;
+  private btnIncLine: HTMLButtonElement | null = null;
+  private btnNarrow: HTMLButtonElement | null = null;
+  private btnWiden: HTMLButtonElement | null = null;
 
   private async initLucide(): Promise<void> {
     if (this.lucideReady) return;
@@ -362,6 +369,8 @@ export class ReadingModeUI {
     incFont.onclick = () => this.adjustFontSize(+1);
     controls.appendChild(decFont);
     controls.appendChild(incFont);
+    this.btnDecFont = decFont;
+    this.btnIncFont = incFont;
 
     // Line height controls (Lucide list-chevrons-down-up)
     const decLine = makeIconButton('<i data-lucide="list-chevrons-down-up" class="ta-icon"></i>', 'Decrease line height');
@@ -370,6 +379,8 @@ export class ReadingModeUI {
     incLine.onclick = () => this.adjustLineHeight(+0.05);
     controls.appendChild(decLine);
     controls.appendChild(incLine);
+    this.btnDecLine = decLine;
+    this.btnIncLine = incLine;
 
     // Column width controls (Lucide ruler-dimension-line)
     const nar = makeIconButton('<i data-lucide="fold-horizontal" class="ta-icon"></i>', 'Narrow column (Ctrl/Cmd + [)');
@@ -378,6 +389,8 @@ export class ReadingModeUI {
     wid.onclick = () => this.adjustMaxWidth(+5);
     controls.appendChild(nar);
     controls.appendChild(wid);
+    this.btnNarrow = nar;
+    this.btnWiden = wid;
 
     // Theme cycle (Lucide sun-moon)
     const themeBtn = makeIconButton('<i data-lucide="sun-moon" class="ta-icon"></i>', 'Cycle theme (T)');
@@ -420,6 +433,8 @@ export class ReadingModeUI {
     header.appendChild(controls);
     // Initialize Lucide icons for the controls
     this.initLucide().catch(() => {});
+    // Set initial disabled states based on current settings
+    this.updateControlDisabledStates();
 
     return header;
   }
@@ -1046,6 +1061,7 @@ ${getReadingModeStyles()}
 }
 #text-annotate-reading-mode .ta-icon-btn:hover { transform: scale(1.06); }
 #text-annotate-reading-mode .ta-icon-btn:active { transform: scale(0.97); }
+#text-annotate-reading-mode .ta-icon-btn[disabled] { opacity: 0.5; cursor: not-allowed; transform: none; }
 #text-annotate-reading-mode .ta-icon { height: 16px; width: 16px; display: inline-block; }
 #text-annotate-reading-mode .ta-icon svg { height: 16px; width: 16px; display: block; }
 `;
@@ -1069,6 +1085,7 @@ ${getReadingModeStyles()}
       plain.style.fontSize = `${this.settings.fontSizePx}px`;
       plain.style.lineHeight = String(this.settings.lineHeight);
     }
+    this.updateControlDisabledStates();
   }
 
   private adjustFontSize(deltaPx: number): void {
@@ -1076,6 +1093,7 @@ ${getReadingModeStyles()}
     this.settings.fontSizePx = next;
     this.applySettingsToContainer();
     this.saveSettings().catch(() => {});
+    this.updateControlDisabledStates();
   }
 
   private adjustLineHeight(delta: number): void {
@@ -1083,6 +1101,7 @@ ${getReadingModeStyles()}
     this.settings.lineHeight = next;
     this.applySettingsToContainer();
     this.saveSettings().catch(() => {});
+    this.updateControlDisabledStates();
   }
 
   private adjustMaxWidth(deltaCh: number): void {
@@ -1090,6 +1109,27 @@ ${getReadingModeStyles()}
     this.settings.maxWidthCh = next;
     this.applySettingsToContainer();
     this.saveSettings().catch(() => {});
+    this.updateControlDisabledStates();
+  }
+
+  private updateControlDisabledStates(): void {
+    try {
+      const atMinFont = this.settings.fontSizePx <= 12;
+      const atMaxFont = this.settings.fontSizePx >= 32;
+      const atMinLine = this.settings.lineHeight <= 1.2 + 1e-6;
+      const atMaxLine = this.settings.lineHeight >= 2.0 - 1e-6;
+      const atMinWidth = this.settings.maxWidthCh <= 40;
+      const atMaxWidth = this.settings.maxWidthCh >= 90;
+
+      if (this.btnDecFont) this.btnDecFont.disabled = atMinFont;
+      if (this.btnIncFont) this.btnIncFont.disabled = atMaxFont;
+      if (this.btnDecLine) this.btnDecLine.disabled = atMinLine;
+      if (this.btnIncLine) this.btnIncLine.disabled = atMaxLine;
+      if (this.btnNarrow) this.btnNarrow.disabled = atMinWidth;
+      if (this.btnWiden) this.btnWiden.disabled = atMaxWidth;
+    } catch {
+      // ignore
+    }
   }
 
   private cycleTheme(): void {

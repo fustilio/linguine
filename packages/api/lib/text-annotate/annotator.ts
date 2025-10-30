@@ -32,7 +32,13 @@ export const annotateText = async (
       totalMs?: number,
     }
   ) => void,
+  signal?: AbortSignal,
 ): Promise<AnnotationResult> => {
+  const throwIfAborted = () => {
+    if (signal?.aborted) {
+      throw new Error('annotation_aborted');
+    }
+  };
   const ENABLE_TEXT_ANNOTATE_LOGS = false;
   const taLog = (...args: unknown[]) => {
     if (ENABLE_TEXT_ANNOTATE_LOGS) console.log(...args);
@@ -42,6 +48,7 @@ export const annotateText = async (
 
   const plainText = extractPlainText(extractedText.content);
   const textLength = plainText.length;
+  throwIfAborted();
   taLog('[TextAnnotate] Plain text length:', textLength);
 
   // Phase: extract
@@ -55,6 +62,7 @@ export const annotateText = async (
   const detectedLanguage = extractedText.language
     ? normalizeLanguageCode(extractedText.language)
     : (await detectLanguageFromText(plainText)) || targetLanguage;
+  throwIfAborted();
   const languageEndTime = performance.now();
   taLog(
     `[TextAnnotate] Language detection completed in ${(languageEndTime - languageStartTime).toFixed(2)}ms:`,
@@ -69,6 +77,7 @@ export const annotateText = async (
   taLog('[TextAnnotate] Segmenting text...');
   const segmentStartTime = performance.now();
   const segments = segmentText(plainText, detectedLanguage);
+  throwIfAborted();
   const segmentEndTime = performance.now();
   taLog(
     `[TextAnnotate] Segmentation completed in ${(segmentEndTime - segmentStartTime).toFixed(2)}ms, segments:`,
@@ -175,6 +184,7 @@ export const annotateText = async (
   });
 
   for (const segment of segments) {
+    throwIfAborted();
     if (!segment.isTargetLanguage && segment.text.trim().length === 0) {
       // Skip empty non-target segments
       continue;
@@ -195,6 +205,7 @@ export const annotateText = async (
         const segmentStartTime = performance.now();
 
         for (let batchStart = 0; batchStart < filteredPosChunks.length; batchStart += BATCH_SIZE) {
+          throwIfAborted();
           const batchEnd = Math.min(batchStart + BATCH_SIZE, filteredPosChunks.length);
           const batchChunks = filteredPosChunks.slice(batchStart, batchEnd);
           const batchNumber = Math.floor(batchStart / BATCH_SIZE) + 1;
@@ -206,6 +217,7 @@ export const annotateText = async (
           const batchStartTime = performance.now();
           const batchResultsSettled = await Promise.allSettled(
             batchChunks.map(async (chunk, index) => {
+              throwIfAborted();
               const chunkIndex = batchStart + index + 1;
               taLog(`[TextAnnotate] Translating chunk ${chunkIndex}/${filteredPosChunks.length}:`, chunk.text);
 

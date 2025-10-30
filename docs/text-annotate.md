@@ -118,10 +118,33 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 
 ## UI Details
 
-- Two-row header: title + X top row (space-between); progress row centered below; small icon controls row: 🖼 toggle images, 🔤 toggle prefixes (persisted)
-- Progress container has min-height and fades out to avoid layout shift
-- Spaces and punctuation are not annotated; whitespace-only chunks ignored
-- Single-open tooltip: opening one closes others; short grace period allows cursor to enter tooltip
+- Header rows: title + close (Esc supported); progress row centered; controls row for typography and settings
+- Scroll behavior: while reading mode is visible, page scroll is locked and the overlay is the only scrollable viewport
+- Controls (Lucide icons, popup-style buttons):
+  - Font size: `a-arrow-down` (decrease), `a-arrow-up` (increase)
+  - Line height: `list-chevrons-down-up` / `list-chevrons-up-down`
+  - Column width: `fold-horizontal` (narrow), `unfold-horizontal` (widen)
+  - Theme: `sun-moon` cycles light/dark/sepia
+  - Image and prefix toggles are preserved
+- Limits & disabled states:
+  - Font size: 12–32px; buttons disable at bounds
+  - Line height: 1.2–2.0; buttons disable at bounds
+  - Column width: 40–90ch; buttons disable at bounds
+- Persistence:
+  - Settings are saved globally via `chrome.storage.local` (fallback to `localStorage`)
+- Keyboard shortcuts (active while overlay visible):
+  - Ctrl/Cmd + =: increase font size
+  - Ctrl/Cmd + -: decrease font size
+  - Ctrl/Cmd + ]: widen column
+  - Ctrl/Cmd + [: narrow column
+  - T: cycle theme
+
+## Cancellation & Resource Use
+
+- When reading mode closes or a new run starts, all in-flight work is aborted to save resources
+  - `TextAnnotateManager` uses an `AbortController` per run and passes `signal` to `annotator`
+  - `annotateText` checks `signal.aborted` between phases/batches and throws `annotation_aborted`
+  - Abort-friendly logging: user-initiated aborts log `[TextAnnotate] Annotation aborted by user` without error stacks
 
 ## Error Handling
 

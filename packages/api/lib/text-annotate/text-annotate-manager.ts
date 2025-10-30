@@ -18,6 +18,7 @@ import type { ExtractedText, AnnotationResult, SupportedLanguage } from './types
 export class TextAnnotateManager {
   private static instance: TextAnnotateManager | null = null;
   private readingModeUI: ReadingModeUI | null = null;
+  private currentAbortController: AbortController | null = null;
   private readonly ENABLE_TEXT_ANNOTATE_LOGS = false;
   private taLog(...args: unknown[]): void {
     if (this.ENABLE_TEXT_ANNOTATE_LOGS) console.log(...args);
@@ -103,7 +104,7 @@ export class TextAnnotateManager {
           },
         },
       ],
-      () => this.readingModeUI?.hide(),
+      () => this.cancelCurrentWork(true),
     );
     this.readingModeUI.show();
 
@@ -237,10 +238,15 @@ export class TextAnnotateManager {
           extracted.title,
           plainText,
           0, // Will be updated when we know the total
-          () => this.readingModeUI?.hide(),
+          () => this.cancelCurrentWork(true),
         );
 
         // Use progressive annotation with streaming updates
+        // Abort any previous run
+        if (this.currentAbortController) {
+          try { this.currentAbortController.abort(); } catch {}
+        }
+        this.currentAbortController = new AbortController();
         result = await annotateText(
           extracted,
           targetLanguage,
@@ -269,6 +275,7 @@ export class TextAnnotateManager {
               this.readingModeUI.setTotalChunks(totalChunks);
             }
           },
+          this.currentAbortController.signal,
         );
 
         const aiEndTime = performance.now();
@@ -277,6 +284,10 @@ export class TextAnnotateManager {
           result.chunks.length,
         );
       } catch (aiError) {
+        if (aiError instanceof Error && aiError.message === 'annotation_aborted') {
+          console.log('[TextAnnotate] Annotation aborted by user');
+          return; // stop processing silently
+        }
         console.error('[TextAnnotate] AI annotation failed:', aiError);
         throw aiError;
       }
@@ -287,6 +298,10 @@ export class TextAnnotateManager {
         `[TextAnnotate] Reading mode display completed in ${(processEndTime - processStartTime).toFixed(2)}ms total`,
       );
     } catch (error) {
+      if (error instanceof Error && error.message === 'annotation_aborted') {
+        console.log('[TextAnnotate] Annotation aborted by user');
+        return;
+      }
       const processEndTime = performance.now();
       console.error(
         `[TextAnnotate] Failed to annotate text after ${(processEndTime - processStartTime).toFixed(2)}ms:`,
@@ -300,19 +315,33 @@ export class TextAnnotateManager {
    * Close reading mode
    */
   public closeReadingMode(): void {
-    if (this.readingModeUI) {
-      this.readingModeUI.hide();
-    }
+    this.cancelCurrentWork(true);
   }
 
   /**
    * Destroy manager and cleanup
    */
   public destroy(): void {
+    if (this.currentAbortController) {
+      try { this.currentAbortController.abort(); } catch {}
+      this.currentAbortController = null;
+    }
     if (this.readingModeUI) {
       this.readingModeUI.destroy();
       this.readingModeUI = null;
     }
     cleanupLanguageDetector();
+  }
+
+  private cancelCurrentWork(hideUI: boolean): void {
+    try {
+      if (this.currentAbortController) {
+        this.currentAbortController.abort();
+        this.currentAbortController = null;
+      }
+    } catch {}
+    if (hideUI && this.readingModeUI) {
+      this.readingModeUI.hide();
+    }
   }
 }
