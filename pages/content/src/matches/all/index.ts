@@ -13,7 +13,7 @@ try {
 
   // Set up React UI callbacks that send messages to content-ui
   textAnnotateManager.setUICallbacks({
-    onShow: (title, plainText, totalChunks) => {
+    onShow: (title, plainText, totalChunks, isSimplifyMode) => {
       // Send message to content-ui to show reading mode
       chrome.runtime
         .sendMessage({
@@ -29,13 +29,14 @@ try {
               isComplete: false,
               phase: 'Initializing...',
             },
+            isSimplifyMode: isSimplifyMode || false,
           },
         })
         .catch(() => {
           // Ignore errors
         });
     },
-    onUpdate: (chunks, isComplete, totalChunks, phase) => {
+    onUpdate: (chunks, isComplete, totalChunks, phase, metrics, isSimplifyMode) => {
       // Send message to content-ui to update reading mode
       chrome.runtime
         .sendMessage({
@@ -49,6 +50,7 @@ try {
               isComplete,
               phase: phase || 'Processing...',
             },
+            isSimplifyMode: isSimplifyMode || false,
           },
         })
         .catch(() => {

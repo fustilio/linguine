@@ -16,6 +16,7 @@ import { TranslatorManager } from './translator-manager.js';
  */
 export const translateText = async (text: string, sourceLanguage: string, targetLanguage: string) => {
   const translatorManager = TranslatorManager.getInstance();
+  console.log("debug translator", sourceLanguage, targetLanguage);
   const translator = await translatorManager.getTranslator(sourceLanguage, targetLanguage);
   return await translator.translate(text);
 };

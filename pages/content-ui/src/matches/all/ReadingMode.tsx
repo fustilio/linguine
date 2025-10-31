@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useFloating, autoUpdate, offset, flip, shift } from '@floating-ui/react';
 import {
   AArrowDown,
   AArrowUp,
@@ -13,6 +13,7 @@ import {
   UnfoldHorizontal,
   X,
 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { AnnotatedChunk } from '@extension/api';
 import { getImagesForQuery } from '@extension/api';
 import { useStorage } from '@extension/shared';
@@ -30,16 +31,24 @@ interface ReadingModeProps {
     isComplete: boolean;
     phase?: string;
   };
+  isSimplifyMode?: boolean;
   onClose?: () => void;
 }
 
-export const ReadingMode = ({ isVisible, title, plainText, chunks, progress, onClose }: ReadingModeProps) => {
+export const ReadingMode = ({
+  isVisible,
+  title,
+  plainText,
+  chunks,
+  progress,
+  isSimplifyMode,
+  onClose,
+}: ReadingModeProps) => {
   // Ensure plainText is a string (declare early so it can be used in useEffect)
   const safePlainText = plainText || '';
 
   const settings = useStorage(readingModeSettingsStorage);
   const [hoveredChunk, setHoveredChunk] = useState<AnnotatedChunk | null>(null);
-  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
   const [showImages, setShowImages] = useState(true);
   const [showPrefixes, setShowPrefixes] = useState(true);
   const [hoveredChunkImages, setHoveredChunkImages] = useState<string[]>([]);
@@ -48,10 +57,21 @@ export const ReadingMode = ({ isVisible, title, plainText, chunks, progress, onC
   const containerRef = useRef<HTMLDivElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const plainTextRef = useRef<HTMLDivElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
   const lockedScrollYRef = useRef(0);
   const isScrollLockedRef = useRef(false);
   const tooltipCloseTimeoutRef = useRef<number | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  // Floating UI for tooltip positioning
+  const { refs, floatingStyles } = useFloating({
+    open: hoveredChunk !== null,
+    placement: 'top',
+    middleware: [offset(8), flip(), shift({ padding: 8 })],
+    whileElementsMounted: hoveredChunk !== null ? autoUpdate : undefined,
+  });
+
+  // Extract setReference to avoid missing dependency warning
+  const setReference = refs.setReference;
 
   // Lock/unlock scroll when visible
   useEffect(() => {
@@ -147,7 +167,7 @@ export const ReadingMode = ({ isVisible, title, plainText, chunks, progress, onC
       }
       wrapper.setAttribute('data-start', String(chunk.start));
       wrapper.setAttribute('data-end', String(chunk.end));
-      
+
       // Add hover effect
       wrapper.addEventListener('mouseenter', () => {
         if (chunk.translation.differs) {
@@ -171,15 +191,12 @@ export const ReadingMode = ({ isVisible, title, plainText, chunks, progress, onC
           clearTimeout(tooltipCloseTimeoutRef.current);
           tooltipCloseTimeoutRef.current = null;
         }
-        
+
+        triggerRef.current = wrapper;
+        setReference(wrapper);
         setHoveredChunk(chunk);
         setHoveredChunkImages([]);
         setHoveredChunkImageIndex(0);
-        const rect = wrapper.getBoundingClientRect();
-        setTooltipPosition({
-          x: rect.left + rect.width / 2,
-          y: rect.top,
-        });
       });
 
       wrapper.addEventListener('mouseleave', () => {
@@ -189,11 +206,10 @@ export const ReadingMode = ({ isVisible, title, plainText, chunks, progress, onC
         }
         tooltipCloseTimeoutRef.current = window.setTimeout(() => {
           setHoveredChunk(null);
-          setTooltipPosition(null);
           setHoveredChunkImages([]);
           setHoveredChunkImageIndex(0);
           tooltipCloseTimeoutRef.current = null;
-        }, 200); // 200ms delay to allow moving to tooltip
+        }, 300); // 300ms delay to allow moving to tooltip
       });
 
       wrapper.addEventListener('click', () => {
@@ -210,7 +226,7 @@ export const ReadingMode = ({ isVisible, title, plainText, chunks, progress, onC
       container.insertBefore(wrapper, firstNode);
       toWrap.forEach(el => el.remove());
     }
-  }, [chunks]);
+  }, [chunks, setReference]);
 
   // Note: Icons are rendered directly as React components, no need for createIcons
 
@@ -342,9 +358,20 @@ export const ReadingMode = ({ isVisible, title, plainText, chunks, progress, onC
       <div className="sticky top-0 z-10 bg-inherit">
         {/* Title and Close */}
         <div className="flex items-center justify-between gap-4 px-8 py-4">
-          <h1 className="m-0 min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-2xl font-semibold">
-            {title || 'Reading Mode'}
-          </h1>
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <h1
+              className="m-0 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-semibold"
+              style={{
+                fontSize: `${(settings?.fontSizePx || 18) * 1.33}px`,
+              }}>
+              {title || 'Reading Mode'}
+            </h1>
+            {isSimplifyMode && (
+              <span className="rounded-full bg-blue-500/20 px-3 py-1 text-xs font-medium text-blue-300">
+                Simplify Mode
+              </span>
+            )}
+          </div>
           <button
             onClick={() => onClose?.()}
             className="cursor-pointer rounded border-0 bg-transparent px-4 py-2 text-3xl leading-none text-inherit transition-colors hover:bg-white/10"
@@ -452,65 +479,100 @@ export const ReadingMode = ({ isVisible, title, plainText, chunks, progress, onC
       </div>
 
       {/* Tooltip */}
-      {hoveredChunk && tooltipPosition && (
+      {hoveredChunk && (
         <div
-          ref={tooltipRef}
-          className="pointer-events-auto fixed z-[1000000] mb-2 min-w-[200px] max-w-[400px] rounded-lg border border-white/30 bg-[#1a1a1a] px-4 py-3 text-base leading-normal shadow-lg"
+          ref={refs.setFloating}
+          className="pointer-events-auto z-[1000000] min-w-[200px] max-w-[400px] rounded-lg border border-white/30 bg-[#1a1a1a] px-4 py-3 leading-normal shadow-lg"
           style={{
-            bottom: `${window.innerHeight - tooltipPosition.y}px`,
-            left: `${tooltipPosition.x}px`,
-            transform: 'translateX(-50%)',
+            ...floatingStyles,
+            fontSize: `${settings?.fontSizePx || 18}px`,
           }}
-          onMouseEnter={() => {
-            // Keep tooltip open when mouse enters it
+          onMouseEnter={e => {
+            // Keep tooltip open when mouse enters it or any child element
+            e.stopPropagation();
             if (tooltipCloseTimeoutRef.current !== null) {
               clearTimeout(tooltipCloseTimeoutRef.current);
               tooltipCloseTimeoutRef.current = null;
             }
           }}
-          onMouseLeave={() => {
+          onMouseLeave={e => {
+            // Only close if mouse leaves the entire tooltip area
+            // Check if we're moving to a child element
+            const tooltipEl = refs.floating.current;
+            const relatedTarget = e.relatedTarget as Node | null;
+            if (tooltipEl && relatedTarget && tooltipEl.contains(relatedTarget)) {
+              return; // Moving to a child, don't close
+            }
+
             // Close tooltip when mouse leaves it
             if (tooltipCloseTimeoutRef.current !== null) {
               clearTimeout(tooltipCloseTimeoutRef.current);
             }
             tooltipCloseTimeoutRef.current = window.setTimeout(() => {
               setHoveredChunk(null);
-              setTooltipPosition(null);
               setHoveredChunkImages([]);
               setHoveredChunkImageIndex(0);
               tooltipCloseTimeoutRef.current = null;
-            }, 200);
+            }, 300);
           }}>
-          {hoveredChunk.translation.literal && (
-            <div className="mb-2 border-b border-white/10 pb-2 text-[#90CAF9]">
-              {showPrefixes ? 'Literal: ' : ''}
-              {hoveredChunk.translation.literal}
-            </div>
+          {isSimplifyMode ? (
+            // Simplify mode: show simplified text without prefixes
+            hoveredChunk.translation.contextual && (
+              <div className="text-white">{hoveredChunk.translation.contextual}</div>
+            )
+          ) : (
+            // Translation mode: show literal and contextual as before
+            <>
+              {hoveredChunk.translation.differs && hoveredChunk.translation.literal && (
+                <div className="mb-2 border-b border-white/10 pb-2 text-[#90CAF9]">
+                  {showPrefixes ? 'Literal: ' : ''}
+                  {hoveredChunk.translation.literal}
+                </div>
+              )}
+              {hoveredChunk.translation.contextual && hoveredChunk.translation.differs && (
+                <div className="text-[#81C784]">
+                  {showPrefixes ? 'Contextual: ' : ''}
+                  {hoveredChunk.translation.contextual}
+                </div>
+              )}
+              {!hoveredChunk.translation.differs && hoveredChunk.translation.contextual && (
+                <div className="text-white">{hoveredChunk.translation.contextual}</div>
+              )}
+            </>
           )}
-          {hoveredChunk.translation.contextual && hoveredChunk.translation.differs && (
-            <div className="text-[#81C784]">
-              {showPrefixes ? 'Contextual: ' : ''}
-              {hoveredChunk.translation.contextual}
-            </div>
-          )}
-          {!hoveredChunk.translation.differs && hoveredChunk.translation.contextual && (
-            <div className="text-white">{hoveredChunk.translation.contextual}</div>
-          )}
-          
+
           {/* Image Viewer */}
           {showImages && hoveredChunkImages.length > 0 && (
-            <div className="mt-3 flex flex-col items-center gap-2">
-              <img
-                src={hoveredChunkImages[hoveredChunkImageIndex]}
-                alt={hoveredChunk.translation.contextual || hoveredChunk.translation.literal || hoveredChunk.text}
-                className="h-[120px] w-[120px] rounded-lg object-cover"
-                onError={() => {
-                  // Try next image if current fails
-                  if (hoveredChunkImageIndex < hoveredChunkImages.length - 1) {
-                    setHoveredChunkImageIndex(prev => prev + 1);
-                  }
+            <div
+              className="mt-3 flex flex-col items-center gap-2"
+              onMouseEnter={e => {
+                // Keep tooltip open when hovering over image area
+                e.stopPropagation();
+                if (tooltipCloseTimeoutRef.current !== null) {
+                  clearTimeout(tooltipCloseTimeoutRef.current);
+                  tooltipCloseTimeoutRef.current = null;
+                }
+              }}>
+              <button
+                type="button"
+                className="cursor-pointer rounded-lg transition-opacity hover:opacity-90"
+                onClick={() => {
+                  // Cycle to next image
+                  setHoveredChunkImageIndex(prev => (prev + 1) % hoveredChunkImages.length);
                 }}
-              />
+                aria-label="Cycle to next image">
+                <img
+                  src={hoveredChunkImages[hoveredChunkImageIndex]}
+                  alt={hoveredChunk.translation.contextual || hoveredChunk.translation.literal || hoveredChunk.text}
+                  className="h-[120px] w-[120px] rounded-lg object-cover"
+                  onError={() => {
+                    // Try next image if current fails
+                    if (hoveredChunkImageIndex < hoveredChunkImages.length - 1) {
+                      setHoveredChunkImageIndex(prev => prev + 1);
+                    }
+                  }}
+                />
+              </button>
               {hoveredChunkImages.length > 1 && (
                 <div className="flex gap-1">
                   {hoveredChunkImages.map((_, idx) => (

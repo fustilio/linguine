@@ -15,12 +15,14 @@ export default function App() {
       isComplete: boolean;
       phase?: string;
     };
+    isSimplifyMode?: boolean;
   }>({
     isVisible: false,
     title: undefined,
     plainText: '',
     chunks: [],
     progress: undefined,
+    isSimplifyMode: false,
   });
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export default function App() {
             isComplete: boolean;
             phase?: string;
           };
+          isSimplifyMode?: boolean;
         };
       },
       sender: chrome.runtime.MessageSender,
@@ -99,6 +102,7 @@ export default function App() {
         plainText={readingModeState.plainText}
         chunks={readingModeState.chunks}
         progress={readingModeState.progress}
+        isSimplifyMode={readingModeState.isSimplifyMode}
         onClose={handleClose}
       />
     </>

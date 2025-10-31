@@ -34,6 +34,14 @@ export class TranslatorManager extends BaseChromeAIManager<TranslatorManager> {
   }
 
   public async getTranslator(sourceLanguage: string, targetLanguage: string): Promise<Translator> {
+    // WARNING: Translator API should NOT be used when source and target languages are the same.
+    // In such cases (e.g., English to English), use the Rewriter API instead for text simplification.
+    if (sourceLanguage === targetLanguage) {
+      console.warn(
+        `[TranslatorManager] Source and target languages are the same (${sourceLanguage}). Consider using Rewriter API for simplification instead.`,
+      );
+    }
+
     const key = this.getLanguagePairKey(sourceLanguage, targetLanguage);
 
     if (this.translators.has(key)) {
@@ -54,6 +62,7 @@ export class TranslatorManager extends BaseChromeAIManager<TranslatorManager> {
           }),
       );
 
+      console.log('debug', 'creating translator with', { sourceLanguage, targetLanguage });
       const translator = await Translator.create({
         sourceLanguage,
         targetLanguage,

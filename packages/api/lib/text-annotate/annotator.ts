@@ -3,11 +3,11 @@
  * Coordinates segmentation, POS chunking, and translation
  */
 
-import { detectLanguageFromText, normalizeLanguageCode } from './language-detector.js';
+import { detectLanguageFromText, normalizeLanguageCode, detectLanguageFromTextFallback } from './language-detector.js';
 import { chunkTextWithPOS } from './pos-chunker.js';
 import { segmentText } from './segmenter.js';
 import { extractPlainText } from './text-extractor.js';
-import { translateChunk, getAndResetTranslatorMetrics } from './translator.js';
+import { translateChunk, rewriteChunk, getAndResetTranslatorMetrics } from './translator.js';
 import type { AnnotatedChunk, AnnotationResult, ExtractedText, SupportedLanguage } from './types.js';
 
 /**
@@ -20,7 +20,7 @@ export const annotateText = async (
     chunks: AnnotatedChunk[],
     isComplete: boolean,
     totalChunks?: number,
-    phase?: 'extract' | 'detect' | 'segment' | 'prechunk' | 'translate' | 'finalize',
+    phase?: 'extract' | 'detect' | 'segment' | 'prechunk' | 'translate' | 'simplify' | 'finalize',
     metrics?: {
       posTimeMs?: number;
       batchTimeMs?: number;
@@ -59,15 +59,44 @@ export const annotateText = async (
 
   // Detect source language
   const languageStartTime = performance.now();
-  const detectedLanguage = extractedText.language
-    ? normalizeLanguageCode(extractedText.language)
-    : (await detectLanguageFromText(plainText)) || targetLanguage;
+  let detectedLanguage: SupportedLanguage;
+  if (extractedText.language) {
+    detectedLanguage = normalizeLanguageCode(extractedText.language);
+  } else {
+    const detected = await detectLanguageFromText(plainText);
+    if (detected) {
+      detectedLanguage = detected;
+    } else {
+      // Use character-based fallback before falling back to targetLanguage
+      // Import the fallback function via dynamic analysis of text
+      const fallbackResult = detectLanguageFromTextFallback(plainText);
+      if (fallbackResult) {
+        detectedLanguage = fallbackResult;
+        console.warn(
+          `[TextAnnotate] Language detection failed, using character-based fallback: ${fallbackResult}`,
+        );
+      } else {
+        // Last resort: use targetLanguage but warn
+        detectedLanguage = targetLanguage;
+        console.warn(
+          `[TextAnnotate] Language detection failed and fallback returned undefined, defaulting to targetLanguage: ${targetLanguage}`,
+        );
+      }
+    }
+  }
   throwIfAborted();
   const languageEndTime = performance.now();
   taLog(
     `[TextAnnotate] Language detection completed in ${(languageEndTime - languageStartTime).toFixed(2)}ms:`,
     detectedLanguage,
   );
+  
+  // Check if we're in English simplification mode (source === target === English)
+  const isSimplifyMode = detectedLanguage === 'en-US' && targetLanguage === 'en-US';
+  if (isSimplifyMode) {
+    console.log('[TextAnnotate] English simplification mode detected - using Rewriter API instead of Translator');
+  }
+  
   // Phase: detect
   onProgress?.([], false, undefined, 'detect', {
     phaseTimes: { detect: languageEndTime - languageStartTime },
@@ -200,8 +229,12 @@ export const annotateText = async (
         const filteredPosChunks = pre ? pre.chunks : [];
         taLog('[TextAnnotate] POS chunks created:', filteredPosChunks.length);
 
-        // Translate chunks in parallel batches
-        taLog('[TextAnnotate] Translating chunks in parallel batches...');
+        // Process chunks in parallel batches (translate or simplify based on mode)
+        taLog(
+          isSimplifyMode
+            ? '[TextAnnotate] Simplifying chunks in parallel batches...'
+            : '[TextAnnotate] Translating chunks in parallel batches...',
+        );
         const segmentStartTime = performance.now();
 
         for (let batchStart = 0; batchStart < filteredPosChunks.length; batchStart += BATCH_SIZE) {
@@ -219,22 +252,25 @@ export const annotateText = async (
             batchChunks.map(async (chunk, index) => {
               throwIfAborted();
               const chunkIndex = batchStart + index + 1;
-              taLog(`[TextAnnotate] Translating chunk ${chunkIndex}/${filteredPosChunks.length}:`, chunk.text);
-
-              const translationStartTime = performance.now();
-              const translation = await translateChunk(
+              taLog(
+                `[TextAnnotate] ${isSimplifyMode ? 'Simplifying' : 'Translating'} chunk ${chunkIndex}/${filteredPosChunks.length}:`,
                 chunk.text,
-                detectedLanguage,
-                targetLanguage,
-                segment.text, // Context for contextual translation
               );
-              const translationEndTime = performance.now();
-              const translationTime = translationEndTime - translationStartTime;
+
+              const processStartTime = performance.now();
+              const maybe = chunk as unknown as { start?: number; end?: number; text: string };
+              const localStart = typeof maybe.start === 'number' ? maybe.start : 0;
+              const localEnd = typeof maybe.end === 'number' ? maybe.end : localStart + chunk.text.length;
+              const translation = isSimplifyMode
+                ? await rewriteChunk(chunk.text, segment.text, localStart, localEnd) // Context with offsets for simplification
+                : await translateChunk(chunk.text, detectedLanguage, targetLanguage, segment.text);
+              const processEndTime = performance.now();
+              const processTime = processEndTime - processStartTime;
 
               return {
                 chunk,
                 translation,
-                translationTime,
+                translationTime: processTime,
               };
             }),
           );
@@ -263,7 +299,7 @@ export const annotateText = async (
             }
           }
 
-          batchResults.forEach(result => {
+          batchResults.forEach((result, batchIdx) => {
             // Skip whitespace-only results
             if (!result.chunk.text || result.chunk.text.trim().length === 0) {
               return;
@@ -287,14 +323,20 @@ export const annotateText = async (
           // Send progressive update after each batch
           if (onProgress) {
             const tMetrics = getAndResetTranslatorMetrics();
-            onProgress([...annotatedChunks], false, totalExpectedChunks, 'translate', {
-              literalCount: tMetrics.literalCount,
-              contextualCount: tMetrics.contextualCount,
-              literalTimeMs: tMetrics.literalTimeMs,
-              contextualTimeMs: tMetrics.contextualTimeMs,
-              batchTimeMs: batchTime,
-              phaseTimes: { translate: translateAccumMs },
-            });
+            onProgress(
+              [...annotatedChunks],
+              false,
+              totalExpectedChunks,
+              isSimplifyMode ? 'simplify' : 'translate',
+              {
+                literalCount: tMetrics.literalCount,
+                contextualCount: tMetrics.contextualCount,
+                literalTimeMs: tMetrics.literalTimeMs,
+                contextualTimeMs: tMetrics.contextualTimeMs,
+                batchTimeMs: batchTime,
+                phaseTimes: { translate: translateAccumMs },
+              },
+            );
           }
         }
 
@@ -305,7 +347,9 @@ export const annotateText = async (
         // Fallback: treat as single chunk
         taLog('[TextAnnotate] Using fallback for segment');
         const fallbackStartTime = performance.now();
-        const translation = await translateChunk(segment.text, detectedLanguage, targetLanguage, segment.text);
+        const translation = isSimplifyMode
+          ? await rewriteChunk(segment.text, segment.text, 0, segment.text.length)
+          : await translateChunk(segment.text, detectedLanguage, targetLanguage, segment.text);
         const fallbackEndTime = performance.now();
         const fallbackTime = fallbackEndTime - fallbackStartTime;
         totalTranslationTime += fallbackTime;
@@ -375,5 +419,6 @@ export const annotateText = async (
     text: plainText,
     chunks: annotatedChunks,
     detectedLanguage,
+    isSimplifyMode,
   };
 };

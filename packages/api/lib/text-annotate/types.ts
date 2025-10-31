@@ -52,6 +52,7 @@ export interface AnnotationResult {
   text: string;
   chunks: AnnotatedChunk[];
   detectedLanguage?: SupportedLanguage;
+  isSimplifyMode?: boolean; // true when both source and target are English (using Rewriter instead of Translator)
 }
 
 /**

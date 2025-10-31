@@ -106,7 +106,7 @@ const detectLanguageFromText = async (text: string): Promise<SupportedLanguage |
  * Fallback language detection using character code ranges
  * Used when Chrome Language Detector API is not available or fails
  */
-const detectLanguageFromTextFallback = (text: string): SupportedLanguage | undefined => {
+export const detectLanguageFromTextFallback = (text: string): SupportedLanguage | undefined => {
   if (!text || text.length === 0) {
     return undefined;
   }

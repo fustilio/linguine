@@ -19,7 +19,7 @@ import type { AnnotatedChunk, ExtractedText, AnnotationResult, SupportedLanguage
  * Callback interface for React-based UI updates
  */
 export interface ReadingModeUICallbacks {
-  onShow?: (title: string | undefined, plainText: string, totalChunks: number) => void;
+  onShow?: (title: string | undefined, plainText: string, totalChunks: number, isSimplifyMode?: boolean) => void;
   onUpdate?: (
     chunks: AnnotatedChunk[],
     isComplete: boolean,
@@ -32,6 +32,7 @@ export interface ReadingModeUICallbacks {
       contextualTimeMs?: number;
       batchTimeMs?: number;
     },
+    isSimplifyMode?: boolean,
   ) => void;
   onHide?: () => void;
 }
@@ -311,7 +312,10 @@ export class TextAnnotateManager {
                 totalChunks,
                 phase,
               });
-              this.uiCallbacks.onUpdate?.(chunks, isComplete, totalChunks || chunks.length, phase, metrics);
+              // Note: isSimplifyMode will be passed from result after annotation completes
+              // For now, we can infer it from phase === 'simplify'
+              const isSimplify = phase === 'simplify';
+              this.uiCallbacks.onUpdate?.(chunks, isComplete, totalChunks || chunks.length, phase, metrics, isSimplify);
             } else if (this.readingModeUI) {
               this.readingModeUI.addAnnotations(chunks, isComplete, phase, metrics);
               // Update total chunks if provided
@@ -328,6 +332,18 @@ export class TextAnnotateManager {
           `[TextAnnotate] AI annotation successful in ${(aiEndTime - aiStartTime).toFixed(2)}ms, chunks:`,
           result.chunks.length,
         );
+        
+        // Send final update with isSimplifyMode flag
+        if (this.uiCallbacks && result.isSimplifyMode !== undefined) {
+          this.uiCallbacks.onUpdate?.(
+            result.chunks,
+            true,
+            result.chunks.length,
+            result.isSimplifyMode ? 'simplify' : 'finalize',
+            undefined,
+            result.isSimplifyMode,
+          );
+        }
       } catch (aiError) {
         if (aiError instanceof Error && aiError.message === 'annotation_aborted') {
           console.log('[TextAnnotate] Annotation aborted by user');

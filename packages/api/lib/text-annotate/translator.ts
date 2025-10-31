@@ -4,8 +4,9 @@
 
 /// <reference types="dom-chromium-ai" />
 
-import { translateText } from '../chrome-ai/convenience-functions.js';
+import { translateText, rewriteText } from '../chrome-ai/convenience-functions.js';
 import { ChromeAIManager } from '../chrome-ai/language-model-manager.js';
+import { buildRewriterOptions } from '../rewriter-options.js';
 import type { ChunkTranslation, SupportedLanguage } from './types.js';
 
 /**
@@ -19,7 +20,7 @@ const translatorMetrics = {
   contextualTimeMs: 0,
 };
 
-export const getAndResetTranslatorMetrics = () => {
+const getAndResetTranslatorMetrics = () => {
   const snapshot = { ...translatorMetrics };
   translatorMetrics.literalCount = 0;
   translatorMetrics.contextualCount = 0;
@@ -56,7 +57,7 @@ const translateChunk = async (
     // Favor literal if contextual is effectively the same (punctuation/case/synonyms like hi/hello, yes/yes!)
     const litCanon = canonicalForMerge(literal);
     const ctxCanon = canonicalForMerge(contextual);
-    let differs = litCanon !== ctxCanon;
+    const differs = litCanon !== ctxCanon;
     if (!differs) {
       contextual = literal;
     }
@@ -66,7 +67,9 @@ const translateChunk = async (
       console.log(
         `[TextAnnotate] Translation: "${chunkText}" (${sourceLanguage} -> ${targetLanguage}) | literal="${literal}" | contextual="${contextual}"`,
       );
-    } catch {}
+    } catch {
+      // Ignore logging errors
+    }
 
     return {
       literal,
@@ -144,11 +147,6 @@ Provide only the translation, nothing else.`;
 };
 
 /**
- * Normalizes text for comparison (removes whitespace, case)
- */
-const normalizeForComparison = (text: string): string => text.trim().toLowerCase().replace(/\s+/g, ' ');
-
-/**
  * Canonicalize a translation for merging comparisons (strip punctuation, collapse spaces, map simple synonyms)
  */
 const canonicalForMerge = (text: string): string => {
@@ -156,7 +154,10 @@ const canonicalForMerge = (text: string): string => {
   // Prefer a single option if slash-delimited
   const primary = lower.includes('/') ? lower.split('/')[0].trim() : lower;
   // Remove punctuation
-  const noPunct = primary.replace(/[!?.",'()\[\]]+/g, '').replace(/\s+/g, ' ').trim();
+  const noPunct = primary
+    .replace(/[!?.",'()[\] ]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   // Simple synonym normalization
   const synonymMap: Record<string, string> = {
     hi: 'hello',
@@ -167,4 +168,110 @@ const canonicalForMerge = (text: string): string => {
   return mapped;
 };
 
-export { translateChunk };
+/**
+ * Simplifies a chunk using Chrome Rewriter API (for English-to-simple-English)
+ * Returns simplified text in both literal and contextual fields
+ */
+const rewriteChunk = async (
+  chunkText: string,
+  fullContext?: string,
+  chunkStart?: number,
+  chunkEnd?: number,
+): Promise<ChunkTranslation> => {
+  try {
+    const rewriteStart = performance.now();
+
+    // Build rewriter options for English simplification
+    const rewriterOptions = buildRewriterOptions(
+      {
+        tone: 'as-is',
+        format: 'as-is',
+        length: 'shorter', // Prefer shorter/simpler text
+      },
+      'en', // detected language (English)
+      'en', // native language (English)
+    );
+
+    // Create context prompt for simplification (similar to rewriteSelectedText)
+    let contextPrompt = 'Make this text easier to understand for language learners. Use simpler vocabulary.';
+    if (fullContext && typeof chunkStart === 'number' && typeof chunkEnd === 'number') {
+      // Extract before and after context from full context
+      const beforeContext = fullContext.substring(0, chunkStart).trim();
+      const afterContext = fullContext.substring(chunkEnd).trim();
+
+      if (beforeContext || afterContext) {
+        contextPrompt = `CONTEXT: "${beforeContext} [TARGET] ${afterContext}"
+
+INSTRUCTIONS:
+- You will simplify ONLY the word(s) marked as [TARGET] in the context
+- The [TARGET] text is: "${chunkText}"
+- Make it easier to understand for language learners
+- Use simpler vocabulary
+- Your response should contain ONLY the simplified text, nothing else
+- Do NOT include the surrounding context in your response
+- Do NOT repeat the original text
+- Do NOT provide explanations
+
+EXAMPLE:
+If context is "The cat [TARGET] quickly" and target is "ran", respond with just: "moved fast"`;
+      }
+    } else if (fullContext && fullContext !== chunkText) {
+      // Fallback: use full context as before/after
+      const targetIndex = fullContext.indexOf(chunkText);
+      if (targetIndex !== -1) {
+        const beforeContext = fullContext.substring(0, targetIndex).trim();
+        const afterContext = fullContext.substring(targetIndex + chunkText.length).trim();
+
+        if (beforeContext || afterContext) {
+          contextPrompt = `CONTEXT: "${beforeContext} [TARGET] ${afterContext}"
+
+INSTRUCTIONS:
+- You will simplify ONLY the word(s) marked as [TARGET] in the context
+- The [TARGET] text is: "${chunkText}"
+- Make it easier to understand for language learners
+- Use simpler vocabulary
+- Your response should contain ONLY the simplified text, nothing else
+- Do NOT include the surrounding context in your response
+- Do NOT repeat the original text
+- Do NOT provide explanations`;
+        }
+      }
+    }
+
+    const simplified = await rewriteText(chunkText, {
+      ...rewriterOptions,
+      context: contextPrompt,
+    });
+
+    const rewriteEnd = performance.now();
+    translatorMetrics.literalCount += 1; // Reuse metrics tracking
+    translatorMetrics.literalTimeMs += rewriteEnd - rewriteStart;
+    translatorMetrics.contextualCount += 1;
+    translatorMetrics.contextualTimeMs += rewriteEnd - rewriteStart;
+
+    // Log simplification
+    try {
+      console.log(`[TextAnnotate] Simplification: "${chunkText}" -> "${simplified}"`);
+    } catch {
+      // Ignore logging errors
+    }
+
+    // For simplification, both literal and contextual are the same (simplified text)
+    return {
+      literal: simplified,
+      contextual: simplified,
+      differs: false, // No difference since it's simplification, not translation
+    };
+  } catch (error) {
+    console.error('Failed to simplify chunk:', error);
+
+    // Return original text as fallback
+    return {
+      literal: chunkText,
+      contextual: chunkText,
+      differs: false,
+    };
+  }
+};
+
+export { translateChunk, rewriteChunk, getAndResetTranslatorMetrics };
