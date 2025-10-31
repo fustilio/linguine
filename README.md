@@ -13,7 +13,7 @@
 </div>
 
 > [!NOTE]
-> Linguine uses Chrome's Built-in AI APIs to provide intelligent language learning features. All AI processing happens client-side with privacy, offline access, and cost-efficiency benefits.
+> Linguine uses Chrome's Built-in AI APIs to provide intelligent language learning features on top of regular browsing. All AI processing happens client-side with privacy, offline access, and cost-efficiency benefits.
 
 ## Table of Contents
 
@@ -36,7 +36,7 @@
 
 ## About
 
-**Linguine** transforms any webpage into a powerful language learning tool using Chrome's Built-in AI APIs. Everything runs locally on your device - no data leaves your browser.
+**Linguine** transforms any webpage into a powerful language learning tool using Chrome's Built-in AI APIs. Everything runs locally on your device, meaning no data leaves your browser.
 
 **Why Linguine?**
 - 🔒 Privacy-first: All AI processing happens client-side
@@ -56,9 +56,9 @@ Linguine uses multiple Chrome Built-in AI APIs (LanguageModel, Translator, Rewri
 - 📖 **Reading Mode**: Word-by-word translations with progressive loading
 - ✏️ **Text Simplification**: Simplify complex texts using Rewriter API (experimental multi-language support)
 - 📚 **Vocabulary Tracking**: Personal vocabulary database with knowledge levels
-- 📊 **AI Analytics**: Natural language queries about your progress
+<!-- - 📊 **AI Analytics**: Natural language queries about your progress
 - 🎯 **Text Evaluation**: Analyze any text against your vocabulary
-- 📈 **CEFR Estimation**: AI-powered proficiency assessment
+- 📈 **CEFR Estimation**: AI-powered proficiency assessment -->
 - 🌍 **Multi-Language**: Supports languages available in Chrome's Built-in AI APIs
 
 > [!NOTE]
@@ -94,9 +94,53 @@ See [Architecture Overview](docs/architecture-overview.md) for details.
    - Dev: `pnpm dev` (on Windows, you should run as administrator)
    - Prod: `pnpm build`
 2. Open `chrome://extensions` in Chrome
-3. Enable <kbd>Developer mode</kbd>
+3. Enable <kbd>Developer mode</kbd> in the upper right corner
 4. Click <kbd>Load unpacked</kbd> in the upper left corner
 5. Select the `dist` directory from the linguine project
+6. Enable the extension in `chrome://extensions` if not turned on already
+7. Open Extensions from the toolbar and pin <kbd>Linguine</kbd> for easy access 
+
+## Flags to Enable
+The Chrome Built-In APIs used by Linguine all require specific flags to be enabled (except the Language Detector API). After they have been enabled, Chrome must be restarted for the tools to take effect. 
+- <kbd>Rewriter API</kbd>: enable `chrome://flags/#rewriter-api-for-gemini-nano`
+- <kbd>PromptAI API</kbd>: enable `chrome://flags/#prompt-api-for-gemini-nano`
+- <kbd>Translator API</kbd>: enable `chrome://flags/#translation-api`
+
+## Linguine Interfaces
+
+### Popup
+The first interface to enable or disable the extension. Enabling the extension adds a moveable <kbd>Rewriter Widget</kbd> on the browsing webpage. It is also an entry point to open <kbd>Reading Mode</kbd> or the <kbd>Side Panel</kbd> (Right-click icon > Open side panel). Customisation for widget size, dark mode, are also done here.
+
+### Rewriter Widget
+The widget rewrites highlighted text in a manner that is easier to understand. This is useful for language learners who know basic words, but prefer complex vocabulary to be rephrased instead of translated.
+
+Steps:
+1. Highlight text on webpage written in a target language (eg. French)
+2. Click on the widget 
+3. Toggle between the original text and the rewritten version
+4. Tick to confirm selection
+
+> [!NOTE]
+> **Waiting for the Pasta to Spin?**: You may notice that the first rewrite always takes the longest. This is because the Rewriter API has to download a model depending on the language the current webpage is in. This download can only be triggered by a User Activation (i.e. a button click by the user). But fret not, subsequent rewrites will always be faster than the first!
+
+### Reading Mode
+Assisted reading interface for focused learning of page content in target language. Contains accessibility features such as <b>text size variability</b>, <b>line spacing</b>, <b>column margins</b> and <b>dark mode</b>. 
+- `Hover` over word to see literal and contextual translation.
+- `Click` to hear text-to speech.
+- `Toggle images` to enable image association with word (sourced from WikiMedia).
+
+### Side Panel
+The side panel contains two tabs. The history of <b>local rewrites</b> for the current tab. A <b>personal vocabulary database</b> for language learners as they browse.
+
+#### Rewrites Tab
+Locally stored history of past rewrites alongside text difficulty, date, and details. 
+- `Jump` to a previous rewrite on the current webpage. Available even after revisiting or refreshing the webpage after a long time. The user may access previous rewrites and jump to that point to recap their knowledge.
+- `Rescan` to refresh rewrite history.
+
+#### Vocabulary Tracker Tab
+Locally stored database for users to input new words learned during browsing.
+- `Add` vocabulary seen by the user when browsing webpages. Serves as a quick notepad for learners. 
+-  `Filter` language-specific vocabulary. 12 languages supported for brevity. 
 
 ## Key Features in Detail
 
