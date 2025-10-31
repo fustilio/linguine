@@ -29,43 +29,26 @@ const getAndResetTranslatorMetrics = () => {
   return snapshot;
 };
 
-const translateChunk = async (
+/**
+ * Translates a chunk literally only (fast, Translator API)
+ * Returns translation with literal set, contextual set to literal, differs=false
+ */
+const translateChunkLiteral = async (
   chunkText: string,
   sourceLanguage: SupportedLanguage,
   targetLanguage: SupportedLanguage,
-  context?: string,
 ): Promise<ChunkTranslation> => {
-  // Minimal log scope handled below
   try {
-    // Get literal translation using Translator API
     const literalStart = performance.now();
     const literal = await translateText(chunkText, sourceLanguage, targetLanguage);
     const literalEnd = performance.now();
     translatorMetrics.literalCount += 1;
     translatorMetrics.literalTimeMs += literalEnd - literalStart;
 
-    // Get contextual translation using LanguageModel API
-    let contextual = literal;
-    if (context && context !== chunkText) {
-      const contextualStart = performance.now();
-      contextual = await translateContextually(chunkText, sourceLanguage, targetLanguage, context, literal);
-      const contextualEnd = performance.now();
-      translatorMetrics.contextualCount += 1;
-      translatorMetrics.contextualTimeMs += contextualEnd - contextualStart;
-    }
-
-    // Favor literal if contextual is effectively the same (punctuation/case/synonyms like hi/hello, yes/yes!)
-    const litCanon = canonicalForMerge(literal);
-    const ctxCanon = canonicalForMerge(contextual);
-    const differs = litCanon !== ctxCanon;
-    if (!differs) {
-      contextual = literal;
-    }
-
     // Concise translation log
     try {
       console.log(
-        `[TextAnnotate] Translation: "${chunkText}" (${sourceLanguage} -> ${targetLanguage}) | literal="${literal}" | contextual="${contextual}"`,
+        `[TextAnnotate] Literal translation: "${chunkText}" (${sourceLanguage} -> ${targetLanguage}) = "${literal}"`,
       );
     } catch {
       // Ignore logging errors
@@ -73,19 +56,19 @@ const translateChunk = async (
 
     return {
       literal,
-      contextual,
-      differs,
+      contextual: literal, // Initially same as literal, will be updated in contextual phase
+      differs: false, // Will be recalculated in contextual phase
     };
   } catch (error) {
-    console.error('Failed to translate chunk:', error);
+    console.error('Failed to translate chunk literally:', error);
 
     // Check if it's a user gesture error
     if (error instanceof Error && error.message.includes('user gesture')) {
       console.warn('Chrome AI requires user gesture, returning fallback translation');
       return {
         literal: `[${sourceLanguage}] ${chunkText}`,
-        contextual: `Translation of "${chunkText}"`,
-        differs: true,
+        contextual: `[${sourceLanguage}] ${chunkText}`,
+        differs: false,
       };
     }
 
@@ -96,6 +79,102 @@ const translateChunk = async (
       differs: false,
     };
   }
+};
+
+/**
+ * Gets contextual translation for a chunk that already has a literal translation
+ * Updates the translation object with contextual result and recalculates differs
+ */
+const translateChunkContextual = async (
+  chunkText: string,
+  sourceLanguage: SupportedLanguage,
+  targetLanguage: SupportedLanguage,
+  context: string,
+  literalTranslation: string,
+): Promise<ChunkTranslation> => {
+  try {
+    if (!context || context === chunkText) {
+      // No context, contextual is same as literal
+      return {
+        literal: literalTranslation,
+        contextual: literalTranslation,
+        differs: false,
+      };
+    }
+
+    const contextualStart = performance.now();
+    const contextual = await translateContextually(
+      chunkText,
+      sourceLanguage,
+      targetLanguage,
+      context,
+      literalTranslation,
+    );
+    const contextualEnd = performance.now();
+    translatorMetrics.contextualCount += 1;
+    translatorMetrics.contextualTimeMs += contextualEnd - contextualStart;
+
+    // Favor literal if contextual is effectively the same (punctuation/case/synonyms like hi/hello, yes/yes!)
+    const litCanon = canonicalForMerge(literalTranslation);
+    const ctxCanon = canonicalForMerge(contextual);
+    const differs = litCanon !== ctxCanon;
+    const finalContextual = differs ? contextual : literalTranslation;
+
+    // Concise translation log
+    try {
+      console.log(
+        `[TextAnnotate] Contextual translation: "${chunkText}" | literal="${literalTranslation}" | contextual="${finalContextual}" | differs=${differs}`,
+      );
+    } catch {
+      // Ignore logging errors
+    }
+
+    return {
+      literal: literalTranslation,
+      contextual: finalContextual,
+      differs,
+    };
+  } catch (error) {
+    console.error('Failed to translate chunk contextually:', error);
+
+    // Check if it's a user gesture error
+    if (error instanceof Error && error.message.includes('user gesture')) {
+      console.warn('Chrome AI requires user gesture for contextual translation, using literal');
+      return {
+        literal: literalTranslation,
+        contextual: literalTranslation,
+        differs: false,
+      };
+    }
+
+    // Fallback to literal translation
+    return {
+      literal: literalTranslation,
+      contextual: literalTranslation,
+      differs: false,
+    };
+  }
+};
+
+/**
+ * Legacy function: Translates a chunk both literally and contextually (sequential)
+ * @deprecated Use translateChunkLiteral + translateChunkContextual for better performance
+ */
+const translateChunk = async (
+  chunkText: string,
+  sourceLanguage: SupportedLanguage,
+  targetLanguage: SupportedLanguage,
+  context?: string,
+): Promise<ChunkTranslation> => {
+  // Get literal first
+  const literalResult = await translateChunkLiteral(chunkText, sourceLanguage, targetLanguage);
+
+  // Then get contextual if context provided
+  if (context && context !== chunkText) {
+    return await translateChunkContextual(chunkText, sourceLanguage, targetLanguage, context, literalResult.literal);
+  }
+
+  return literalResult;
 };
 
 /**
@@ -274,4 +353,4 @@ INSTRUCTIONS:
   }
 };
 
-export { translateChunk, rewriteChunk, getAndResetTranslatorMetrics };
+export { translateChunk, translateChunkLiteral, translateChunkContextual, rewriteChunk, getAndResetTranslatorMetrics };

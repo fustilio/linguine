@@ -12,16 +12,32 @@ export function extractContentWithReadability(doc: Document, url: string): Extra
   try {
     // Clone document to avoid modifying original
     const clonedDoc = doc.cloneNode(true) as Document;
-    
+
     const reader = new Readability(clonedDoc, {
       debug: false,
     });
 
     const article = reader.parse();
-    
+
     if (!article) {
+      console.warn('[TextExtractor] Readability.parse() returned null - no article extracted');
       return null;
     }
+
+    // Extract plain text for logging
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = article.content;
+    const plainTextPreview = (tempDiv.textContent || tempDiv.innerText || '').substring(0, 200);
+
+    console.log('[TextExtractor] Extracted content via Mozilla Readability:', {
+      title: article.title || '(no title)',
+      byline: article.byline || '(no byline)',
+      language: article.lang || '(no lang)',
+      siteName: article.siteName || '(no siteName)',
+      contentLength: article.content?.length || 0,
+      plainTextPreview: plainTextPreview + (plainTextPreview.length >= 200 ? '...' : ''),
+      contentHtmlStart: article.content?.substring(0, 100) || '(empty)',
+    });
 
     return {
       title: article.title || undefined,
@@ -41,21 +57,21 @@ export function extractContentWithReadability(doc: Document, url: string): Extra
  */
 export function extractSelectedText(doc: Document): ExtractedText | null {
   const selection = window.getSelection();
-  
+
   if (!selection || selection.rangeCount === 0) {
     return null;
   }
 
   const range = selection.getRangeAt(0);
   const text = selection.toString().trim();
-  
+
   if (!text || text.length === 0) {
     return null;
   }
 
   // Try to get title from the document
   const title = doc.querySelector('title')?.textContent || undefined;
-  
+
   // Detect language from text if possible
   const lang = doc.documentElement.lang || undefined;
 
@@ -72,14 +88,14 @@ export function extractSelectedText(doc: Document): ExtractedText | null {
 export function extractTextBySelector(doc: Document, selector: string): ExtractedText | null {
   try {
     const element = doc.querySelector(selector);
-    
+
     if (!element) {
       return null;
     }
 
     // Clone element to avoid modifying original
     const clonedElement = element.cloneNode(true) as HTMLElement;
-    
+
     // Get title from document
     const title = doc.querySelector('title')?.textContent || undefined;
     const lang = doc.documentElement.lang || undefined;

@@ -1,3 +1,7 @@
+import { getImagesForQuery } from '@extension/api';
+import { useStorage } from '@extension/shared';
+import { readingModeSettingsStorage } from '@extension/storage';
+import { cn } from '@extension/ui';
 import { useFloating, autoUpdate, offset, flip, shift } from '@floating-ui/react';
 import {
   AArrowDown,
@@ -15,10 +19,6 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { AnnotatedChunk } from '@extension/api';
-import { getImagesForQuery } from '@extension/api';
-import { useStorage } from '@extension/shared';
-import { readingModeSettingsStorage } from '@extension/storage';
-import { cn } from '@extension/ui';
 
 interface ReadingModeProps {
   isVisible: boolean;
