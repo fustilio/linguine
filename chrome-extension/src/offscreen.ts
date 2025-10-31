@@ -95,46 +95,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  // Check if it's a database action before setting up async handler
+  const databaseActions = [
+    'getAllVocabularyForSummary',
+    'addVocabularyItem',
+    'deleteVocabularyItem',
+    'deleteVocabularyItems',
+    'updateVocabularyItemKnowledgeLevel',
+    'updateVocabularyItemKnowledgeLevels',
+    'getVocabulary',
+    'getVocabularyCount',
+    'resetVocabularyDatabase',
+    'populateDummyVocabulary',
+    'ensureDatabaseInitialized',
+    'addTextRewrite',
+    'getTextRewrites',
+    'getTextRewriteCount',
+    'deleteTextRewrite',
+    'deleteTextRewrites',
+    'clearAllTextRewrites',
+    'getTextRewriteById',
+    'getTextRewritesByLanguage',
+    'getRecentTextRewrites',
+    'getTextRewritesByUrl',
+    'getTextRewritesByReadability',
+    'getVocabularyWordsInText',
+    'getTextRewritesContainingWord',
+    'resetTextRewritesDatabase',
+    'migrateLanguageCodes',
+  ];
+
+  // Ignore non-database messages - don't respond, let other handlers process it
+  if (!databaseActions.includes(message.action)) {
+    return false; // Don't handle, allow other listeners to process it
+  }
+
   // Return true to keep message channel open for async operations
   const handleMessage = async () => {
     try {
-      // If no target is specified, check if it's a database action
-      // (for backward compatibility with messages that don't have explicit target)
-      const databaseActions = [
-        'getAllVocabularyForSummary',
-        'addVocabularyItem',
-        'deleteVocabularyItem',
-        'deleteVocabularyItems',
-        'updateVocabularyItemKnowledgeLevel',
-        'updateVocabularyItemKnowledgeLevels',
-        'getVocabulary',
-        'getVocabularyCount',
-        'resetVocabularyDatabase',
-        'populateDummyVocabulary',
-        'ensureDatabaseInitialized',
-        'addTextRewrite',
-        'getTextRewrites',
-        'getTextRewriteCount',
-        'deleteTextRewrite',
-        'deleteTextRewrites',
-        'clearAllTextRewrites',
-        'getTextRewriteById',
-        'getTextRewritesByLanguage',
-        'getRecentTextRewrites',
-        'getTextRewritesByUrl',
-        'getTextRewritesByReadability',
-        'getVocabularyWordsInText',
-        'getTextRewritesContainingWord',
-        'resetTextRewritesDatabase',
-        'migrateLanguageCodes',
-      ];
-
-      // Ignore non-database messages
-      if (!databaseActions.includes(message.action)) {
-        sendResponse({ success: false, error: `Unknown action: ${message.action}` });
-        return;
-      }
-
       // Validate incoming message structure for database actions
       const baseValidation = DatabaseActionRequestSchema.safeParse(message);
       if (!baseValidation.success) {

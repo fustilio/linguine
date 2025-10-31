@@ -1,5 +1,8 @@
 /**
  * FloatingWidget - A draggable, interactive floating UI component
+ * @deprecated This class is deprecated and will be removed in the future.
+ * The floating widget is now implemented as a React component in content-ui.
+ * See pages/content-ui/src/matches/all/FloatingWidget.tsx
  */
 
 export type WidgetSize = 'small' | 'medium' | 'large';
@@ -22,6 +25,8 @@ export interface WidgetCallbacks {
 /**
  * FloatingWidget handles all UI rendering and interaction logic
  * for the draggable floating button
+ * @deprecated This class is deprecated and will be removed in the future.
+ * Use the React component in content-ui instead.
  */
 export class FloatingWidget {
   private element: HTMLElement | null = null;

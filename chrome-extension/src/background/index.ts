@@ -49,6 +49,24 @@ initializeOffscreenDocument().catch(error => {
 
 // Handle messages from popup and content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Forward messages intended for content script
+  if (message.target === 'content') {
+    if (sender.tab && sender.tab.id) {
+      chrome.tabs.sendMessage(sender.tab.id, message, response => {
+        if (chrome.runtime.lastError) {
+          console.error('Failed to forward message to content script:', chrome.runtime.lastError);
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          sendResponse(response || { success: false, error: 'No response from content script' });
+        }
+      });
+      return true; // Keep channel open for async response
+    } else {
+      sendResponse({ success: false, error: 'No active tab' });
+      return false;
+    }
+  }
+
   // Ignore messages not intended for background
   if (message.target && message.target !== 'background' && message.target !== 'offscreen') {
     return false;

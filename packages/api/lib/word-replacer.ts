@@ -13,7 +13,6 @@ import {
   cleanupEmptyInlineElements as cleanupEmptyInlineElementsUtil,
   cleanupStrayMarkersInDoc as cleanupStrayMarkersInDocUtil,
 } from './dom-utils.js';
-import { FloatingWidget } from './floating-widget.js';
 import { buildRewriterOptions as rwBuildOptions, toBaseLang as rwToBaseLang } from './rewriter-options.js';
 import { detectLanguageFromText } from './text-annotate/language-detector.js';
 import { generateFragmentStringHashFromRange } from './text-fragments-api.js';
@@ -21,7 +20,8 @@ import { addTextRewrite } from './text-rewrites-api.js';
 import { undoManager } from './undo-manager.js';
 import { normalizeLanguageCode } from '@extension/shared';
 import { DEFAULT_REWRITER_PROMPT, wordReplacerStorage, languageStorage } from '@extension/storage';
-import type { WidgetSize } from './floating-widget.js';
+
+type WidgetSize = 'small' | 'medium' | 'large';
 
 type WordReplacerStorageRewriterOptions = {
   sharedContext: string;
@@ -47,8 +47,6 @@ export class WordReplacer {
   private isDownloading: boolean;
   private replaceTimeout?: ReturnType<typeof setTimeout>;
   private handleSelection?: ((event: MouseEvent) => void) | null;
-  private floatingWidget: FloatingWidget | null;
-  private dragOffset: { x: number; y: number };
   private interactiveWrappers: Set<HTMLElement>;
 
   private constructor() {
@@ -73,9 +71,6 @@ export class WordReplacer {
     this.downloadProgress = 0;
     this.isDownloading = false;
 
-    // Floating widget state
-    this.floatingWidget = null;
-    this.dragOffset = { x: 0, y: 0 };
     this.interactiveWrappers = new Set();
 
     // Initialize the extension
@@ -115,12 +110,6 @@ export class WordReplacer {
       this.handleSelection = null;
     }
 
-    // Remove floating widget
-    if (this.floatingWidget) {
-      this.floatingWidget.unmount();
-      this.floatingWidget = null;
-    }
-
     // Clear selections
     this.selectedWords.clear();
     this.currentHighlight = null;
@@ -130,28 +119,14 @@ export class WordReplacer {
     // Load settings from storage
     await this.loadSettings();
 
-    // Set up message listener
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      // Ignore messages targeted to offscreen (database operations)
-      // These are handled directly by offscreen, not by content script
-      if (message.target === 'offscreen') {
-        return false; // Don't handle messages intended for offscreen
-      }
-
-      this.handleMessage(message, sender, sendResponse);
-      return true; // Keep the message channel open for async responses
-    });
-
     // Set up mutation observer for dynamic content
     this.setupMutationObserver();
 
     // Set up or remove selection mode based on active state
     if (this.isActive) {
       this.setupSelectionMode();
-      this.createFloatingWidget();
     } else {
       this.removeSelectionMode(); // Ensure it's cleaned up if inactive
-      this.removeFloatingWidget();
     }
 
     // Initial replacement if active
@@ -219,180 +194,114 @@ export class WordReplacer {
     }
   }
 
-  handleMessage(
-    message: { action: string; [key: string]: unknown },
-    sender: chrome.runtime.MessageSender,
-    sendResponse: (response: unknown) => void,
-  ): boolean | void {
-    const handleAsyncMessage = async () => {
-      switch (message.action) {
-        case 'updateState': {
-          // Single handler for all state updates
-          const state = message.state as {
-            isActive?: boolean;
-            widgetSize?: 'small' | 'medium' | 'large';
-            rewriterOptions?: RewriterRewriteOptions;
-          };
+  /**
+   * Update WordReplacer state (isActive, widgetSize, rewriterOptions)
+   */
+  async updateState(state: {
+    isActive?: boolean;
+    widgetSize?: 'small' | 'medium' | 'large';
+    rewriterOptions?: RewriterRewriteOptions;
+  }): Promise<void> {
+    const wasActive = this.isActive;
 
-          const wasActive = this.isActive;
-
-          // Update state and persist via storage
-          if (state.isActive !== undefined) {
-            this.isActive = state.isActive;
-            await wordReplacerStorage.updateState({ isActive: this.isActive });
-          }
-          if (state.widgetSize) {
-            this.widgetSize = state.widgetSize;
-            await wordReplacerStorage.updateState({ widgetSize: this.widgetSize });
-            if (this.floatingWidget) {
-              this.removeFloatingWidget();
-              this.createFloatingWidget();
-            }
-          }
-          if (state.rewriterOptions) {
-            this.rewriterOptions = { ...this.rewriterOptions, ...state.rewriterOptions };
-            await wordReplacerStorage.updateRewriterOptions(
-              state.rewriterOptions as Partial<WordReplacerStorageRewriterOptions>,
-            );
-            try {
-              await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions));
-            } catch (error) {
-              console.warn('Failed to reinitialize rewriter with new options:', error);
-            }
-          }
-
-          // Handle activation/deactivation
-          if (this.isActive && !wasActive) {
-            this.setupSelectionMode();
-            this.replaceWordsInPage();
-            this.createFloatingWidget();
-          } else if (!this.isActive && wasActive) {
-            this.removeHighlights();
-            this.removeCurrentHighlight();
-            this.removeSelectionMode();
-            this.removeFloatingWidget();
-          }
-
-          this.saveSettings();
-          sendResponse({ success: true });
-          break;
-        }
-
-        case 'addReplacement':
-          this.replacements.set(message.original as string, message.replacement as string);
-          this.saveSettings();
-          if (this.isActive) {
-            this.replaceWordsInPage();
-          }
-          sendResponse({ success: true });
-          break;
-
-        case 'removeReplacement':
-          this.replacements.delete(message.original as string);
-          this.saveSettings();
-          if (this.isActive) {
-            this.replaceWordsInPage();
-          }
-          sendResponse({ success: true });
-          break;
-
-        case 'getState':
-          sendResponse({
-            success: true,
-            state: {
-              isActive: this.isActive,
-              replacements: Array.from(this.replacements.entries()),
-              highlightColor: this.highlightColor,
-            },
-          });
-          break;
-
-        case 'rewriteSelectedText':
-          if (!this.isActive) {
-            sendResponse({
-              success: false,
-              error: 'Extension is not active. Please enable it in the popup.',
-            });
-            break;
-          }
-
-          try {
-            const result = await this.rewriteSelectedText();
-            sendResponse({ success: true, ...result });
-          } catch (error) {
-            sendResponse({
-              success: false,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            });
-          }
-          break;
-
-        case 'checkRewriterAvailability':
-          try {
-            const result = await this.checkRewriterAvailability();
-            sendResponse({ success: true, ...result });
-          } catch (error) {
-            sendResponse({
-              success: false,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            });
-          }
-          break;
-
-        case 'updateRewriterOptions':
-          this.rewriterOptions = {
-            ...this.rewriterOptions,
-            ...(message.options as Partial<RewriterCreateOptions>),
-          };
-          await wordReplacerStorage.updateRewriterOptions(
-            message.options as Partial<WordReplacerStorageRewriterOptions>,
-          );
-
-          try {
-            await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions));
-          } catch (error) {
-            console.warn('Failed to reinitialize rewriter with new options:', error);
-          }
-
-          this.saveSettings();
-          sendResponse({ success: true });
-          break;
-
-        case 'getRewriterOptions':
-          sendResponse({
-            success: true,
-            options: this.rewriterOptions,
-          });
-          break;
-
-        case 'undoAllRewrites':
-          try {
-            console.log('[WordReplacer] undoAllRewrites message received');
-            const stats = undoManager.undoAll();
-            console.log('[WordReplacer] undoAllRewrites completed', stats);
-            sendResponse({ success: true, ...stats });
-          } catch (error) {
-            console.error('[WordReplacer] undoAllRewrites failed', error);
-            sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
-          }
-          break;
-
-        case 'ping':
-          sendResponse({ success: true, pong: true });
-          break;
-        default:
-          sendResponse({ success: false, error: 'Unknown action' });
+    // Update state and persist via storage
+    if (state.isActive !== undefined) {
+      this.isActive = state.isActive;
+      await wordReplacerStorage.updateState({ isActive: this.isActive });
+    }
+    if (state.widgetSize) {
+      this.widgetSize = state.widgetSize;
+      await wordReplacerStorage.updateState({ widgetSize: this.widgetSize });
+    }
+    if (state.rewriterOptions) {
+      this.rewriterOptions = { ...this.rewriterOptions, ...state.rewriterOptions };
+      await wordReplacerStorage.updateRewriterOptions(
+        state.rewriterOptions as Partial<WordReplacerStorageRewriterOptions>,
+      );
+      try {
+        await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions));
+      } catch (error) {
+        console.warn('Failed to reinitialize rewriter with new options:', error);
       }
-      return; // Explicit return for async function
+    }
+
+    // Handle activation/deactivation
+    if (this.isActive && !wasActive) {
+      this.setupSelectionMode();
+      this.replaceWordsInPage();
+    } else if (!this.isActive && wasActive) {
+      this.removeHighlights();
+      this.removeCurrentHighlight();
+      this.removeSelectionMode();
+    }
+
+    this.saveSettings();
+  }
+
+  /**
+   * Add a replacement mapping
+   */
+  async addReplacement(original: string, replacement: string): Promise<void> {
+    this.replacements.set(original, replacement);
+    this.saveSettings();
+    if (this.isActive) {
+      this.replaceWordsInPage();
+    }
+  }
+
+  /**
+   * Remove a replacement mapping
+   */
+  async removeReplacement(original: string): Promise<void> {
+    this.replacements.delete(original);
+    this.saveSettings();
+    if (this.isActive) {
+      this.replaceWordsInPage();
+    }
+  }
+
+  /**
+   * Get current WordReplacer state
+   */
+  getState(): {
+    isActive: boolean;
+    replacements: Array<[string, string]>;
+    highlightColor: string;
+  } {
+    return {
+      isActive: this.isActive,
+      replacements: Array.from(this.replacements.entries()),
+      highlightColor: this.highlightColor,
     };
+  }
 
-    // Execute async handler
-    handleAsyncMessage().catch(error => {
-      console.error('Error in message handler:', error);
-      sendResponse({ success: false, error: 'Internal error' });
-    });
+  /**
+   * Update rewriter options
+   */
+  async updateRewriterOptions(options: Partial<RewriterCreateOptions>): Promise<void> {
+    this.rewriterOptions = {
+      ...this.rewriterOptions,
+      ...options,
+    };
+    await wordReplacerStorage.updateRewriterOptions(options as Partial<WordReplacerStorageRewriterOptions>);
 
-    return true; // Keep the message channel open for async operations
+    try {
+      await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions));
+    } catch (error) {
+      console.warn('Failed to reinitialize rewriter with new options:', error);
+    }
+
+    this.saveSettings();
+  }
+
+  /**
+   * Undo all interactive rewrites on the page, restoring original text
+   */
+  undoAllRewrites() {
+    console.log('[WordReplacer] undoAllRewrites called');
+    const stats = undoManager.undoAll();
+    console.log('[WordReplacer] undoAllRewrites completed', stats);
+    return stats;
   }
 
   setupMutationObserver() {
@@ -1000,54 +909,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         parent.normalize();
       }
     });
-  }
-
-  /**
-   * Undo all interactive rewrites on the page, restoring original text
-   */
-  private undoAllRewrites() {
-    const start = performance.now();
-    let wrappersFound = 0;
-    let buttonsRemoved = 0;
-    let restored = 0;
-    let processedCleared = 0;
-
-    console.log('[WordReplacer] Undo started');
-
-    // Clear current highlight reference
-    this.currentHighlight = null;
-
-    // Restore original text for all interactive rewrite wrappers
-    const wrappers = document.querySelectorAll('.rewriter-highlight');
-    wrappersFound = wrappers.length;
-    console.log('[WordReplacer] Found wrappers:', wrappersFound);
-    wrappers.forEach(node => {
-      const wrapper = node as HTMLElement;
-      const originalText = wrapper.dataset.originalText || wrapper.textContent || '';
-      const buttons = wrapper.nextElementSibling;
-      if (buttons && buttons.classList.contains('rewriter-buttons')) {
-        buttonsRemoved += 1;
-        buttons.remove();
-      }
-      const parent = wrapper.parentNode;
-      if (parent) {
-        restored += 1;
-        parent.replaceChild(document.createTextNode(originalText), wrapper);
-        (parent as HTMLElement).normalize();
-      }
-    });
-
-    // Remove processed markers so future replacements can run cleanly
-    const processed = document.querySelectorAll('.word-replacer-processed');
-    processed.forEach(element => {
-      processedCleared += 1;
-      element.classList.remove('word-replacer-processed');
-    });
-
-    const durationMs = Math.round(performance.now() - start);
-    const stats = { wrappersFound, buttonsRemoved, restored, processedCleared, durationMs };
-    console.log('[WordReplacer] Undo finished', stats);
-    return stats;
   }
 
   /**
@@ -1834,52 +1695,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
         .reduce((acc, char) => ((acc << 5) - acc + char.charCodeAt(0)) | 0, 0)
         .toString(36);
       return `#:~:text=fallback-${hash}-${Date.now()}`;
-    }
-  }
-
-  /**
-   * Draggable floating widget
-   */
-  createFloatingWidget() {
-    this.removeFloatingWidget();
-
-    const iconUrl = chrome.runtime.getURL('pasta-icon.webp');
-
-    this.floatingWidget = new FloatingWidget({
-      size: this.widgetSize,
-      iconUrl,
-      title: 'Click to rewrite selected text',
-    });
-
-    // Set up click handler
-    this.floatingWidget.onClick(async () => {
-      const selection = window.getSelection();
-      if (!selection || selection.toString().trim().length === 0) {
-        this.floatingWidget?.showTooltip('Please select some text first');
-        this.floatingWidget?.setState('error', 'Please select some text first');
-        return;
-      }
-
-      try {
-        this.floatingWidget?.setState('loading', 'Rewriting...');
-        await this.rewriteSelectedText();
-        this.floatingWidget?.setState('success', 'Rewrite complete!');
-      } catch (error) {
-        console.error('Error rewriting from widget:', error);
-        this.floatingWidget?.setState('error', 'Rewrite failed');
-      }
-    });
-
-    this.floatingWidget.mount();
-  }
-
-  /**
-   * Remove the floating widget
-   */
-  removeFloatingWidget() {
-    if (this.floatingWidget) {
-      this.floatingWidget.unmount();
-      this.floatingWidget = null;
     }
   }
 

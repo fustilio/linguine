@@ -7,7 +7,7 @@ void sampleFunction();
 
 // Initialize the word replacer when the script loads
 console.log('[CEB] Initializing word replacer');
-WordReplacer.getInstance();
+const wordReplacer = WordReplacer.getInstance();
 console.log('[CEB] Word replacer initialized');
 
 // Initialize text annotate manager
@@ -21,9 +21,31 @@ try {
 
 // Handle messages from background script
 chrome.runtime.onMessage.addListener(
-  (message: { action: string; data?: unknown; target?: string }, sender, sendResponse) => {
+  (
+    message: {
+      action: string;
+      data?: unknown;
+      target?: string;
+      state?: {
+        isActive?: boolean;
+        widgetSize?: 'small' | 'medium' | 'large';
+        rewriterOptions?: unknown;
+      };
+      original?: string;
+      replacement?: string;
+      options?: unknown;
+    },
+    sender,
+    sendResponse,
+  ) => {
     // Ignore messages targeted to offscreen (database operations)
     if (message.target === 'offscreen') {
+      return false;
+    }
+
+    // Only handle messages targeted to content or with no target (backward compatibility)
+    // Messages with other explicit targets should be handled by their respective handlers
+    if (message.target && message.target !== 'content') {
       return false;
     }
 
@@ -118,9 +140,185 @@ chrome.runtime.onMessage.addListener(
         sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
       }
       return true;
+    } else if (message.action === 'rewriteSelectedText') {
+      // Handle rewriteSelectedText via WordReplacer
+      (async () => {
+        try {
+          if (!wordReplacer) {
+            sendResponse({
+              success: false,
+              error: 'WordReplacer not initialized',
+            });
+            return;
+          }
+
+          const result = await wordReplacer.rewriteSelectedText();
+          sendResponse({ success: true, ...result });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      })();
+      return true; // Keep channel open for async
+    } else if (message.action === 'updateState') {
+      // Handle state updates via WordReplacer
+      (async () => {
+        try {
+          if (!wordReplacer) {
+            sendResponse({ success: false, error: 'WordReplacer not initialized' });
+            return;
+          }
+
+          const state = message.state as {
+            isActive?: boolean;
+            widgetSize?: 'small' | 'medium' | 'large';
+            rewriterOptions?: unknown;
+          };
+          await wordReplacer.updateState(state as Parameters<typeof wordReplacer.updateState>[0]);
+          sendResponse({ success: true });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      })();
+      return true; // Keep channel open for async
+    } else if (message.action === 'addReplacement') {
+      // Handle addReplacement via WordReplacer
+      (async () => {
+        try {
+          if (!wordReplacer) {
+            sendResponse({ success: false, error: 'WordReplacer not initialized' });
+            return;
+          }
+
+          await wordReplacer.addReplacement(message.original as string, message.replacement as string);
+          sendResponse({ success: true });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      })();
+      return true; // Keep channel open for async
+    } else if (message.action === 'removeReplacement') {
+      // Handle removeReplacement via WordReplacer
+      (async () => {
+        try {
+          if (!wordReplacer) {
+            sendResponse({ success: false, error: 'WordReplacer not initialized' });
+            return;
+          }
+
+          await wordReplacer.removeReplacement(message.original as string);
+          sendResponse({ success: true });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      })();
+      return true; // Keep channel open for async
+    } else if (message.action === 'getState') {
+      // Handle getState via WordReplacer
+      try {
+        if (!wordReplacer) {
+          sendResponse({ success: false, error: 'WordReplacer not initialized' });
+          return false;
+        }
+
+        const state = wordReplacer.getState();
+        sendResponse({ success: true, state });
+        return true;
+      } catch (error) {
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        return true;
+      }
+    } else if (message.action === 'checkRewriterAvailability') {
+      // Handle checkRewriterAvailability via WordReplacer
+      (async () => {
+        try {
+          if (!wordReplacer) {
+            sendResponse({ success: false, error: 'WordReplacer not initialized' });
+            return;
+          }
+
+          const result = await wordReplacer.checkRewriterAvailability();
+          sendResponse({ success: true, ...result });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      })();
+      return true; // Keep channel open for async
+    } else if (message.action === 'updateRewriterOptions') {
+      // Handle updateRewriterOptions via WordReplacer
+      (async () => {
+        try {
+          if (!wordReplacer) {
+            sendResponse({ success: false, error: 'WordReplacer not initialized' });
+            return;
+          }
+
+          await wordReplacer.updateRewriterOptions(message.options as Partial<unknown>);
+          sendResponse({ success: true });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      })();
+      return true; // Keep channel open for async
+    } else if (message.action === 'getRewriterOptions') {
+      // Handle getRewriterOptions via WordReplacer
+      try {
+        if (!wordReplacer) {
+          sendResponse({ success: false, error: 'WordReplacer not initialized' });
+          return false;
+        }
+
+        const options = wordReplacer.getRewriterOptions();
+        sendResponse({ success: true, options });
+        return true;
+      } catch (error) {
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        return true;
+      }
+    } else if (message.action === 'undoAllRewrites') {
+      // Handle undoAllRewrites via WordReplacer
+      try {
+        if (!wordReplacer) {
+          sendResponse({ success: false, error: 'WordReplacer not initialized' });
+          return false;
+        }
+
+        const stats = wordReplacer.undoAllRewrites();
+        sendResponse({ success: true, ...stats });
+        return true;
+      } catch (error) {
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        return true;
+      }
     }
 
-    // Unknown action - don't respond
+    // Unknown action - don't respond (but allow other listeners to handle it)
     return false;
   },
 );
