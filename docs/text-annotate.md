@@ -90,17 +90,20 @@ Content UI React Component
    - Mozilla Readability for article content
    - Selection or CSS selector as alternatives
 2) Detect language
-   - Chrome `LanguageDetector` with progress/availability handling, fallback to heuristic for short/low-confidence
+   - **Priority order**: Chrome `LanguageDetector` API (most accurate, analyzes actual text) → character-based fallback (analyzes patterns) → Readability language hint (unreliable, HTML metadata only) → target language (last resort)
+   - Progress/availability handling with comprehensive logging for debugging
 3) Segment
    - Intl.Segmenter for all languages with granularity 'word' (fast, no AI)
    - Fallback: whitespace/character heuristics
 4) Chunking
    - Use Intl.Segmenter output directly as chunks with start/end offsets
-5) Translation (parallel batched)
-   - Literal: Chrome `Translator`
-   - Contextual: Chrome `LanguageModel` (optional, slower)
+5) Translation (parallel batched, two-phase for translation mode)
+   - **Simplify Mode** (English → English): Single phase using Chrome `Rewriter` API with contextual prompting
+   - **Translation Mode** (other languages): Two-phase process:
+     - **Phase 1 - Literal Translation**: Fast, streams to UI immediately using Chrome `Translator` API
+     - **Phase 2 - Contextual Translation**: Slower, uses Chrome `LanguageModel` API with literal results as input, updates existing annotations
    - `Promise.all()` batching with configurable `BATCH_SIZE`
-   - Progressive `onProgress` callback streams annotated chunks
+   - Progressive `onProgress` callback streams annotated chunks with separate literal/contextual progress tracking
 6) UI progressive rendering
    - Show plain text instantly (char spans)
    - Wrap ranges in-place as annotations arrive (no text shifting)
@@ -112,17 +115,27 @@ Content UI React Component
 - Inline, in-place wrapping for annotations (preserve offsets)
 - Visual styling: annotated chunks have dotted underlines (green for standard, orange for chunks with contextual differences)
 - Hover effects: chunks highlight with semi-transparent backgrounds on hover
-- Progress bar with locked total from pre-chunk estimate
-- Tooltips merge translations smartly: if literal and contextual are effectively identical (punctuation/case/synonym-insensitive), show a single combined line (white). Otherwise show Literal (light blue) then Contextual. Optional "Literal:"/"Contextual:" prefixes via toggle
-- Tooltips can include up to three Wikimedia images (lazy-fetched on hover); click image dots to cycle through images
+- **Dual progress bars** (translation mode): Shows separate progress for literal and contextual translation phases concurrently
+- Single progress bar for simplify mode and other phases
+- Tooltips optimized to avoid re-rendering during progressive loading:
+  - Uses memoized chunk lookup to always show latest translations
+  - Only updates when translation content actually changes
+- **Simplify Mode** UI: Shows "Simplify Mode" badge in header; tooltips show only simplified text (white) without prefixes
+- **Translation Mode** tooltips: 
+  - Show literal (light blue) if it differs from contextual or if contextual not available yet
+  - Show contextual (green if differs, white if same) when available
+  - If literal and contextual are effectively identical (punctuation/case/synonym-insensitive), show single combined line (white)
+  - Optional "Literal:"/"Contextual:" prefixes via toggle
+- Tooltips can include up to three Wikimedia images (lazy-fetched on hover, only shown if images enabled); click image dots to cycle through images
 - TTS (`SpeechSynthesisUtterance`) on chunk click (language-aware)
 - Close via header X, Esc key, or backdrop click
 
 ## Chrome AI APIs and Constraints
 
-- `LanguageDetector`: Used when available; fallback to heuristic
+- `LanguageDetector`: Used when available; prioritized over Readability language hints (which are based on HTML metadata, not actual content)
 - `Translator`: Literal translations; check availability per language pair
 - `LanguageModel`: Used for contextual translations only (no longer used for POS)
+- `Rewriter`: Used for English simplification mode (when source and target languages are both English)
 - User gesture requirement: handle `NotAllowedError` gracefully; literal still works
 
 ## Performance

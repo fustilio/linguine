@@ -40,6 +40,8 @@ export default function App() {
             total: number;
             isComplete: boolean;
             phase?: string;
+            literalCompleted?: number;
+            contextualCompleted?: number;
           };
           isSimplifyMode?: boolean;
         };

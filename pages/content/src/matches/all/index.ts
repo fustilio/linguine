@@ -49,6 +49,10 @@ try {
               total: totalChunks,
               isComplete,
               phase: phase || 'Processing...',
+              literalCompleted:
+                (metrics as { literalCompleted?: number } | undefined)?.literalCompleted ?? undefined,
+              contextualCompleted:
+                (metrics as { contextualCompleted?: number } | undefined)?.contextualCompleted ?? undefined,
             },
             isSimplifyMode: isSimplifyMode || false,
           },

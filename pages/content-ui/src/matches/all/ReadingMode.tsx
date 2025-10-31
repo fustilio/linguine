@@ -17,7 +17,7 @@ import {
   UnfoldHorizontal,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import type { AnnotatedChunk } from '@extension/api';
 
 interface ReadingModeProps {
@@ -30,6 +30,8 @@ interface ReadingModeProps {
     total: number;
     isComplete: boolean;
     phase?: string;
+    literalCompleted?: number;
+    contextualCompleted?: number;
   };
   isSimplifyMode?: boolean;
   onClose?: () => void;
@@ -61,6 +63,17 @@ export const ReadingMode = ({
   const isScrollLockedRef = useRef(false);
   const tooltipCloseTimeoutRef = useRef<number | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const lastTranslationRef = useRef<{ literal: string; contextual: string; differs: boolean } | null>(null);
+
+  // Get current chunk from chunks array when hoveredChunk is set
+  // This ensures we always have the latest translation without re-rendering unnecessarily
+  const currentHoveredChunk = useMemo(() => {
+    if (!hoveredChunk) return null;
+    return (
+      chunks.find(c => c.start === hoveredChunk.start && c.end === hoveredChunk.end && c.text === hoveredChunk.text) ||
+      hoveredChunk
+    );
+  }, [chunks, hoveredChunk]);
 
   // Floating UI for tooltip positioning
   const { refs, floatingStyles } = useFloating({
@@ -192,9 +205,13 @@ export const ReadingMode = ({
           tooltipCloseTimeoutRef.current = null;
         }
 
+        // Find the most up-to-date chunk from current chunks array
+        const currentChunk = chunks.find(c => c.start === chunk.start && c.end === chunk.end && c.text === chunk.text);
+        const chunkToShow = currentChunk || chunk;
+
         triggerRef.current = wrapper;
         setReference(wrapper);
-        setHoveredChunk(chunk);
+        setHoveredChunk(chunkToShow);
         setHoveredChunkImages([]);
         setHoveredChunkImageIndex(0);
       });
@@ -205,7 +222,16 @@ export const ReadingMode = ({
           clearTimeout(tooltipCloseTimeoutRef.current);
         }
         tooltipCloseTimeoutRef.current = window.setTimeout(() => {
-          setHoveredChunk(null);
+          // Find the most up-to-date chunk before closing (in case translations updated)
+          const currentChunk = chunks.find(
+            c => c.start === chunk.start && c.end === chunk.end && c.text === chunk.text,
+          );
+          if (currentChunk && hoveredChunk && currentChunk.start === hoveredChunk.start) {
+            // Update hovered chunk if it's the same one
+            setHoveredChunk(currentChunk);
+          } else {
+            setHoveredChunk(null);
+          }
           setHoveredChunkImages([]);
           setHoveredChunkImageIndex(0);
           tooltipCloseTimeoutRef.current = null;
@@ -282,9 +308,41 @@ export const ReadingMode = ({
     return 'text-[#111111]';
   };
 
-  // Load images for hovered chunk
+  // Update hovered chunk state only when translation content actually changes
+  // This prevents unnecessary tooltip re-renders during progressive loading
   useEffect(() => {
-    if (!hoveredChunk || !showImages) {
+    if (!currentHoveredChunk) {
+      lastTranslationRef.current = null;
+      return;
+    }
+
+    const currentTranslation = currentHoveredChunk.translation;
+    const lastTranslation = lastTranslationRef.current;
+
+    // Check if translation actually changed
+    if (
+      !lastTranslation ||
+      lastTranslation.literal !== currentTranslation.literal ||
+      lastTranslation.contextual !== currentTranslation.contextual ||
+      lastTranslation.differs !== currentTranslation.differs
+    ) {
+      // Only update state if translation content changed
+      lastTranslationRef.current = {
+        literal: currentTranslation.literal,
+        contextual: currentTranslation.contextual,
+        differs: currentTranslation.differs,
+      };
+      // Only call setState if the chunk reference actually changed (avoid re-render if same chunk)
+      if (currentHoveredChunk !== hoveredChunk) {
+        setHoveredChunk(currentHoveredChunk);
+      }
+    }
+  }, [currentHoveredChunk, hoveredChunk]);
+
+  // Load images for hovered chunk
+  // Use currentHoveredChunk (memoized) to avoid re-triggering on every chunks update
+  useEffect(() => {
+    if (!currentHoveredChunk || !showImages) {
       setHoveredChunkImages([]);
       return;
     }
@@ -309,8 +367,8 @@ export const ReadingMode = ({
 
     const loadImages = async () => {
       const queries: string[] = [];
-      const c = sanitize(hoveredChunk.translation?.contextual?.trim());
-      const l = sanitize(hoveredChunk.translation?.literal?.trim());
+      const c = sanitize(currentHoveredChunk.translation?.contextual?.trim());
+      const l = sanitize(currentHoveredChunk.translation?.literal?.trim());
       if (c) queries.push(c);
       if (l && l !== c) queries.push(l);
       if (queries.length === 0) {
@@ -336,13 +394,32 @@ export const ReadingMode = ({
     };
 
     loadImages();
-  }, [hoveredChunk, showImages]);
+  }, [currentHoveredChunk, showImages]);
 
   if (!isVisible) {
     return null;
   }
 
   const progressPercent = progress ? (progress.completed / progress.total) * 100 : 0;
+  const literalProgressPercent =
+    progress && progress.literalCompleted !== undefined && progress.total
+      ? (progress.literalCompleted / progress.total) * 100
+      : progress?.phase === 'translate-literal' || progress?.phase === 'translate-contextual'
+        ? progressPercent
+        : 0;
+  const contextualProgressPercent =
+    progress && progress.contextualCompleted !== undefined && progress.total
+      ? (progress.contextualCompleted / progress.total) * 100
+      : progress?.phase === 'translate-contextual'
+        ? progressPercent
+        : 0;
+
+  const showDualProgress =
+    progress &&
+    !isSimplifyMode &&
+    (progress.phase === 'translate-literal' ||
+      progress.phase === 'translate-contextual' ||
+      (progress.literalCompleted !== undefined && progress.contextualCompleted !== undefined));
 
   return (
     <div
@@ -380,21 +457,83 @@ export const ReadingMode = ({
           </button>
         </div>
 
-        {/* Progress Bar */}
+        {/* Progress Bars */}
         {progress && (
           <div className="flex min-h-[28px] flex-col items-center gap-2 px-8 pb-4">
-            <div className="text-center text-sm text-gray-400">
-              {progress.phase || 'Processing...'} ({progress.completed}/{progress.total})
-            </div>
-            <div className="h-1.5 w-full max-w-[300px] overflow-hidden rounded-full bg-white/20">
-              <div
-                className="h-full rounded-full transition-all duration-300 ease-in-out"
-                style={{
-                  background: 'linear-gradient(90deg, #4CAF50, #8BC34A)',
-                  width: `${progressPercent}%`,
-                }}
-              />
-            </div>
+            {showDualProgress ? (
+              <>
+                <div className="text-center text-sm text-gray-400">
+                  {progress.phase === 'translate-literal'
+                    ? 'Literal Translation'
+                    : progress.phase === 'translate-contextual'
+                      ? 'Contextual Translation'
+                      : progress.phase || 'Processing...'}
+                </div>
+                <div className="flex w-full max-w-[300px] flex-col gap-2">
+                  {/* Literal progress bar */}
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Literal</span>
+                      <span>
+                        {progress.literalCompleted !== undefined
+                          ? `${progress.literalCompleted}/${progress.total}`
+                          : progress.phase === 'translate-literal'
+                            ? `${progress.completed}/${progress.total}`
+                            : progress.total
+                              ? `${progress.total}/${progress.total}`
+                              : '0/0'}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+                      <div
+                        className="h-full rounded-full transition-all duration-300 ease-in-out"
+                        style={{
+                          background: 'linear-gradient(90deg, #90CAF9, #64B5F6)',
+                          width: `${literalProgressPercent}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {/* Contextual progress bar */}
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Contextual</span>
+                      <span>
+                        {progress.contextualCompleted !== undefined
+                          ? `${progress.contextualCompleted}/${progress.total}`
+                          : progress.phase === 'translate-contextual'
+                            ? `${progress.completed}/${progress.total}`
+                            : '0/0'}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+                      <div
+                        className="h-full rounded-full transition-all duration-300 ease-in-out"
+                        style={{
+                          background: 'linear-gradient(90deg, #81C784, #66BB6A)',
+                          width: `${contextualProgressPercent}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-center text-sm text-gray-400">
+                  {progress.phase || 'Processing...'} ({progress.completed}/{progress.total})
+                </div>
+                <div className="h-1.5 w-full max-w-[300px] overflow-hidden rounded-full bg-white/20">
+                  <div
+                    className="h-full rounded-full transition-all duration-300 ease-in-out"
+                    style={{
+                      background: 'linear-gradient(90deg, #4CAF50, #8BC34A)',
+                      width: `${progressPercent}%`,
+                    }}
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -479,7 +618,7 @@ export const ReadingMode = ({
       </div>
 
       {/* Tooltip */}
-      {hoveredChunk && (
+      {currentHoveredChunk && (
         <div
           ref={refs.setFloating}
           className="pointer-events-auto z-[1000000] min-w-[200px] max-w-[400px] rounded-lg border border-white/30 bg-[#1a1a1a] px-4 py-3 leading-normal shadow-lg"
@@ -512,31 +651,48 @@ export const ReadingMode = ({
               setHoveredChunk(null);
               setHoveredChunkImages([]);
               setHoveredChunkImageIndex(0);
+              lastTranslationRef.current = null;
               tooltipCloseTimeoutRef.current = null;
             }, 300);
           }}>
           {isSimplifyMode ? (
             // Simplify mode: show simplified text without prefixes
-            hoveredChunk.translation.contextual && (
-              <div className="text-white">{hoveredChunk.translation.contextual}</div>
+            currentHoveredChunk.translation.contextual && (
+              <div className="text-white">{currentHoveredChunk.translation.contextual}</div>
             )
           ) : (
-            // Translation mode: show literal and contextual as before
+            // Translation mode: show literal and contextual
             <>
-              {hoveredChunk.translation.differs && hoveredChunk.translation.literal && (
-                <div className="mb-2 border-b border-white/10 pb-2 text-[#90CAF9]">
-                  {showPrefixes ? 'Literal: ' : ''}
-                  {hoveredChunk.translation.literal}
+              {/* Show literal if it exists and differs from contextual, or if contextual doesn't exist yet */}
+              {currentHoveredChunk.translation.literal &&
+                (currentHoveredChunk.translation.differs || !currentHoveredChunk.translation.contextual) && (
+                  <div
+                    className={
+                      currentHoveredChunk.translation.contextual && currentHoveredChunk.translation.differs
+                        ? 'mb-2 border-b border-white/10 pb-2 text-[#90CAF9]'
+                        : 'text-[#90CAF9]'
+                    }>
+                    {showPrefixes &&
+                    currentHoveredChunk.translation.contextual &&
+                    currentHoveredChunk.translation.differs
+                      ? 'Literal: '
+                      : ''}
+                    {currentHoveredChunk.translation.literal}
+                  </div>
+                )}
+              {/* Show contextual if it exists */}
+              {currentHoveredChunk.translation.contextual && (
+                <div
+                  className={
+                    currentHoveredChunk.translation.differs
+                      ? 'text-[#81C784]'
+                      : currentHoveredChunk.translation.literal
+                        ? 'text-white'
+                        : 'text-white'
+                  }>
+                  {showPrefixes && currentHoveredChunk.translation.differs ? 'Contextual: ' : ''}
+                  {currentHoveredChunk.translation.contextual}
                 </div>
-              )}
-              {hoveredChunk.translation.contextual && hoveredChunk.translation.differs && (
-                <div className="text-[#81C784]">
-                  {showPrefixes ? 'Contextual: ' : ''}
-                  {hoveredChunk.translation.contextual}
-                </div>
-              )}
-              {!hoveredChunk.translation.differs && hoveredChunk.translation.contextual && (
-                <div className="text-white">{hoveredChunk.translation.contextual}</div>
               )}
             </>
           )}
@@ -563,7 +719,12 @@ export const ReadingMode = ({
                 aria-label="Cycle to next image">
                 <img
                   src={hoveredChunkImages[hoveredChunkImageIndex]}
-                  alt={hoveredChunk.translation.contextual || hoveredChunk.translation.literal || hoveredChunk.text}
+                  alt={
+                    currentHoveredChunk?.translation.contextual ||
+                    currentHoveredChunk?.translation.literal ||
+                    currentHoveredChunk?.text ||
+                    ''
+                  }
                   className="h-[120px] w-[120px] rounded-lg object-cover"
                   onError={() => {
                     // Try next image if current fails

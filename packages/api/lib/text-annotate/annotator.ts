@@ -42,6 +42,8 @@ export const annotateText = async (
       contextualCount?: number;
       literalTimeMs?: number;
       contextualTimeMs?: number;
+      literalCompleted?: number;
+      contextualCompleted?: number;
       phaseTimes?: Partial<
         Record<
           | 'extract'
@@ -360,6 +362,7 @@ export const annotateText = async (
           // PHASE 1: Literal translations (fast, stream to UI immediately)
           taLog('[TextAnnotate] Phase 1: Translating chunks literally in parallel batches...');
           const literalPhaseStart = performance.now();
+          let literalCompletedCount = 0;
 
           // Store literal results indexed by chunk text/position for phase 2
           const literalResults = new Map<
@@ -416,6 +419,7 @@ export const annotateText = async (
                   language: detectedLanguage,
                   translation: literalResult, // Initially has literal only
                 });
+                literalCompletedCount++;
               }
             }
 
@@ -429,6 +433,8 @@ export const annotateText = async (
                 contextualTimeMs: 0,
                 batchTimeMs: batchTime,
                 phaseTimes: { 'translate-literal': translateAccumMs },
+                literalCompleted: literalCompletedCount,
+                contextualCompleted: 0,
               });
             }
           }
@@ -442,6 +448,7 @@ export const annotateText = async (
           taLog('[TextAnnotate] Phase 2: Translating chunks contextually in parallel batches...');
           const contextualPhaseStart = performance.now();
           let contextualAccumMs = 0;
+          let contextualCompletedCount = 0;
 
           // Process all chunks again for contextual translation
           for (let batchStart = 0; batchStart < filteredPosChunks.length; batchStart += BATCH_SIZE) {
@@ -524,6 +531,7 @@ export const annotateText = async (
                     translation,
                   });
                 }
+                contextualCompletedCount++;
               }
             }
 
@@ -540,6 +548,8 @@ export const annotateText = async (
                   'translate-literal': literalPhaseEnd - literalPhaseStart,
                   'translate-contextual': contextualAccumMs,
                 },
+                literalCompleted: literalCompletedCount,
+                contextualCompleted: contextualCompletedCount,
               });
             }
           }
