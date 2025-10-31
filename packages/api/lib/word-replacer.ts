@@ -5,7 +5,16 @@
 // Users can select text to add replacements and see replacements applied in real-time
 
 import { rewriterManager } from './chrome-ai/index.js';
+import {
+  expandSelectionToWordBoundaries as expandSelectionToWordBoundariesUtil,
+  findSentenceStart as findSentenceStartUtil,
+  findSentenceEnd as findSentenceEndUtil,
+  preserveOriginalFormatting as preserveOriginalFormattingUtil,
+  cleanupEmptyInlineElements as cleanupEmptyInlineElementsUtil,
+  cleanupStrayMarkersInDoc as cleanupStrayMarkersInDocUtil,
+} from './dom-utils.js';
 import { FloatingWidget } from './floating-widget.js';
+import { buildRewriterOptions as rwBuildOptions, toBaseLang as rwToBaseLang } from './rewriter-options.js';
 import { detectLanguageFromText } from './text-annotate/language-detector.js';
 import { generateFragmentStringHashFromRange } from './text-fragments-api.js';
 import { addTextRewrite } from './text-rewrites-api.js';
@@ -237,11 +246,11 @@ export class WordReplacer {
           // Update state and persist via storage
           if (state.isActive !== undefined) {
             this.isActive = state.isActive;
-            await wordReplacerStorage.set(current => ({ ...current, isActive: this.isActive }));
+            await wordReplacerStorage.updateState({ isActive: this.isActive });
           }
           if (state.widgetSize) {
             this.widgetSize = state.widgetSize;
-            await wordReplacerStorage.updateWidgetSize(this.widgetSize);
+            await wordReplacerStorage.updateState({ widgetSize: this.widgetSize });
             if (this.floatingWidget) {
               this.removeFloatingWidget();
               this.createFloatingWidget();
@@ -253,7 +262,9 @@ export class WordReplacer {
               state.rewriterOptions as Partial<WordReplacerStorageRewriterOptions>,
             );
             try {
-              await this.reinitializeRewriter();
+              await rewriterManager.getRewriter(
+                rwBuildOptions(this.rewriterOptions) as unknown as RewriterCreateOptions,
+              );
             } catch (error) {
               console.warn('Failed to reinitialize rewriter with new options:', error);
             }
@@ -347,7 +358,7 @@ export class WordReplacer {
           );
 
           try {
-            await this.reinitializeRewriter();
+            await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions) as unknown as RewriterCreateOptions);
           } catch (error) {
             console.warn('Failed to reinitialize rewriter with new options:', error);
           }
@@ -465,47 +476,6 @@ export class WordReplacer {
     }
   }
 
-  expandSelectionToWordBoundaries(range: Range): Range {
-    // Clone the range to avoid modifying the original
-    const expandedRange = range.cloneRange();
-
-    // Get the start and end containers
-    const startContainer = expandedRange.startContainer;
-    const endContainer = expandedRange.endContainer;
-
-    // Expand start boundary
-    if (startContainer.nodeType === Node.TEXT_NODE) {
-      const text = startContainer.textContent;
-      if (!text) {
-        return expandedRange;
-      }
-      let startOffset = expandedRange.startOffset;
-
-      // Move backwards to find word boundary
-      while (startOffset > 0 && /\w/.test(text[startOffset - 1])) {
-        startOffset--;
-      }
-      expandedRange.setStart(startContainer, startOffset);
-    }
-
-    // Expand end boundary
-    if (endContainer.nodeType === Node.TEXT_NODE) {
-      const text = endContainer.textContent;
-      if (!text) {
-        return expandedRange;
-      }
-      let endOffset = expandedRange.endOffset;
-
-      // Move forwards to find word boundary
-      while (endOffset < text.length && /\w/.test(text[endOffset])) {
-        endOffset++;
-      }
-      expandedRange.setEnd(endContainer, endOffset);
-    }
-
-    return expandedRange;
-  }
-
   async highlightSelectedWord(word: string, selection: Selection | null): Promise<void> {
     if (!this.isActive || !selection) {
       return;
@@ -517,7 +487,7 @@ export class WordReplacer {
     }
 
     // Expand selection to complete word boundaries
-    const range = this.expandSelectionToWordBoundaries(selection.getRangeAt(0));
+    const range = expandSelectionToWordBoundariesUtil(selection.getRangeAt(0));
     const expandedWord = range.toString().trim();
 
     // Use the expanded word if it's different from the original selection
@@ -647,8 +617,8 @@ export class WordReplacer {
       }
 
       // Find sentence boundaries around the target text
-      const sentenceEnd = this.findSentenceEnd(fullText, targetIndex + targetText.length);
-      const sentenceStart = this.findSentenceStart(fullText, targetIndex);
+      const sentenceEnd = findSentenceEndUtil(fullText, targetIndex + targetText.length);
+      const sentenceStart = findSentenceStartUtil(fullText, targetIndex);
 
       // Extract context within the same sentence
       const beforeContext = fullText.substring(sentenceStart, targetIndex).trim();
@@ -660,48 +630,6 @@ export class WordReplacer {
       console.warn('Error extracting context:', error);
       return { beforeContext: '', afterContext: '', fullContext: targetText };
     }
-  }
-
-  /**
-   * Find the start of the sentence containing the given position
-   */
-  private findSentenceStart(text: string, position: number): number {
-    // Common sentence ending punctuation followed by whitespace or start of text
-    const sentenceEnders = /[.!?]\s+/g;
-
-    // Look backwards from the position to find the previous sentence ending
-    const textBefore = text.substring(0, position);
-    let lastMatch = 0;
-    let match;
-
-    // Reset regex lastIndex to ensure proper matching
-    sentenceEnders.lastIndex = 0;
-
-    while ((match = sentenceEnders.exec(textBefore)) !== null) {
-      lastMatch = match.index + match[0].length;
-    }
-
-    return lastMatch;
-  }
-
-  /**
-   * Find the end of the sentence containing the given position
-   */
-  private findSentenceEnd(text: string, position: number): number {
-    // Common sentence ending punctuation, optionally followed by whitespace or end of text
-    const sentenceEnders = /[.!?](?=\s|$)/;
-
-    // Look forward from the position to find the next sentence ending
-    const textAfter = text.substring(position);
-    const match = textAfter.match(sentenceEnders);
-
-    if (match && match.index !== undefined) {
-      // Include the punctuation mark
-      return position + match.index + 1;
-    }
-
-    // If no sentence ending found, return the end of the text
-    return text.length;
   }
 
   /**
@@ -723,12 +651,14 @@ export class WordReplacer {
 
       // Determine languages for this rewrite
       const detectedLang = await detectLanguageFromText(contextInfo.fullContext || originalText);
-      const detectedBase = this.toBaseLang(normalizeLanguageCode(detectedLang || 'en-US'));
+      const detectedBase = rwToBaseLang(normalizeLanguageCode(detectedLang || 'en-US'));
       const nativeState = await languageStorage.get();
-      const nativeBase = this.toBaseLang(nativeState?.nativeLanguage || 'en-US');
+      const nativeBase = rwToBaseLang(nativeState?.nativeLanguage || 'en-US');
 
       // Initialize rewriter with per-call language settings
-      const rewriter = await rewriterManager.getRewriter(this.buildRewriterOptions(detectedBase, nativeBase));
+      const rewriter = await rewriterManager.getRewriter(
+        rwBuildOptions(this.rewriterOptions, detectedBase, nativeBase) as unknown as RewriterCreateOptions,
+      );
 
       if (!rewriter) {
         throw new Error('Failed to initialize rewriter');
@@ -763,7 +693,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       let rewrittenText = this.cleanRewrittenResponse(rawRewrittenText);
 
       // Preserve original formatting patterns
-      rewrittenText = this.preserveOriginalFormatting(originalText, rewrittenText);
+      rewrittenText = preserveOriginalFormattingUtil(originalText, rewrittenText);
 
       // Create wrapper for the rewritten content
       const wrapper = document.createElement('span');
@@ -1046,51 +976,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  /**
-   * Analyze the formatting patterns of the original text
-   */
-  analyzeTextFormatting(text: string): {
-    hasCapitalization: boolean;
-    hasPunctuation: boolean;
-    startsWithCapital: boolean;
-    endsWithPunctuation: boolean;
-  } {
-    const trimmedText = text.trim();
-
-    return {
-      hasCapitalization: /[A-Z]/.test(trimmedText),
-      hasPunctuation: /[.!?,:;]/.test(trimmedText),
-      startsWithCapital: /^[A-Z]/.test(trimmedText),
-      endsWithPunctuation: /[.!?]$/.test(trimmedText),
-    };
-  }
-
-  /**
-   * Apply the original text's formatting patterns to the rewritten text
-   */
-  preserveOriginalFormatting(originalText: string, rewrittenText: string): string {
-    const originalFormatting = this.analyzeTextFormatting(originalText);
-    let processedText = rewrittenText.trim();
-
-    // If the original text has no capitalization, convert rewritten text to lowercase
-    if (!originalFormatting.hasCapitalization) {
-      processedText = processedText.toLowerCase();
-    } else if (originalFormatting.startsWithCapital && processedText.length > 0) {
-      // Preserve the capital at the start if original had it
-      processedText = processedText.charAt(0).toUpperCase() + processedText.slice(1);
-    }
-
-    // If the original text has no punctuation, remove punctuation from rewritten text
-    if (!originalFormatting.hasPunctuation) {
-      processedText = processedText.replace(/[.!?,:;]/g, '');
-    } else if (originalFormatting.endsWithPunctuation && !/[.!?]$/.test(processedText)) {
-      // If original ended with punctuation but rewritten doesn't, add a period
-      processedText += '.';
-    }
-
-    return processedText;
-  }
-
   removeHighlights() {
     // Remove interactive wrappers via manager
     try {
@@ -1206,8 +1091,9 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    */
   async initRewriter() {
     try {
-      const options: RewriterOptions = this.buildRewriterOptions();
-      return await rewriterManager.getRewriter(options);
+      return await rewriterManager.getRewriter(
+        rwBuildOptions(this.rewriterOptions) as unknown as RewriterCreateOptions,
+      );
     } catch (error) {
       console.error('Failed to initialize Rewriter:', error);
       throw error;
@@ -1220,36 +1106,11 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    */
   async reinitializeRewriter(): Promise<void> {
     try {
-      const options: RewriterOptions = this.buildRewriterOptions();
-      await rewriterManager.getRewriter(options);
+      await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions) as unknown as RewriterCreateOptions);
     } catch (error) {
       console.error('Failed to reinitialize Rewriter:', error);
       throw error;
     }
-  }
-
-  private toBaseLang(lang: string | undefined): string {
-    const code = lang || 'en-US';
-    return code.split('-')[0].toLowerCase();
-  }
-
-  private buildRewriterOptions(detectedBaseLang?: string, nativeBaseLang?: string): RewriterOptions {
-    const detected = detectedBaseLang || this.toBaseLang(this.rewriterOptions.outputLanguage || 'en');
-    const native = nativeBaseLang || this.rewriterOptions.expectedContextLanguages?.[0] || 'en';
-    return {
-      sharedContext: this.rewriterOptions.sharedContext || undefined,
-      expectedInputLanguages: [detected],
-      expectedContextLanguages: [native],
-      outputLanguage: detected,
-      tone: this.rewriterOptions.tone !== 'as-is' ? this.rewriterOptions.tone : undefined,
-      format: this.rewriterOptions.format !== 'as-is' ? this.rewriterOptions.format : undefined,
-      length: this.rewriterOptions.length !== 'as-is' ? this.rewriterOptions.length : undefined,
-      monitor: (m: DownloadMonitor) => {
-        m.addEventListener('downloadprogress', (e: ProgressEvent) => {
-          this.downloadProgress = Math.round((e.loaded / e.total) * 100);
-        });
-      },
-    };
   }
 
   /**
@@ -1436,7 +1297,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
     // Clean up any leftover empty elements (like empty <code>, <span>, etc.)
     if (parentElement) {
-      this.cleanupEmptyElements(parentElement);
+      cleanupEmptyInlineElementsUtil(parentElement);
     }
 
     // Clear the selection
@@ -1444,20 +1305,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
     if (selection) {
       selection.removeAllRanges();
     }
-  }
-
-  /**
-   * Remove empty inline elements that might be left over after text replacement
-   */
-  private cleanupEmptyElements(container: HTMLElement): void {
-    const emptyElements = container.querySelectorAll('code, span, em, strong, i, b, mark, small, del, ins, sub, sup');
-
-    emptyElements.forEach(element => {
-      // Remove if element is empty or contains only whitespace
-      if (!element.textContent || element.textContent.trim() === '') {
-        element.remove();
-      }
-    });
   }
 
   /**
@@ -1582,7 +1429,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
       // Get the range and expand it to full word boundaries
       const originalRange = selection.getRangeAt(0);
-      const expandedRange = this.expandSelectionToWordBoundaries(originalRange);
+      const expandedRange = expandSelectionToWordBoundariesUtil(originalRange);
       const expandedText = expandedRange.toString().trim();
 
       // Check if the selection is within an existing rewriter wrapper
@@ -1657,12 +1504,14 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
       // Determine languages for this rewrite
       const detectedLang = await detectLanguageFromText(contextInfo.fullContext || originalText);
-      const detectedBase = this.toBaseLang(normalizeLanguageCode(detectedLang || 'en-US'));
+      const detectedBase = rwToBaseLang(normalizeLanguageCode(detectedLang || 'en-US'));
       const nativeState = await languageStorage.get();
-      const nativeBase = this.toBaseLang(nativeState?.nativeLanguage || 'en-US');
+      const nativeBase = rwToBaseLang(nativeState?.nativeLanguage || 'en-US');
 
       // Initialize rewriter with per-call language settings
-      const rewriter = await rewriterManager.getRewriter(this.buildRewriterOptions(detectedBase, nativeBase));
+      const rewriter = await rewriterManager.getRewriter(
+        rwBuildOptions(this.rewriterOptions, detectedBase, nativeBase) as unknown as RewriterCreateOptions,
+      );
 
       if (!rewriter) {
         throw new Error('Failed to initialize rewriter');
@@ -1698,7 +1547,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       let rewrittenText = this.cleanRewrittenResponse(rawRewrittenText);
 
       // Preserve original formatting patterns
-      rewrittenText = this.preserveOriginalFormatting(originalText, rewrittenText);
+      rewrittenText = preserveOriginalFormattingUtil(originalText, rewrittenText);
 
       // Create wrapper for the rewritten content with interactive UI
       const wrapper = document.createElement('span');
@@ -1944,7 +1793,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       undoManager.registerWrapper(wrapper);
 
       // Clean up any stray markers that might have been left in the document
-      this.cleanupStrayMarkers();
+      cleanupStrayMarkersInDocUtil(document.body);
 
       // Update current highlight reference
       this.currentHighlight = wrapper;
@@ -1968,34 +1817,6 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
       console.error('❌ Error rewriting selected text:', error);
       throw error;
     }
-  }
-
-  /**
-   * Clean up any stray marker patterns from the document
-   * These might be left over from failed or interrupted replacements
-   */
-  private cleanupStrayMarkers(): void {
-    const markerPattern = /__LINGUINE_\d+_[a-z0-9]+__/g;
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    const nodesToClean: Text[] = [];
-
-    let node;
-    while ((node = walker.nextNode())) {
-      const textNode = node as Text;
-      if (textNode.nodeValue && markerPattern.test(textNode.nodeValue)) {
-        nodesToClean.push(textNode);
-      }
-    }
-
-    nodesToClean.forEach(textNode => {
-      if (textNode.nodeValue) {
-        const cleaned = textNode.nodeValue.replace(markerPattern, '');
-        if (cleaned !== textNode.nodeValue) {
-          console.log('🧹 Cleaned stray markers from text node');
-          textNode.nodeValue = cleaned;
-        }
-      }
-    });
   }
 
   /**

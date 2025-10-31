@@ -7,7 +7,20 @@ const storage = createStorage<WordReplacerStateType>('wordReplacer', DEFAULT_WOR
   liveUpdate: true,
 });
 
-export const wordReplacerStorage: WordReplacerStorageType = {
+const mergeRewriterOptions = (
+  current: WordReplacerStateType['rewriterOptions'],
+  next?: Partial<WordReplacerStateType['rewriterOptions']>,
+): WordReplacerStateType['rewriterOptions'] => {
+  if (!next) return current;
+  return {
+    ...current,
+    ...next,
+  };
+};
+
+export const wordReplacerStorage: WordReplacerStorageType & {
+  updateState: (partial: Partial<WordReplacerStateType>) => Promise<void>;
+} = {
   ...storage,
   toggleActive: async () => {
     await storage.set(currentState => ({
@@ -18,16 +31,20 @@ export const wordReplacerStorage: WordReplacerStorageType = {
   updateRewriterOptions: async (options: Partial<WordReplacerStateType['rewriterOptions']>) => {
     await storage.set(currentState => ({
       ...currentState,
-      rewriterOptions: {
-        ...currentState.rewriterOptions,
-        ...options,
-      },
+      rewriterOptions: mergeRewriterOptions(currentState.rewriterOptions, options),
     }));
   },
   updateWidgetSize: async (size: WordReplacerStateType['widgetSize']) => {
     await storage.set(currentState => ({
       ...currentState,
       widgetSize: size,
+    }));
+  },
+  updateState: async partial => {
+    await storage.set(currentState => ({
+      ...currentState,
+      ...partial,
+      rewriterOptions: mergeRewriterOptions(currentState.rewriterOptions, partial.rewriterOptions),
     }));
   },
 };

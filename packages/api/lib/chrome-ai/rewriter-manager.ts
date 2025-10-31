@@ -12,6 +12,18 @@ export class RewriterManager extends BaseChromeAIManager<RewriterManager> {
   private rewriter: Rewriter | null = null;
   private currentOptions: RewriterCreateOptions | null = null;
 
+  /** Set options; returns the active Rewriter instance, reinitializing if changed. */
+  public async setOptions(options?: RewriterCreateOptions): Promise<Rewriter> {
+    const changed = JSON.stringify(this.currentOptions) !== JSON.stringify(options);
+    if (!changed && this.rewriter && this.isReady()) return this.rewriter;
+    return await this.getRewriter(options);
+  }
+
+  /** Returns the current options used to create the Rewriter. */
+  public getCurrentOptions(): RewriterCreateOptions | null {
+    return this.currentOptions ? { ...this.currentOptions } : null;
+  }
+
   private constructor(config: BaseManagerConfig = {}) {
     super(config);
   }
@@ -33,7 +45,7 @@ export class RewriterManager extends BaseChromeAIManager<RewriterManager> {
   public async getRewriter(options?: RewriterCreateOptions): Promise<Rewriter> {
     // Check if we need to reinitialize based on options change
     const optionsChanged = JSON.stringify(this.currentOptions) !== JSON.stringify(options);
-    
+
     if (this.isReady() && this.rewriter && !optionsChanged) {
       return this.rewriter;
     }
@@ -43,9 +55,7 @@ export class RewriterManager extends BaseChromeAIManager<RewriterManager> {
 
   private async initialize(options?: RewriterCreateOptions): Promise<Rewriter> {
     try {
-      await this.checkAPIAvailability('Rewriter', async () => {
-        return await Rewriter.availability();
-      });
+      await this.checkAPIAvailability('Rewriter', async () => Rewriter.availability());
 
       // Destroy existing rewriter if options changed
       if (this.rewriter) {
@@ -54,12 +64,13 @@ export class RewriterManager extends BaseChromeAIManager<RewriterManager> {
 
       this.rewriter = await Rewriter.create(options || {});
       this.currentOptions = options || null;
-      
-      // Wait for rewriter to be ready
-      if ('ready' in this.rewriter) {
-        await (this.rewriter as any).ready;
+
+      // Wait for rewriter to be ready if supported
+      const readyProp = (this.rewriter as unknown as { ready?: Promise<void> }).ready;
+      if (readyProp && typeof readyProp.then === 'function') {
+        await readyProp;
       }
-      
+
       this.isInitialized = true;
       return this.rewriter;
     } catch (error) {

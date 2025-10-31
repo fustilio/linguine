@@ -244,7 +244,11 @@ export class TextAnnotateManager {
         // Use progressive annotation with streaming updates
         // Abort any previous run
         if (this.currentAbortController) {
-          try { this.currentAbortController.abort(); } catch {}
+          try {
+            this.currentAbortController.abort();
+          } catch {
+            /* empty */
+          }
         }
         this.currentAbortController = new AbortController();
         result = await annotateText(
@@ -323,7 +327,11 @@ export class TextAnnotateManager {
    */
   public destroy(): void {
     if (this.currentAbortController) {
-      try { this.currentAbortController.abort(); } catch {}
+      try {
+        this.currentAbortController.abort();
+      } catch {
+        /* empty */
+      }
       this.currentAbortController = null;
     }
     if (this.readingModeUI) {
@@ -339,7 +347,9 @@ export class TextAnnotateManager {
         this.currentAbortController.abort();
         this.currentAbortController = null;
       }
-    } catch {}
+    } catch {
+      /* empty */
+    }
     if (hideUI && this.readingModeUI) {
       this.readingModeUI.hide();
     }

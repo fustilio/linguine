@@ -81,3 +81,17 @@ export type WordReplacerStorageType = BaseStorageType<WordReplacerStateType> & {
   updateRewriterOptions: (options: Partial<WordReplacerStateType['rewriterOptions']>) => Promise<void>;
   updateWidgetSize: (size: WordReplacerStateType['widgetSize']) => Promise<void>;
 };
+
+export interface ReadingModeSettingsStateType {
+  fontSizePx: number;
+  lineHeight: number;
+  maxWidthCh: number;
+  theme: 'light' | 'dark' | 'sepia';
+}
+
+export type ReadingModeSettingsStorageType = BaseStorageType<ReadingModeSettingsStateType> & {
+  adjustFontSize: (deltaPx: number) => Promise<void>;
+  adjustLineHeight: (delta: number) => Promise<void>;
+  adjustMaxWidth: (deltaCh: number) => Promise<void>;
+  cycleTheme: () => Promise<void>;
+};
