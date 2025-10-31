@@ -4,8 +4,8 @@
  * Rewriter Manager - Handles Chrome Rewriter API with options management
  */
 
-import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 import { BaseChromeAIManager } from './base-manager.js';
+import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 import type { BaseManagerConfig } from './types.js';
 
 export class RewriterManager extends BaseChromeAIManager<RewriterManager> {

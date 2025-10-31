@@ -23,21 +23,6 @@ import { normalizeLanguageCode } from '@extension/shared';
 import { DEFAULT_REWRITER_PROMPT, wordReplacerStorage, languageStorage } from '@extension/storage';
 import type { WidgetSize } from './floating-widget.js';
 
-type RewriterOptions = {
-  sharedContext?: string;
-  expectedInputLanguages?: string[];
-  expectedContextLanguages?: string[];
-  outputLanguage?: string;
-  tone?: RewriterTone;
-  format?: RewriterFormat;
-  length?: RewriterLength;
-  monitor?: (monitor: DownloadMonitor) => void;
-};
-
-type DownloadMonitor = {
-  addEventListener(type: 'downloadprogress', listener: (event: ProgressEvent) => void): void;
-};
-
 type WordReplacerStorageRewriterOptions = {
   sharedContext: string;
   tone: string;
@@ -56,7 +41,7 @@ export class WordReplacer {
   private observer: MutationObserver | null;
   private selectedWords: Set<string>;
   private currentHighlight: HTMLElement | null;
-  private rewriterOptions: RewriterOptions;
+  private rewriterOptions: Partial<RewriterCreateOptions>;
   private widgetSize: WidgetSize;
   private downloadProgress: number;
   private isDownloading: boolean;
@@ -218,7 +203,15 @@ export class WordReplacer {
         widgetSize: this.widgetSize,
         rewriterOptions: {
           ...current.rewriterOptions,
-          ...this.rewriterOptions,
+          sharedContext: this.rewriterOptions.sharedContext ?? current.rewriterOptions.sharedContext,
+          tone: (this.rewriterOptions.tone as string | undefined) ?? current.rewriterOptions.tone,
+          format: (this.rewriterOptions.format as string | undefined) ?? current.rewriterOptions.format,
+          length: (this.rewriterOptions.length as string | undefined) ?? current.rewriterOptions.length,
+          expectedInputLanguages:
+            this.rewriterOptions.expectedInputLanguages?.slice() ?? current.rewriterOptions.expectedInputLanguages,
+          expectedContextLanguages:
+            this.rewriterOptions.expectedContextLanguages?.slice() ?? current.rewriterOptions.expectedContextLanguages,
+          outputLanguage: this.rewriterOptions.outputLanguage ?? current.rewriterOptions.outputLanguage,
         },
       }));
     } catch (error) {
@@ -262,9 +255,7 @@ export class WordReplacer {
               state.rewriterOptions as Partial<WordReplacerStorageRewriterOptions>,
             );
             try {
-              await rewriterManager.getRewriter(
-                rwBuildOptions(this.rewriterOptions) as unknown as RewriterCreateOptions,
-              );
+              await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions));
             } catch (error) {
               console.warn('Failed to reinitialize rewriter with new options:', error);
             }
@@ -351,14 +342,14 @@ export class WordReplacer {
         case 'updateRewriterOptions':
           this.rewriterOptions = {
             ...this.rewriterOptions,
-            ...(message.options as Partial<RewriterOptions>),
+            ...(message.options as Partial<RewriterCreateOptions>),
           };
           await wordReplacerStorage.updateRewriterOptions(
             message.options as Partial<WordReplacerStorageRewriterOptions>,
           );
 
           try {
-            await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions) as unknown as RewriterCreateOptions);
+            await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions));
           } catch (error) {
             console.warn('Failed to reinitialize rewriter with new options:', error);
           }
@@ -657,7 +648,7 @@ export class WordReplacer {
 
       // Initialize rewriter with per-call language settings
       const rewriter = await rewriterManager.getRewriter(
-        rwBuildOptions(this.rewriterOptions, detectedBase, nativeBase) as unknown as RewriterCreateOptions,
+        rwBuildOptions(this.rewriterOptions, detectedBase, nativeBase),
       );
 
       if (!rewriter) {
@@ -1091,9 +1082,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    */
   async initRewriter() {
     try {
-      return await rewriterManager.getRewriter(
-        rwBuildOptions(this.rewriterOptions) as unknown as RewriterCreateOptions,
-      );
+      return await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions));
     } catch (error) {
       console.error('Failed to initialize Rewriter:', error);
       throw error;
@@ -1106,7 +1095,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
    */
   async reinitializeRewriter(): Promise<void> {
     try {
-      await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions) as unknown as RewriterCreateOptions);
+      await rewriterManager.getRewriter(rwBuildOptions(this.rewriterOptions));
     } catch (error) {
       console.error('Failed to reinitialize Rewriter:', error);
       throw error;
@@ -1116,7 +1105,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
   /**
    * Get current rewriter options for debugging
    */
-  getRewriterOptions(): RewriterOptions {
+  getRewriterOptions(): Partial<RewriterCreateOptions> {
     return { ...this.rewriterOptions };
   }
 
@@ -1510,7 +1499,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
       // Initialize rewriter with per-call language settings
       const rewriter = await rewriterManager.getRewriter(
-        rwBuildOptions(this.rewriterOptions, detectedBase, nativeBase) as unknown as RewriterCreateOptions,
+        rwBuildOptions(this.rewriterOptions, detectedBase, nativeBase),
       );
 
       if (!rewriter) {
@@ -1705,7 +1694,18 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
                 length: this.rewriterOptions.length || 'shorter',
               });
 
-            const urlFragment = wrapper.dataset.urlFragment || null;
+            // Get url fragment from wrapper, ensuring it's never null/empty
+            let urlFragment = wrapper.dataset.urlFragment;
+            // If urlFragment is empty or null, generate a fallback
+            if (!urlFragment) {
+              // Try to regenerate from the current range if possible
+              // Otherwise use a hash-based fallback
+              const text = originalText.trim() || rewrittenText.trim() || 'text';
+              const hash = Array.from(text)
+                .reduce((acc, char) => ((acc << 5) - acc + char.charCodeAt(0)) | 0, 0)
+                .toString(36);
+              urlFragment = `#:~:text=fallback-${hash}-${Date.now()}`;
+            }
 
             const savedRewrite = await addTextRewrite({
               original_text: originalText,
@@ -1713,7 +1713,7 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
               language: normalizeLanguageCode(navigator.language || 'en-US'),
               rewriter_settings: rewriterSettings,
               source_url: window.location.href,
-              url_fragment: urlFragment || null,
+              url_fragment: urlFragment,
             });
 
             if (savedRewrite) {
@@ -1821,13 +1821,19 @@ If context is "The cat [TARGET] quickly" and target is "ran", respond with just:
 
   /**
    * Generate URL fragment for text anchor using the text fragments API
+   * Always returns a valid fragment string, using fallback methods if automatic generation fails
    */
-  generateTextFragment(range: Range): string | null {
+  generateTextFragment(range: Range): string {
     try {
       return generateFragmentStringHashFromRange(range);
     } catch (error) {
-      console.error('Error generating text fragment:', error);
-      return null;
+      console.error('Error generating text fragment, using ultimate fallback:', error);
+      // Ultimate fallback - should never happen, but ensures we always return a string
+      const text = range.toString().trim() || 'text';
+      const hash = Array.from(text)
+        .reduce((acc, char) => ((acc << 5) - acc + char.charCodeAt(0)) | 0, 0)
+        .toString(36);
+      return `#:~:text=fallback-${hash}-${Date.now()}`;
     }
   }
 

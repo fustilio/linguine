@@ -32,42 +32,15 @@
  * });
  */
 
-// Fragment Generation Functions
-export {
-  generateFragment,
-  generateFragmentFromRange,
-  isValidRangeForFragmentGeneration,
-  setTimeout,
-  GenerateFragmentStatus,
-  type GenerateFragmentResult,
-  type TextFragment as TextFragmentFromGen,
-} from 'text-fragments-polyfill/dist/fragment-generation-utils.js';
-
-// Fragment Processing Functions
-export {
-  TEXT_FRAGMENT_CSS_CLASS_NAME,
-  getFragmentDirectives,
-  parseFragmentDirectives,
-  processFragmentDirectives,
-  processTextFragmentDirective,
-  removeMarks,
-  markRange,
-  scrollElementIntoView,
-  applyTargetTextStyle,
-  setDefaultTextFragmentsStyle,
-  type TextFragment,
-} from 'text-fragments-polyfill/text-fragment-utils';
-
 import { generateFragmentFromRange } from 'text-fragments-polyfill/dist/fragment-generation-utils.js';
 import {
+  getFragmentDirectives,
+  markRange,
   parseFragmentDirectives,
   processTextFragmentDirective,
-  markRange,
   removeMarks,
-  scrollElementIntoView,
-  type TextFragment,
-  getFragmentDirectives,
 } from 'text-fragments-polyfill/text-fragment-utils';
+import type { TextFragment } from 'text-fragments-polyfill/text-fragment-utils';
 
 /**
  * Scroll to text using text fragments API
@@ -114,13 +87,13 @@ import {
  *
  * @see https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment/Text_fragments
  */
-export function scrollToText(
+const scrollToText = (
   textFragment: string,
   options: {
     highlight?: boolean;
     highlightDuration?: number;
   } = {},
-): { found: boolean; textNode?: Text; ranges?: Range[] } {
+): { found: boolean; textNode?: Text; ranges?: Range[] } => {
   try {
     console.log('textFragmenet', textFragment);
 
@@ -173,24 +146,24 @@ export function scrollToText(
     try {
       // Get the bounding rectangle of the range for precise positioning
       const rect = range.getBoundingClientRect();
-      
+
       // Calculate scroll position to center the text in the viewport
       const scrollY = window.scrollY + rect.top - window.innerHeight / 2 + rect.height / 2;
       const scrollX = window.scrollX + rect.left - window.innerWidth / 2 + rect.width / 2;
-      
+
       // Use smooth scrolling to the calculated position
       window.scrollTo({
         top: Math.max(0, scrollY),
         left: Math.max(0, scrollX),
-        behavior: 'smooth'
+        behavior: 'smooth',
       });
     } catch (error) {
       // Fallback: use element-based scrolling if range calculation fails
       if (scrollTarget) {
-        scrollTarget.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'center', 
-          inline: 'nearest' 
+        scrollTarget.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest',
         });
       } else {
         console.warn('Could not scroll to text:', error);
@@ -219,9 +192,9 @@ export function scrollToText(
     console.error('Failed to scroll to text:', error);
     return { found: false };
   }
-}
+};
 
-export function stringifyFragment(fragment: TextFragment): string {
+const stringifyFragment = (fragment: TextFragment): string => {
   let fragmentString = encodeURIComponent(fragment.textStart);
   if (fragment.textEnd) {
     fragmentString += `,${encodeURIComponent(fragment.textEnd)}`;
@@ -234,14 +207,75 @@ export function stringifyFragment(fragment: TextFragment): string {
     fragmentString += `,-${encodeURIComponent(fragment.suffix)}`;
   }
   return fragmentString;
-}
+};
 
-export function generateFragmentStringHashFromRange(range: Range): string {
+/**
+ * Fallback fragment generation using a simple text-based approach
+ * This creates a fragment from the selected text when the automatic generation fails
+ */
+const generateFallbackFragment = (range: Range): string => {
+  try {
+    const text = range.toString().trim();
+    if (!text || text.length === 0) {
+      // If no text, create a hash-based fragment
+      const timestamp = Date.now();
+      return `#:~:text=fallback-${timestamp}`;
+    }
+
+    // Use the first part of the text (up to 50 chars) as a simple fragment
+    // This is less precise but better than null
+    const textStart = text.substring(0, Math.min(50, text.length)).trim();
+    if (textStart.length > 0) {
+      return `#:~:text=${encodeURIComponent(textStart)}`;
+    }
+
+    // Final fallback - hash-based
+    const hash = Array.from(text)
+      .reduce((acc, char) => ((acc << 5) - acc + char.charCodeAt(0)) | 0, 0)
+      .toString(36);
+    return `#:~:text=hash-${hash}`;
+  } catch (error) {
+    // Ultimate fallback - timestamp-based
+    console.warn('Fallback fragment generation failed, using timestamp:', error);
+    return `#:~:text=fallback-${Date.now()}`;
+  }
+};
+
+const generateFragmentStringHashFromRange = (range: Range): string => {
   const result = generateFragmentFromRange(range);
-  console.log("generateFragmentFromRange", result)
+  console.log('generateFragmentFromRange', result);
   if (result.status === 0 && result.fragment) {
-    return "#:~:text=" + stringifyFragment(result.fragment);
+    return '#:~:text=' + stringifyFragment(result.fragment);
   }
 
-  throw Error('Failed to generate fragment string from range');
-}
+  // Use fallback when automatic generation fails
+  console.warn('Automatic fragment generation failed, using fallback method');
+  return generateFallbackFragment(range);
+};
+
+// Re-export from polyfill
+export {
+  generateFragment,
+  generateFragmentFromRange,
+  isValidRangeForFragmentGeneration,
+  setTimeout,
+  GenerateFragmentStatus,
+  type GenerateFragmentResult,
+  type TextFragment as TextFragmentFromGen,
+} from 'text-fragments-polyfill/dist/fragment-generation-utils.js';
+
+export {
+  TEXT_FRAGMENT_CSS_CLASS_NAME,
+  getFragmentDirectives,
+  parseFragmentDirectives,
+  processFragmentDirectives,
+  processTextFragmentDirective,
+  removeMarks,
+  markRange,
+  applyTargetTextStyle,
+  setDefaultTextFragmentsStyle,
+  type TextFragment,
+} from 'text-fragments-polyfill/text-fragment-utils';
+
+// Local exports
+export { scrollToText, generateFragmentStringHashFromRange };

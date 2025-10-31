@@ -1,14 +1,6 @@
-export type RewriterOptions = {
-  sharedContext?: string;
-  expectedInputLanguages?: string[];
-  expectedContextLanguages?: string[];
-  outputLanguage?: string;
-  tone?: string;
-  format?: string;
-  length?: string;
-};
+/// <reference types="dom-chromium-ai" />
 
-export const toBaseLang = (lang: string | undefined): string => {
+const toBaseLang = (lang: string | undefined): string => {
   const code = lang || 'en-US';
   return code.split('-')[0].toLowerCase();
 };
@@ -61,10 +53,10 @@ const mapBaseLangToBCP47 = (lang: string): string => {
 };
 
 export const buildRewriterOptions = (
-  current: RewriterOptions,
+  current: Partial<RewriterCreateOptions>,
   detectedBaseLang?: string,
   nativeBaseLang?: string,
-): RewriterOptions => {
+): RewriterCreateOptions => {
   // Convert base language codes to full BCP 47 codes for Chrome Rewriter API
   const detectedBase = detectedBaseLang || toBaseLang(current.outputLanguage || 'en');
   const nativeBase = nativeBaseLang || current.expectedContextLanguages?.[0] || 'en';
@@ -83,3 +75,5 @@ export const buildRewriterOptions = (
     length: current.length !== 'as-is' ? current.length : undefined,
   };
 };
+
+export { toBaseLang };

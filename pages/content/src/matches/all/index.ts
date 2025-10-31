@@ -87,7 +87,7 @@ chrome.runtime.onMessage.addListener(
 
           if (mode === 'auto') {
             const useFullContent = data.useFullContent !== false;
-            await textAnnotateManager.openReadingModeAuto(document, url, 'en-US', useFullContent);
+            await textAnnotateManager.openReadingModeAuto(document, url, useFullContent);
           } else if (mode === 'manual') {
             await textAnnotateManager.openReadingModeManual(document);
           } else if (mode === 'selector' && data.selector) {
