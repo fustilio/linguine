@@ -23,7 +23,7 @@ packages/api/
 │   ├── vocabulary-api.ts        # Vocabulary CRUD operations
 │   ├── text-rewrites-api.ts # Text rewrite operations
 │   ├── database-api-utils.ts    # Message passing utilities
-│   ├── word-replacer.ts         # Text replacement functionality
+│   ├── word-replacer.ts         # Text replacement functionality (utility class, no message handling)
 │   ├── types.ts                 # TypeScript type definitions
 │   ├── hooks/                   # React hooks
 │   │   ├── useVocabulary.ts      # Vocabulary management hook
@@ -208,6 +208,59 @@ export const TextRewriteFiltersSchema = z.object({
   recentDays: z.number().positive().optional(),
   sourceUrl: z.string().url().optional(),
 });
+```
+
+### Word Replacer (`word-replacer.ts`)
+
+**Purpose**: Utility class for text replacement functionality using Chrome's Rewriter API. This is a pure utility class without message handling logic.
+
+**Key Features**:
+- Singleton pattern for single instance per page
+- Text selection and rewriting via Chrome Rewriter API
+- Replacement tracking and undo functionality
+- State management (active/inactive, widget size, rewriter options)
+- DOM manipulation for text replacement with visual feedback
+
+**Important**: This class does NOT handle Chrome messages. All message handling is done in the `content-runtime` script (`pages/content/src/matches/all/index.ts`). The class exposes public methods that are called by the message handlers in the content script.
+
+**Key Methods**:
+```typescript
+// State management
+updateState(state: { isActive?: boolean; widgetSize?: 'small' | 'medium' | 'large'; rewriterOptions?: RewriterRewriteOptions }): Promise<void>
+getState(): { isActive: boolean; widgetSize: 'small' | 'medium' | 'large'; rewriterOptions: RewriterCreateOptions }
+
+// Text rewriting
+rewriteSelectedText(): Promise<{ originalText: string; rewrittenText: string; textSelected: true }>
+
+// Replacement management
+addReplacement(original: string, replacement: string): void
+removeReplacement(original: string): void
+
+// Rewriter options
+updateRewriterOptions(options: Partial<RewriterCreateOptions>): Promise<void>
+getRewriterOptions(): RewriterCreateOptions
+checkRewriterAvailability(): Promise<{ available: boolean; error?: string }>
+
+// Undo functionality
+undoAllRewrites(): void
+```
+
+**Floating Widget**: The floating widget UI is implemented as a React component in `pages/content-ui/src/matches/all/FloatingWidget.tsx`. It communicates with the WordReplacer instance via messages handled by the `content-runtime` script.
+
+**Usage Flow**:
+```
+React Widget (content-ui)
+  ↓ chrome.runtime.sendMessage({ action: 'rewriteSelectedText', target: 'content' })
+Background Script (forwards to content script)
+  ↓ chrome.tabs.sendMessage(tabId, message)
+Content Runtime Script
+  ↓ wordReplacer.rewriteSelectedText()
+WordReplacer Instance
+  ↓ Returns result
+Content Runtime Script
+  ↓ sendResponse({ success: true, ...result })
+Background Script (forwards response)
+React Widget (receives response and updates UI)
 ```
 
 ### Database API Utils (`database-api-utils.ts`)

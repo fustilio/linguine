@@ -119,6 +119,40 @@ async function setupOffscreenDocument(path: string): Promise<void> {
 }
 ```
 
+### Content Script Message Routing
+
+The background script forwards messages with `target: 'content'` to the active tab's content script:
+
+```typescript
+// Forward messages intended for content script
+if (message.target === 'content') {
+  if (sender.tab && sender.tab.id) {
+    chrome.tabs.sendMessage(sender.tab.id, message, response => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        sendResponse(response || { success: false, error: 'No response from content script' });
+      }
+    });
+    return true; // Keep channel open for async response
+  }
+}
+```
+
+**Message Flow**:
+```
+React Widget (content-ui)
+  ↓ chrome.runtime.sendMessage({ action: 'rewriteSelectedText', target: 'content' })
+Background Script (forwards message)
+  ↓ chrome.tabs.sendMessage(tabId, message, callback)
+Content Runtime Script (handles message)
+  ↓ wordReplacer.rewriteSelectedText()
+WordReplacer Instance (returns result)
+  ↓ sendResponse({ success: true, ...result })
+Background Script (forwards response)
+React Widget (receives response and updates UI)
+```
+
 ### Non-Database Message Handling
 
 The background script handles non-database messages directly:
@@ -129,6 +163,7 @@ The background script handles non-database messages directly:
 - **Tab Management**: Inject content scripts when needed
 - **Content Script Coordination**: Routes messages between side panel and content scripts
 - **Health Checks**: Respond to ping messages
+- **Content Script Forwarding**: Forwards messages with `target: 'content'` to active tab
 
 **Key Point**: Database operations bypass the background script entirely. All extension contexts (options page, popup, side panel, content scripts) can send messages directly to the offscreen document with `target: 'offscreen'`. The background script only handles `ensureOffscreenDocument` requests to create the offscreen document if it doesn't exist.
 
@@ -259,6 +294,50 @@ All messages now use an explicit `target` field to route them correctly:
   data: { /* ... */ }
 }
 ```
+
+### Content Script Message Handling
+
+**Location**: `pages/content/src/matches/all/index.ts`
+
+The content runtime script handles all message passing for content script operations:
+
+```typescript
+const wordReplacer = WordReplacer.getInstance();
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Only process messages with target: 'content' or no target (backward compatibility)
+  if (message.target && message.target !== 'content') {
+    return false;
+  }
+
+  if (message.action === 'rewriteSelectedText') {
+    (async () => {
+      try {
+        const result = await wordReplacer.rewriteSelectedText();
+        sendResponse({ success: true, ...result });
+      } catch (error) {
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // Keep channel open for async
+  }
+
+  if (message.action === 'updateState') {
+    // Handle state updates
+    await wordReplacer.updateState(message.state);
+    sendResponse({ success: true });
+    return true;
+  }
+
+  // ... other actions
+});
+```
+
+**Key Points**:
+- Content runtime script handles ALL content script messages (not WordReplacer class)
+- WordReplacer is a pure utility class with public methods
+- Messages use `target: 'content'` to route to content scripts
+- All async handlers return `true` to keep message channel open
 
 ### Target-Based Routing
 

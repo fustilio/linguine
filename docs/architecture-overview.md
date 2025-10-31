@@ -100,14 +100,26 @@ The linguine extension follows a layered architecture pattern with clear separat
 
 ### Content Scripts
 
-**Locations**: `pages/content/`, `pages/content-ui/`, `pages/content-runtime/`
+**Locations**: 
+- `pages/content/` - Main content script runtime (message handling, WordReplacer initialization)
+- `pages/content-ui/` - React-based UI components injected into web pages (FloatingWidget)
+- `pages/content-runtime/` - Alternative runtime script (if needed)
 
 **Responsibilities**:
-- Inject vocabulary replacement functionality into web pages
-- Provide UI for text rewriting and vocabulary saving
-- Text Annotate reading mode overlay (DOM-based): extraction, progressive annotations, TTS
-- Communicate with background script for database operations
-- Handle text selection and Chrome Rewriter API integration
+- **Content Runtime (`pages/content/`)**: 
+  - Initialize WordReplacer and TextAnnotateManager instances
+  - Handle all Chrome message passing for content script operations
+  - Route messages to appropriate utility classes (WordReplacer, TextAnnotateManager)
+  - Coordinate between React UI components and utility classes
+  
+- **Content UI (`pages/content-ui/`)**: 
+  - Inject React components into web pages via Shadow DOM
+  - FloatingWidget: Draggable React component for triggering text rewrites
+  - Manages widget state, drag behavior, and user interactions
+  - Communicates with content-runtime via Chrome messages
+  
+- **Text Annotate reading mode overlay** (DOM-based): extraction, progressive annotations, TTS
+- **Text rewriting**: Chrome Rewriter API integration via WordReplacer utility class
 
 ### UI Pages
 
