@@ -4,6 +4,7 @@
  * Rewriter Manager - Handles Chrome Rewriter API with options management
  */
 
+import { DEFAULT_REWRITER_PROMPT } from '@extension/storage';
 import { BaseChromeAIManager } from './base-manager.js';
 import type { BaseManagerConfig } from './types.js';
 
@@ -62,7 +63,22 @@ export class RewriterManager extends BaseChromeAIManager<RewriterManager> {
         this.rewriter.destroy();
       }
 
-      this.rewriter = await Rewriter.create(options || {});
+      // we hack the options like this because right now only en/ja/es is supported
+      // but from experiments other languages work too, but maybe are not yet stable.
+      // we then use the prompt to specify the output language.
+      const hackedOptions = {
+        ...options,
+        sharedContext:
+          (options?.sharedContext ?? DEFAULT_REWRITER_PROMPT) + ` Output should be in ${options?.outputLanguage}`,
+      } satisfies RewriterCreateOptions;
+
+      delete hackedOptions.expectedContextLanguages;
+      delete hackedOptions.expectedInputLanguages;
+      delete hackedOptions.outputLanguage;
+
+      console.log('initializing rewriter with the following options', hackedOptions);
+
+      this.rewriter = await Rewriter.create(hackedOptions || {});
       this.currentOptions = options || null;
 
       // Wait for rewriter to be ready if supported
