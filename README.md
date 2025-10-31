@@ -193,10 +193,11 @@ See [Architecture Overview](docs/architecture-overview.md) for full details.
 
 ## Testing
 
-> [!TODO]
-> Add recommended test sites for easy testing of Linguine features across different languages.
-
-Currently tested on: English, Spanish, French, Thai, Japanese, and Mandarin content.
+The following webpages may be used for browsing: 
+- [Thai News](https://www.thairath.co.th/news/local/2891763)
+- [Japanese News](https://globe.asahi.com/article/16016162?iref=comtop_Globe_02)
+- [French News](https://www.france24.com/fr/plan%C3%A8te/20251031-des-paysans-du-pakistan-engagent-un-bras-de-fer-avec-deux-pollueurs-allemands)
+- [English News](https://www.straitstimes.com/asia/se-asia/asean-leaders-push-for-stronger-trade-ties-with-rcep-members-and-other-partners)
 
 ## Troubleshooting
 
