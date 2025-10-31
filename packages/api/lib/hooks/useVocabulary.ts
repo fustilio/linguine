@@ -10,7 +10,7 @@ import {
   updateVocabularyItemKnowledgeLevels as apiUpdateVocabularyItemKnowledgeLevels,
 } from '../vocabulary-api.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { NewVocabularyItem } from '../vocabulary-api.js';
 
 const PAGE_SIZE = 10;
@@ -21,7 +21,8 @@ export const useVocabulary = () => {
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [languageFilter, setLanguageFilter] = useState<string | null>(null);
 
-  const queryKey = ['vocabulary', currentPage, languageFilter];
+  // Stabilize query key to prevent unnecessary cache misses
+  const queryKey = useMemo(() => ['vocabulary', currentPage, languageFilter], [currentPage, languageFilter]);
 
   const { data: vocabularyData } = useQuery({
     queryKey,

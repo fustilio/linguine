@@ -1,4 +1,4 @@
-import { 
+import {
   addTextRewrite as apiAddTextRewrite,
   clearAllTextRewrites as apiClearAllTextRewrites,
   deleteTextRewrite as apiDeleteTextRewrite,
@@ -7,7 +7,7 @@ import {
   getTextRewriteCount as apiGetTextRewriteCount,
 } from '../text-rewrites-api.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { TextRewriteData } from '../text-rewrites-api.js';
 
 const PAGE_SIZE = 10;
@@ -23,7 +23,19 @@ export const useTextRewrites = (filters?: {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
 
-  const queryKey = ['textRewrites', currentPage, filters];
+  // Stabilize filters object for query key to prevent unnecessary cache misses
+  const stableFilters = useMemo(() => {
+    if (!filters) return undefined;
+    return {
+      language: filters.language,
+      minReadability: filters.minReadability,
+      maxReadability: filters.maxReadability,
+      recentDays: filters.recentDays,
+      sourceUrl: filters.sourceUrl,
+    };
+  }, [filters]);
+
+  const queryKey = useMemo(() => ['textRewrites', currentPage, stableFilters], [currentPage, stableFilters]);
 
   const { data: textRewritesData } = useQuery({
     queryKey,
@@ -46,8 +58,12 @@ export const useTextRewrites = (filters?: {
   };
 
   const addTextRewrite = useMutation({
-    mutationFn: (rewrite: Omit<TextRewriteData, 'id' | 'original_readability_score' | 'rewritten_readability_score' | 'created_at'>) => 
-      apiAddTextRewrite(rewrite),
+    mutationFn: (
+      rewrite: Omit<
+        TextRewriteData,
+        'id' | 'original_readability_score' | 'rewritten_readability_score' | 'created_at'
+      >,
+    ) => apiAddTextRewrite(rewrite),
     ...mutationOptions,
     onSuccess: () => {
       setCurrentPage(1);

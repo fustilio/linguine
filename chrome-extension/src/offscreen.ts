@@ -1,6 +1,7 @@
 // offscreen.ts - Handles all database operations via OPFS
 
 import { DatabaseActionRequestSchema, TextRewriteSchema, VocabularyItemSchema } from '@extension/api';
+import { fromError } from 'zod-validation-error';
 import {
   // Vocabulary operations
   getAllVocabularyForSummary,
@@ -62,8 +63,12 @@ const sendValidatedResponse = <T>(
     let result: { success: boolean; data?: unknown; error?: string };
 
     if (schema) {
-      const validated = schema.parse(responseData);
-      result = { success: true, data: validated };
+      const validation = schema.safeParse(responseData);
+      if (!validation.success) {
+        const validationError = fromError(validation.error);
+        throw validationError;
+      }
+      result = { success: true, data: validation.data };
     } else {
       result = { success: true, data: responseData };
     }
@@ -75,10 +80,12 @@ const sendValidatedResponse = <T>(
       throw responseError;
     }
   } catch (validationError) {
+    const errorMsg =
+      validationError instanceof Error ? validationError.message : errorMessage || 'Response validation failed';
     console.error('Response validation failed:', validationError);
     const errorResult = {
       success: false,
-      error: errorMessage || 'Response validation failed',
+      error: errorMsg,
     };
     try {
       sendResponse(errorResult);
@@ -136,11 +143,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Validate incoming message structure for database actions
       const baseValidation = DatabaseActionRequestSchema.safeParse(message);
       if (!baseValidation.success) {
-        console.error('❌ Invalid database message structure:', baseValidation.error);
+        const validationError = fromError(baseValidation.error);
+        console.error('❌ Invalid database message structure:', validationError.toString());
         console.error('Message:', message);
         sendResponse({
           success: false,
-          error: `Invalid message structure: ${baseValidation.error.message}`,
+          error: `Invalid message structure: ${validationError.message}`,
         });
         return;
       }

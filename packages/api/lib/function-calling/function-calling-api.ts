@@ -1,6 +1,7 @@
 // original based on https://github.com/nico-martin/benz-gpt/blob/main/src/functionCallingPromptAPI/FunctionCallingPromptAPI.ts
 
 import { chromeAIManager } from '../chrome-ai/index.js';
+import pRetry from 'p-retry';
 import { z } from 'zod';
 import type { Message, FunctionCallingConfig, FunctionDefinition } from './types.js';
 
@@ -257,7 +258,7 @@ IMPORTANT:
     }
   }
 
-  public async generate(text: string, retryCount = 0): Promise<Message> {
+  public async generate(text: string): Promise<Message> {
     if (this.busy) {
       throw new Error('API is busy processing another request');
     }
@@ -272,43 +273,47 @@ IMPORTANT:
     this.log('Generating response for:', text);
 
     try {
-      const answer = await this.session.prompt(text);
-      this.log('Raw answer:', answer);
+      const fullMessage = await pRetry(
+        async () => {
+          const answer = await this.session!.prompt(text);
+          this.log('Raw answer:', answer);
 
-      const parsed = this.parseMessage(answer);
-      this.log('Parsed response:', parsed);
+          const parsed = this.parseMessage(answer);
+          this.log('Parsed response:', parsed);
 
-      const fullMessage: Message = {
-        role: 'assistant',
-        content: answer,
-        parsed,
-      };
+          const message: Message = {
+            role: 'assistant',
+            content: answer,
+            parsed,
+          };
 
-      // Execute function if one was requested
-      if (parsed?.function && parsed.parameter !== null) {
-        const funcResult = await this.executeFunction(parsed.function, parsed.parameter);
-        fullMessage.parsed = {
-          ...parsed,
-          functionResult: funcResult,
-        };
+          // Execute function if one was requested
+          if (parsed?.function && parsed.parameter !== null) {
+            const funcResult = await this.executeFunction(parsed.function, parsed.parameter);
+            message.parsed = {
+              ...parsed,
+              functionResult: funcResult,
+            };
 
-        this.log('Function result:', funcResult);
-      }
+            this.log('Function result:', funcResult);
+          }
+
+          return message;
+        },
+        {
+          retries: this.config.maxRetries,
+          minTimeout: this.config.retryDelay,
+          onFailedAttempt: error => {
+            this.log(`Retrying... (${error.attemptNumber}/${error.retriesLeft + error.attemptNumber})`);
+          },
+        },
+      );
 
       this.messages = [...this.messages, fullMessage];
       this.busy = false;
       return fullMessage;
     } catch (error) {
       this.busy = false;
-
-      // Retry logic
-      if (retryCount < this.config.maxRetries) {
-        this.log(`Retrying... (${retryCount + 1}/${this.config.maxRetries})`);
-
-        await new Promise(resolve => setTimeout(resolve, this.config.retryDelay));
-
-        return this.generate(text, retryCount + 1);
-      }
 
       const errorMessage: Message = {
         role: 'assistant',

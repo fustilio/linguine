@@ -64,6 +64,7 @@ export const ReadingMode = ({
   const tooltipCloseTimeoutRef = useRef<number | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const lastTranslationRef = useRef<{ literal: string; contextual: string; differs: boolean } | null>(null);
+  const hoveredChunkRef = useRef<AnnotatedChunk | null>(null);
   // Cache images per chunk to avoid re-fetching and tooltip jumps
   const imageCacheRef = useRef<Map<string, string[]>>(new Map());
 
@@ -76,6 +77,19 @@ export const ReadingMode = ({
       hoveredChunk
     );
   }, [chunks, hoveredChunk]);
+
+  // Memoize theme-based colors to prevent recalculation
+  const backgroundColor = useMemo(() => {
+    if (settings?.theme === 'dark') return 'bg-black/90';
+    if (settings?.theme === 'sepia') return 'bg-[#f4ecd8]/95';
+    return 'bg-white/95';
+  }, [settings?.theme]);
+
+  const textColor = useMemo(() => {
+    if (settings?.theme === 'dark') return 'text-[#e6e8ea]';
+    if (settings?.theme === 'sepia') return 'text-[#403323]';
+    return 'text-[#111111]';
+  }, [settings?.theme]);
 
   // Floating UI for tooltip positioning
   const { refs, floatingStyles } = useFloating({
@@ -228,7 +242,8 @@ export const ReadingMode = ({
           const currentChunk = chunks.find(
             c => c.start === chunk.start && c.end === chunk.end && c.text === chunk.text,
           );
-          if (currentChunk && hoveredChunk && currentChunk.start === hoveredChunk.start) {
+          const currentHovered = hoveredChunkRef.current;
+          if (currentChunk && currentHovered && currentChunk.start === currentHovered.start) {
             // Update hovered chunk if it's the same one
             setHoveredChunk(currentChunk);
           } else {
@@ -297,19 +312,6 @@ export const ReadingMode = ({
     };
   }, [isVisible, onClose]);
 
-  // Theme-based background colors
-  const getBackgroundColor = () => {
-    if (settings?.theme === 'dark') return 'bg-black/90';
-    if (settings?.theme === 'sepia') return 'bg-[#f4ecd8]/95';
-    return 'bg-white/95';
-  };
-
-  const getTextColor = () => {
-    if (settings?.theme === 'dark') return 'text-[#e6e8ea]';
-    if (settings?.theme === 'sepia') return 'text-[#403323]';
-    return 'text-[#111111]';
-  };
-
   // Update hovered chunk state only when translation content actually changes
   // This prevents unnecessary tooltip re-renders during progressive loading
   useEffect(() => {
@@ -339,6 +341,8 @@ export const ReadingMode = ({
         setHoveredChunk(currentHoveredChunk);
       }
     }
+    // Update ref to track current hovered chunk
+    hoveredChunkRef.current = hoveredChunk;
   }, [currentHoveredChunk, hoveredChunk]);
 
   // Load images for hovered chunk
@@ -448,8 +452,8 @@ export const ReadingMode = ({
       id="text-annotate-reading-mode"
       className={cn(
         'fixed inset-0 flex h-screen flex-col overflow-y-auto overscroll-contain',
-        getBackgroundColor(),
-        getTextColor(),
+        backgroundColor,
+        textColor,
       )}
       style={{ zIndex: 2147483647 }}>
       {/* Header */}

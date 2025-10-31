@@ -3,6 +3,7 @@
 
 import { LanguageCodeSchema } from '@extension/shared';
 import { z } from 'zod';
+import pRetry from 'p-retry';
 
 interface DatabaseResponse<T = unknown> {
   success: boolean;
@@ -306,66 +307,70 @@ const ensureOffscreenDocument = async (): Promise<void> => {
 const sendDatabaseMessage = async <T = unknown>(
   action: string,
   data?: unknown,
-  retryCount: number = 0,
 ): Promise<DatabaseResponse<T>> => {
-  const maxRetries = 2;
+  // Ensure offscreen document exists (only on first attempt)
+  await ensureOffscreenDocument();
 
   try {
-    // Check if extension context is valid before sending message
-    if (!isExtensionContextValid()) {
-      throw new Error('Extension context invalidated');
-    }
+    return await pRetry(
+      async () => {
+        // Check if extension context is valid before sending message
+        if (!isExtensionContextValid()) {
+          throw new Error('Extension context invalidated');
+        }
 
-    // Ensure offscreen document exists (only on first attempt, not retries)
-    if (retryCount === 0) {
-      await ensureOffscreenDocument();
-    }
+        // Send directly to offscreen document
+        const response = await chrome.runtime.sendMessage({
+          action,
+          target: 'offscreen', // Send directly to offscreen
+          data,
+        });
 
-    // Send directly to offscreen document
-    const response = await chrome.runtime.sendMessage({
-      action,
-      target: 'offscreen', // Send directly to offscreen
-      data,
-    });
-
-    // Check if response exists and has the expected structure
-    if (response && typeof response === 'object' && 'success' in response) {
-      if (response.success) {
-        return response;
-      } else {
-        console.error(`❌ Failed to execute ${action}:`, response.error);
-        return { success: false, error: response.error };
-      }
-    } else {
-      // Response is null/undefined or doesn't have expected structure
-      console.error(`❌ No valid response received for ${action}. Response:`, response);
-      return {
-        success: false,
-        error: 'No valid response received from offscreen document',
-      };
-    }
+        // Check if response exists and has the expected structure
+        if (response && typeof response === 'object' && 'success' in response) {
+          if (response.success) {
+            return response;
+          } else {
+            console.error(`❌ Failed to execute ${action}:`, response.error);
+            return { success: false, error: response.error };
+          }
+        } else {
+          // Response is null/undefined or doesn't have expected structure
+          console.error(`❌ No valid response received for ${action}. Response:`, response);
+          throw new Error('No valid response received from offscreen document');
+        }
+      },
+      {
+        retries: 2,
+        minTimeout: 1000,
+        onFailedAttempt: error => {
+          const errorMessage = error.message;
+          // Only retry on extension context invalidation errors
+          if (
+            !errorMessage.includes('Extension context invalidated') &&
+            !errorMessage.includes('Receiving end does not exist') &&
+            !errorMessage.includes('Could not establish connection')
+          ) {
+            throw error; // Don't retry for other errors
+          }
+          console.log(`🔄 Retrying ${action}... (attempt ${error.attemptNumber}/${error.retriesLeft + error.attemptNumber})`);
+        },
+      },
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`❌ Error sending message for ${action}:`, errorMessage);
 
-    // Check if this is an extension context invalidation error
+    // If retries exhausted, return error response
     if (
       errorMessage.includes('Extension context invalidated') ||
       errorMessage.includes('Receiving end does not exist') ||
       errorMessage.includes('Could not establish connection')
     ) {
-      // If we haven't exceeded max retries, wait and retry
-      if (retryCount < maxRetries) {
-        console.log(`🔄 Retrying ${action} in 1 second... (attempt ${retryCount + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return sendDatabaseMessage<T>(action, data, retryCount + 1);
-      } else {
-        console.error(`❌ Max retries exceeded for ${action}. Extension may need to be reloaded.`);
-        return {
-          success: false,
-          error: 'Extension context invalidated. Please reload the extension or refresh the page.',
-        };
-      }
+      return {
+        success: false,
+        error: 'Extension context invalidated. Please reload the extension or refresh the page.',
+      };
     }
 
     return {
