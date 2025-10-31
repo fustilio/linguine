@@ -64,6 +64,8 @@ export const ReadingMode = ({
   const tooltipCloseTimeoutRef = useRef<number | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const lastTranslationRef = useRef<{ literal: string; contextual: string; differs: boolean } | null>(null);
+  // Cache images per chunk to avoid re-fetching and tooltip jumps
+  const imageCacheRef = useRef<Map<string, string[]>>(new Map());
 
   // Get current chunk from chunks array when hoveredChunk is set
   // This ensures we always have the latest translation without re-rendering unnecessarily
@@ -341,13 +343,26 @@ export const ReadingMode = ({
 
   // Load images for hovered chunk
   // Use currentHoveredChunk (memoized) to avoid re-triggering on every chunks update
+  // Cache images per chunk to prevent re-fetching and tooltip jumps
   useEffect(() => {
     if (!currentHoveredChunk || !showImages) {
       setHoveredChunkImages([]);
       return;
     }
 
-    // Sanitize query string (same logic as deprecated ReadingModeUI)
+    // Create cache key from chunk position and translations
+    const cacheKey = `${currentHoveredChunk.start}-${currentHoveredChunk.end}-${currentHoveredChunk.translation.contextual || ''}-${currentHoveredChunk.translation.literal || ''}`;
+
+    // Check cache first - if we have cached images for this chunk (even if empty), use them immediately
+    // This prevents re-fetching and tooltip jumps when the effect re-runs
+    const cachedImages = imageCacheRef.current.get(cacheKey);
+    if (cachedImages !== undefined) {
+      setHoveredChunkImages(cachedImages);
+      setHoveredChunkImageIndex(0);
+      return; // Don't fetch again if we have cached result (including empty arrays)
+    }
+
+    // Sanitize query string for image search
     const sanitize = (s: string | undefined | null): string | null => {
       if (!s) return null;
       let q = s;
@@ -372,6 +387,8 @@ export const ReadingMode = ({
       if (c) queries.push(c);
       if (l && l !== c) queries.push(l);
       if (queries.length === 0) {
+        // Cache empty result to avoid re-trying
+        imageCacheRef.current.set(cacheKey, []);
         setHoveredChunkImages([]);
         return;
       }
@@ -380,6 +397,7 @@ export const ReadingMode = ({
       for (const q of queries) {
         if (!q || collected.length >= 3) break;
         try {
+          // getImagesForQuery has its own caching, but we also cache per chunk
           const imgs = await getImagesForQuery(q, 3 - collected.length);
           for (const u of imgs) {
             if (!collected.includes(u)) collected.push(u);
@@ -389,6 +407,9 @@ export const ReadingMode = ({
           console.error('[ReadingMode] Failed to load images for query:', q, error);
         }
       }
+
+      // Cache the result
+      imageCacheRef.current.set(cacheKey, collected);
       setHoveredChunkImages(collected);
       setHoveredChunkImageIndex(0);
     };

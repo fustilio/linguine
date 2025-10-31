@@ -247,7 +247,7 @@ undoAllRewrites(): void
 
 **Floating Widget**: The floating widget UI is implemented as a React component in `pages/content-ui/src/matches/all/FloatingWidget.tsx`. It communicates with the WordReplacer instance via messages handled by the `content-runtime` script.
 
-**Reading Mode UI**: The reading mode overlay is implemented as a React component in `pages/content-ui/src/matches/all/ReadingMode.tsx`. It communicates with the TextAnnotateManager instance via callbacks that send messages through the content-runtime script. The legacy DOM-based `ReadingModeUI` class is deprecated.
+**Reading Mode UI**: The reading mode overlay is implemented as a React component in `pages/content-ui/src/matches/all/ReadingMode.tsx`. It communicates with the TextAnnotateManager instance via callbacks that send messages through the content-runtime script.
 
 **Usage Flow**:
 ```

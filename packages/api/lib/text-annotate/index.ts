@@ -3,7 +3,6 @@
  * Main entry point for text annotation functionality
  */
 
-export { ReadingModeUI } from './reading-mode-ui.js';
 export { TextAnnotateManager } from './text-annotate-manager.js';
 export { annotateText } from './annotator.js';
 export { extractContentWithReadability, extractSelectedText, extractTextBySelector } from './text-extractor.js';

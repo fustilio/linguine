@@ -59,7 +59,6 @@ Content UI React Component
 - `translator.ts`: Literal translation with `Translator` and contextual translation with `LanguageModel` (graceful fallbacks, user gesture handling)
 - `annotator.ts`: Orchestrates detection → segmentation → POS → translation with batching and progressive streaming, comprehensive timing
 - `simple-annotator.ts`: Lightweight mock annotator for demo/testing
-- `reading-mode-ui.ts`: **@deprecated** DOM-based overlay (replaced by React component). The reading mode UI is now implemented as a React component in `pages/content-ui/src/matches/all/ReadingMode.tsx`.
 - Wikimedia image enrichment: optional images per annotated chunk (up to 3), fetched via background
 - `styles.ts`: Styles for overlay, underlines, tooltips, progress bar
 - `text-annotate-manager.ts`: Entry point managing extraction, annotation, UI lifecycle, and message handling
