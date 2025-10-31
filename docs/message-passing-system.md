@@ -342,9 +342,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 ### Target-Based Routing
 
 Each listener checks the `target` field first:
-- **Background**: Ignores messages with `target: 'offscreen'` or `target: 'sidepanel'`
+- **Background**: Forwards messages with `target: 'content'` or `target: 'content-ui'` to active tab; ignores `target: 'offscreen'` or `target: 'sidepanel'`
 - **Offscreen**: Only processes messages with `target: 'offscreen'` (or no target for backward compatibility)
-- **Content Scripts**: Ignore messages with `target: 'offscreen'`
+- **Content Runtime Scripts**: Process messages with `target: 'content'` or no target (for backward compatibility); ignore `target: 'offscreen'` or `target: 'content-ui'`
+- **Content UI Scripts**: Process messages with `target: 'content-ui'` or no target (for backward compatibility); ignore `target: 'offscreen'` or `target: 'content'`
 - **Side Panel**: Only processes messages with `target: 'sidepanel'` (or no target for backward compatibility)
 
 This prevents duplicate processing and ensures messages reach the correct handler.

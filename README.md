@@ -1,310 +1,177 @@
 <div align="center">
 
-<picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/99cb6303-64e4-4bed-bf3f-35735353e6de" />
-    <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/a5dbf71c-c509-4c4f-80f4-be88a1943b0a" />
-    <img alt="Logo" src="https://github.com/user-attachments/assets/99cb6303-64e4-4bed-bf3f-35735353e6de" />
-</picture>
+<img alt="Linguine Logo" src="chrome-extension/public/pasta-illustration-2.png" width="400" />
+
 
 ![](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![](https://img.shields.io/badge/Typescript-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![](https://badges.aleen42.com/src/vitejs.svg)
+![Chrome AI](https://img.shields.io/badge/Chrome%20Built--in%20AI-2025-blue?style=flat-square)
 
-![GitHub action badge](https://github.com/Jonghakseo/chrome-extension-boilerplate-react-vite/actions/workflows/build-zip.yml/badge.svg)
-![GitHub action badge](https://github.com/Jonghakseo/chrome-extension-boilerplate-react-vite/actions/workflows/lint.yml/badge.svg)
-
-<a href="https://discord.gg/4ERQ6jgV9a" target="_blank"><img src="https://discord.com/api/guilds/1263404974830915637/widget.png"/></a>
-
-> This boilerplate
-> has [Legacy version](https://github.com/Jonghakseo/chrome-extension-boilerplate-react-vite/tree/legacy)
+**🚀 Submission to the [Google Chrome Built-in AI Challenge 2025](https://googlechromeai2025.devpost.com/)**
 
 </div>
 
 > [!NOTE]
-> This project is listed in the [Awesome Vite](https://github.com/vitejs/awesome-vite)
-
-> [!TIP]
-> Share storage state between all pages
->
-> https://github.com/user-attachments/assets/3b8e189f-6443-490e-a455-4f9570267f8c
+> Linguine uses Chrome's Built-in AI APIs to provide intelligent language learning features. All AI processing happens client-side with privacy, offline access, and cost-efficiency benefits.
 
 ## Table of Contents
 
-- [Intro](#intro)
+- [Table of Contents](#table-of-contents)
+- [About](#about)
+- [Chrome Built-in AI Challenge 2025](#chrome-built-in-ai-challenge-2025)
 - [Features](#features)
-- [Structure](#structure)
-    - [ChromeExtension](#structure-chrome-extension)
-    - [Packages](#structure-packages)
-    - [Pages](#structure-pages)
+- [Architecture](#architecture)
 - [Installation](#installation)
-    - [Chrome](#installation-chrome)
-    - [Firefox](#installation-firefox)
-- [Install dependency](#install-dependency)
-    - [For root](#install-dependency-for-root)
-    - [For module](#install-dependency-for-module)
-- [Environment variables](#env-variables)
-    - [Add new](#env-variables-new)
-    - [Set via CLI](#env-variables-cli-set)
+- [Key Features in Detail](#key-features-in-detail)
+  - [Reading Mode](#reading-mode)
+  - [Text Simplification](#text-simplification)
+  - [Vocabulary Analytics](#vocabulary-analytics)
+  - [Text Rewrites Library](#text-rewrites-library)
 - [Theme System](#theme-system)
+- [Development](#development)
 - [Troubleshooting](#troubleshooting)
-    - [Hot module reload seems to have frozen](#hot-module-reload-seems-to-have-frozen)
-    - [Imports not resolving correctly](#imports-not-resolving-correctly)
-- [Community](#community)
-- [Debugging](#debugging)
+- [Documentation](#documentation)
 - [Reference](#reference)
-- [Star History](#star-history)
-- [Contributors](#contributors)
 
-## Intro
+## About
 
-This boilerplate helps you create Chrome/Firefox extensions using React and Typescript. It improves
-the build speed and development experience by using Vite and Turborepo.
+**Linguine** transforms any webpage into a powerful language learning tool using Chrome's Built-in AI APIs. Everything runs locally on your device - no data leaves your browser.
+
+**Why Linguine?**
+- 🔒 Privacy-first: All AI processing happens client-side
+- 🌐 Works offline after initial setup
+- 💰 No API costs
+- 📚 Track vocabulary, simplify texts, and get AI insights
+- 🌍 Multi-language support (tested on: English, Spanish, French, Thai, Japanese, Mandarin)
+
+## Chrome Built-in AI Challenge 2025
+
+🚀 **Submission to [Google Chrome Built-in AI Challenge 2025](https://googlechromeai2025.devpost.com/)**
+
+Linguine uses multiple Chrome Built-in AI APIs (LanguageModel, Translator, Rewriter, LanguageDetector) to deliver comprehensive language learning features entirely client-side.
 
 ## Features
 
-- [React](https://reactjs.org/)
-- [TypeScript](https://www.typescriptlang.org/)
-- [Tailwindcss](https://tailwindcss.com/)
-- [Vite](https://vitejs.dev/) with [Rollup](https://rollupjs.org/)
-- [Turborepo](https://turbo.build/repo)
-- [Prettier](https://prettier.io/)
-- [ESLint](https://eslint.org/)
-- [Chrome Extensions Manifest Version 3](https://developer.chrome.com/docs/extensions/mv3/intro/)
-- [Custom i18n package](/packages/i18n/)
-- [Custom HMR (Hot Module Rebuild) plugin](/packages/hmr)
-- [End-to-end testing with WebdriverIO](https://webdriver.io/)
+- 📖 **Reading Mode**: Word-by-word translations with progressive loading
+- ✏️ **Text Simplification**: Simplify complex texts using Rewriter API (experimental multi-language support)
+- 📚 **Vocabulary Tracking**: Personal vocabulary database with knowledge levels
+- 📊 **AI Analytics**: Natural language queries about your progress
+- 🎯 **Text Evaluation**: Analyze any text against your vocabulary
+- 📈 **CEFR Estimation**: AI-powered proficiency assessment
+- 🌍 **Multi-Language**: Supports languages available in Chrome's Built-in AI APIs
+
+> [!NOTE]
+> **Experimental Language Support**: The Rewriter API officially supports English, Spanish, and Japanese. We use it optimistically for all languages - results may vary. Tested on: English, Spanish, French, Thai, Japanese, and Mandarin.
+
+**Built with:** React, TypeScript, Vite, Turborepo, SQLite (OPFS)
+
+## Architecture
+
+Layered architecture: UI (React) → API Layer → Background/Offscreen → SQLite (OPFS)
+
+See [Architecture Overview](docs/architecture-overview.md) for details.
 
 ## Installation
 
-1. Clone this repository.( ```git clone https://github.com/Jonghakseo/chrome-extension-boilerplate-react-vite``` )
-2. Ensure your node version is >= than in `.nvmrc` file, recommend to use [nvm](https://github.com/nvm-sh/nvm?tab=readme-ov-file#intro)
-3. Edit `/packages/i18n/locales/`{your locale(s)}/`messages.json`
-4. In the objects `extensionDescription` and `extensionName`, change the `message` fields (leave `description` alone)
-5. Install pnpm globally: `npm install -g pnpm`
-6. Run `pnpm install`
-7. Check if you have that configuration in your IDE/Editor:
-    - <b>VS Code</b>:
-        - Installed [ESLint extension](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-        - Installed [Prettier extension](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
-        - Enabled `Typescript Workbench version` in settings:
-            - CTRL + SHIFT + P -> Search: `Typescript: Select Typescript version...` -> `Use Workbench version`
-            - [Read more](https://code.visualstudio.com/docs/languages/typescript#_using-newer-typescript-versions)
-        - Optional, for imports to work correctly in WSL, you might need to install the [Remote - WSL](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl) extension and connect to WSL remotely from VS Code. See overview section in the extension page for more information.
-    - <b>WebStorm</b>:
-      - Configured [ESLint](https://www.jetbrains.com/help/webstorm/eslint.html#ws_eslint_configure_run_eslint_on_save)
-      - Configured [Prettier](https://prettier.io/docs/en/webstorm.html)
-      - Optional, but useful `File | Settings | Tools | Actions on Save`\
-      -> `Optimize imports` and `Reformat code`
-8. Run `pnpm update-version <version>` for change the `version` to the desired version of your extension.
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/fustilio/linguine
+   cd linguine
+   ```
+2. Ensure your node version is >= than in `.nvmrc` file (recommend using [nvm](https://github.com/nvm-sh/nvm?tab=readme-ov-file#intro))
+3. Install pnpm globally: `npm install -g pnpm`
+4. Install dependencies: `pnpm install`
 
 > [!IMPORTANT]
 > On Windows, make sure you have WSL enabled and Linux distribution (e.g. Ubuntu) installed on WSL.
 > 
 > [Installation Guide](https://learn.microsoft.com/en-us/windows/wsl/install)
 
-<b>Then, depending on the target browser:</b>
+### Load in Chrome <a name="installation-chrome"></a>
 
-### For Chrome: <a name="installation-chrome"></a>
+1. Build the extension:
+   - Dev: `pnpm dev` (on Windows, you should run as administrator)
+   - Prod: `pnpm build`
+2. Open `chrome://extensions` in Chrome
+3. Enable <kbd>Developer mode</kbd>
+4. Click <kbd>Load unpacked</kbd> in the upper left corner
+5. Select the `dist` directory from the linguine project
 
-1. Run:
-    - Dev: `pnpm dev` (on Windows, you should run as administrator;
-      see [issue#456](https://github.com/Jonghakseo/chrome-extension-boilerplate-react-vite/issues/456))
-    - Prod: `pnpm build`
-2. Open in browser - `chrome://extensions`
-3. Check - <kbd>Developer mode</kbd>
-4. Click - <kbd>Load unpacked</kbd> in the upper left corner
-5. Select the `dist` directory from the boilerplate project
+## Key Features in Detail
 
-### For Firefox: <a name="installation-firefox"></a>
+### Reading Mode
+Full-page overlay with word-by-word translations. Shows plain text instantly, streams annotations progressively. Uses Translator API (literal) and LanguageModel API (contextual). Includes TTS on click.
 
-1. Run:
-    - Dev: `pnpm dev:firefox`
-    - Prod: `pnpm build:firefox`
-2. Open in browser - `about:debugging#/runtime/this-firefox`
-3. Click - <kbd>Load Temporary Add-on...</kbd> in the upper right corner
-4. Select the `./dist/manifest.json` file from the boilerplate project
+See [Text Annotate Feature](docs/text-annotate.md)
+
+### Text Simplification
+Select any text → click simplify → Chrome's Rewriter API makes it easier. Tracks readability scores and saves with source links.
 
 > [!NOTE]
-> In Firefox, you load add-ons in temporary mode. That means they'll disappear after each browser close. You have to
-> load the add-on on every browser launch.
+> **Experimental**: Rewriter API officially supports English, Spanish, Japanese. We use it for all languages optimistically.
 
-## Theme System <a name="theme-system"></a>
+See [Text Rewrites Feature](docs/text-rewrites.md)
 
-The extension includes a theme system that supports light mode, dark mode, and system preferences. The theme state is persisted using `chrome.storage` and works across all extension pages (popup, side-panel, options, etc.).
+### Vocabulary Analytics
+Ask natural language questions: "Show me struggling Spanish words" or "What's my proficiency level?" AI analyzes your vocabulary database.
 
-For detailed documentation on the theme system, including setup, usage, and API reference, see [Theme System Documentation](docs/theme-system.md).
+See [Vocabulary Analytics Feature](docs/vocabulary-analytics.md)
 
-### Quick Start
+### Text Rewrites Library
+Personal archive of simplified texts. Filter by language, readability, date, or source URL. Multi-language readability scoring (Flesch Reading Ease, etc.)
 
-1. Wrap your root component with `ThemeProvider`:
+See [Text Rewrites Feature](docs/text-rewrites.md)
 
-```tsx
-import { ThemeProvider } from '@extension/ui';
+## Theme System
 
-root.render(
-  <ThemeProvider>
-    <YourApp />
-  </ThemeProvider>
-);
+Light/dark mode with system preference support. Persists via `chrome.storage` across all extension pages.
+
+See [Theme System Documentation](docs/theme-system.md) for setup details.
+
+## Development
+
+Monorepo with Turborepo. Key directories:
+- `chrome-extension/` - Manifest and background
+- `pages/` - Extension UI pages
+- `packages/api/` - Chrome AI integration and database APIs
+- `packages/sqlite/` - SQLite operations via OPFS
+- `packages/shared/` - Shared utilities and constants
+- `packages/ui/` - UI components
+
+**Install dependencies:**
+```bash
+pnpm i <package> -w           # Root workspace
+pnpm i <package> -F <name>     # Specific package
 ```
 
-2. Use the `ToggleButton` component:
+See [Architecture Overview](docs/architecture-overview.md) for full details.
 
-```tsx
-import { ToggleButton } from '@extension/ui';
+## Testing
 
-<ToggleButton>Toggle Theme</ToggleButton>
-```
+> [!TODO]
+> Add recommended test sites for easy testing of Linguine features across different languages.
 
-The theme system automatically:
-- Initializes theme before React renders (prevents FOUC)
-- Persists theme preferences across extension pages
-- Syncs between chrome.storage and localStorage
-- Respects system preferences when no explicit preference is set
-
-## Install dependency for turborepo: <a name="install-dependency"></a>
-
-### For root: <a name="install-dependency-for-root"></a>
-
-1. Run `pnpm i <package> -w`
-
-### For module: <a name="install-dependency-for-module"></a>
-
-1. Run `pnpm i <package> -F <module name>`
-
-`package` - Name of the package you want to install e.g. `nodemon` \
-`module-name` - You can find it inside each `package.json` under the key `name`, e.g. `@extension/content-script`, you
-can use only `content-script` without `@extension/` prefix
-
-## How do I disable modules I'm not using?
-
-[Read here](packages/module-manager/README.md)
-
-## Environment variables
-
-Read: [Env Documentation](packages/env/README.md)
-
-## Boilerplate structure <a name="structure"></a>
-
-### Chrome extension <a name="structure-chrome-extension"></a>
-
-The extension lives in the `chrome-extension` directory and includes the following files:
-
-- [`manifest.ts`](chrome-extension/manifest.ts) - script that outputs the `manifest.json`
-- [`src/background`](chrome-extension/src/background) - [background script](https://developer.chrome.com/docs/extensions/mv3/background_pages/)
-  (`background.service_worker` in manifest.json)
-- [`public`](chrome-extension/public/) - icons referenced in the manifest; content CSS for user's page injection
-
-> [!IMPORTANT]
-> To facilitate development, the boilerplate is configured to "Read and change all your data on all websites".
-> In production, it's best practice to limit the premissions to only the strictly necessary websites. See
-> [Declaring permissions](https://developer.chrome.com/docs/extensions/develop/concepts/declare-permissions)
-> and edit `manifest.js` accordingly.
-
-### Pages <a name="structure-pages"></a>
-
-Code that is transpiled to be part of the extension lives in the [pages](pages) directory.
-
-- [`content`](pages/content) - Scripts injected into specified pages (You can see it in console)
-- [`content-ui`](pages/content-ui) - React Components injected into specified pages (You can see it at the very bottom of pages)
-- [`content-runtime`](pages/content-runtime/src/) - [injected content scripts](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts#functionality)
-  This can be injected from e.g. `popup` like standard `content`
-- [`devtools`](pages/devtools/) - [extend the browser DevTools](https://developer.chrome.com/docs/extensions/how-to/devtools/extend-devtools#creating)
-  (`devtools_page` in manifest.json)
-- [`devtools-panel`](pages/devtools-panel/) - [DevTools panel](https://developer.chrome.com/docs/extensions/reference/api/devtools/panels)
-  for [devtools](pages/devtools/src/index.ts)
-- [`new-tab`](pages/new-tab/) - [override the default New Tab page](https://developer.chrome.com/docs/extensions/develop/ui/override-chrome-pages)
-  (`chrome_url_overrides.newtab` in manifest.json)
-- [`options`](pages/options/) - [options page](https://developer.chrome.com/docs/extensions/develop/ui/options-page)
-  (`options_page` in manifest.json)
-- [`popup`](pages/popup/) - [popup](https://developer.chrome.com/docs/extensions/reference/api/action#popup) shown when
-  clicking the extension in the toolbar
-  (`action.default_popup` in manifest.json)
-- [`side-panel`](pages/side-panel/) - [sidepanel (Chrome 114+)](https://developer.chrome.com/docs/extensions/reference/api/sidePanel)
-  (`side_panel.default_path` in manifest.json)
-
-### Packages <a name="structure-packages"></a>
-
-Some shared packages:
-
-- `dev-utils` - utilities for Chrome extension development (manifest-parser, logger)
-- `env` - exports object which contain all environment variables from `.env` and dynamically declared
-- `hmr` - custom HMR plugin for Vite, injection script for reload/refresh, HMR dev-server
-- `i18n` - custom internationalization package; provides i18n function with type safety and other validation
-- `shared` - shared code for the entire project (types, constants, custom hooks, components etc.)
-- `storage` - helpers for easier integration with [storage](https://developer.chrome.com/docs/extensions/reference/api/storage), e.g. local/session storages; includes theme storage management
-- `tailwind-config` - shared Tailwind config for entire project (includes dark mode configuration)
-- `tsconfig` - shared tsconfig for the entire project
-- `ui` - function to merge your Tailwind config with the global one; you can save components here; includes theme system components (`ThemeProvider`, `ToggleButton`)
-- `vite-config` - shared Vite config for the entire project
-
-Other useful packages:
-
-- `zipper` - run `pnpm zip` to pack the `dist` folder into `extension-YYYYMMDD-HHmmss.zip` inside the newly created
-  `dist-zip`
-- `module-manager` - run `pnpm module-manager` to enable/disable modules
-- `e2e` - run `pnpm e2e` for end-to-end tests of your zipped extension on different browsers
+Currently tested on: English, Spanish, French, Thai, Japanese, and Mandarin content.
 
 ## Troubleshooting
 
-### Hot module reload seems to have frozen
+**HMR frozen?** Restart dev server (`Ctrl+C` then `pnpm dev`)
 
-If saving source files doesn't cause the extension HMR code to trigger a reload of the browser page, try this:
+**Imports not resolving?** (WSL users) Connect VS Code to WSL remotely
 
-1. Ctrl+C the development server and restart it (`pnpm run dev`)
-2. If you get a [`grpc` error](https://github.com/Jonghakseo/chrome-extension-boilerplate-react-vite/issues/612),
-   [kill the
-   `turbo` process](https://github.com/Jonghakseo/chrome-extension-boilerplate-react-vite/issues/612#issuecomment-2518982339)
-   and run `pnpm dev` again.
+## Documentation
 
-### Imports not resolving correctly
-
-If you are using WSL and imports are not resolving correctly, ensure that you have connected VS Code to WSL remotely using the [Remote - WSL](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-wsl) extension.
-
-## Community
-
-To chat with other community members, you can join the [Discord](https://discord.gg/4ERQ6jgV9a) server.
-You can ask questions on that server, and you can also help others.
-
-Also, suggest new features or share any challenges you've faced while developing Chrome extensions!
-
-## Debugging
-
-If you're debugging one, you can use [Brie](https://go.briehq.com/github?utm_source=CEB) lets you capture screenshots, errors, and network activity, making it easier for us to help.
+- [Architecture Overview](docs/architecture-overview.md)
+- [Message Passing System](docs/message-passing-system.md)
+- [Packages API](docs/packages-api.md)
+- [Packages SQLite](docs/packages-sqlite.md)
+- [Text Annotate](docs/text-annotate.md)
+- [Text Rewrites](docs/text-rewrites.md)
+- [Vocabulary Analytics](docs/vocabulary-analytics.md)
 
 ## Reference
 
 - [Chrome Extensions](https://developer.chrome.com/docs/extensions)
-- [Vite Plugin](https://vitejs.dev/guide/api-plugin.html)
-- [Rollup](https://rollupjs.org/guide/en/)
+- [Chrome Built-in AI APIs](https://developer.chrome.com/docs/ai)
 - [Turborepo](https://turbo.build/repo/docs)
-- [Rollup-plugin-chrome-extension](https://www.extend-chrome.dev/rollup-plugin)
-
-## Star History <a name="star-history"></a>
-
-<a href="https://star-history.com/#Jonghakseo/chrome-extension-boilerplate-react-vite&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Jonghakseo/chrome-extension-boilerplate-react-vite&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Jonghakseo/chrome-extension-boilerplate-react-vite&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Jonghakseo/chrome-extension-boilerplate-react-vite&type=Date" />
- </picture>
-</a>
-
-## Contributors <a name="contributors"></a>
-
-This Boilerplate is made possible thanks to all of its contributors.
-
-<a href="https://github.com/Jonghakseo/chrome-extension-boilerplate-react-vite/graphs/contributors">
-  <img width="500px" src="https://contrib.rocks/image?repo=Jonghakseo/chrome-extension-boilerplate-react-vite" alt="All Contributors"/>
-</a>
-
----
-
-## Special Thanks To
-
-| <a href="https://jb.gg/OpenSourceSupport"><img width="40" src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.png" alt="JetBrains Logo (Main) logo."></a> | <a href="https://www.linkedin.com/in/j-acks0n"><img width="40" style="border-radius:50%" src='https://avatars.githubusercontent.com/u/23139754' alt='Jackson Hong'/></a> |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-
----
-
-Made by [Jonghakseo](https://jonghakseo.github.io/)

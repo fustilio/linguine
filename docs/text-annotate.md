@@ -18,15 +18,35 @@ Text Annotate adds a reading-mode overlay that extracts page content, segments i
 ## Architecture
 
 ```
-Popup (pages/popup)  ──▶ Content Script (pages/content/.../all)
+Popup (pages/popup)  ──▶ Content Runtime (pages/content/.../all)
    │                         │
    │ openReadingMode         │ initializes TextAnnotateManager
+   │                         │ sets up UI callbacks
    ▼                         ▼
-ReadingMode Overlay (DOM managed by ReadingModeUI)
-   │
-   │ uses packages/api/lib/text-annotate/*
+Content Runtime              │ sends messages with target: 'content-ui'
+   │                         ▼
+   │              Content UI (pages/content-ui) - React component
+   │                         │
+   │                         │ ReadingMode.tsx renders overlay
+   ▼                         ▼
+TextAnnotateManager          │ uses packages/api/lib/text-annotate/*
+   │                         ▼
+   │              Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
    ▼
-Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
+```
+
+**Message Flow**:
+```
+Popup
+  ↓ chrome.tabs.sendMessage({ action: 'openReadingMode', ... })
+Content Runtime
+  ↓ textAnnotateManager.openReadingModeAuto()
+TextAnnotateManager
+  ↓ UI callbacks → chrome.runtime.sendMessage({ target: 'content-ui', ... })
+Background Script (forwards to content-ui)
+  ↓ chrome.tabs.sendMessage(tabId, message)
+Content UI React Component
+  ↓ Updates state and renders ReadingMode overlay
 ```
 
 ### Key Modules (packages/api/lib/text-annotate)
@@ -39,7 +59,7 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 - `translator.ts`: Literal translation with `Translator` and contextual translation with `LanguageModel` (graceful fallbacks, user gesture handling)
 - `annotator.ts`: Orchestrates detection → segmentation → POS → translation with batching and progressive streaming, comprehensive timing
 - `simple-annotator.ts`: Lightweight mock annotator for demo/testing
-- `reading-mode-ui.ts`: DOM-based overlay; immediate plain text, progressive inline annotations, tooltips (lazy image fetch on hover), progress bar, TTS, runtime icon controls
+- `reading-mode-ui.ts`: **@deprecated** DOM-based overlay (replaced by React component). The reading mode UI is now implemented as a React component in `pages/content-ui/src/matches/all/ReadingMode.tsx`.
 - Wikimedia image enrichment: optional images per annotated chunk (up to 3), fetched via background
 - `styles.ts`: Styles for overlay, underlines, tooltips, progress bar
 - `text-annotate-manager.ts`: Entry point managing extraction, annotation, UI lifecycle, and message handling
@@ -47,10 +67,17 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 
 ### Content Script Integration
 
-- `pages/content/src/matches/all/index.ts` initializes `TextAnnotateManager` and handles messages:
-  - `openReadingMode` with `{ useFullContent: boolean }`
-  - `closeReadingMode`
-- Popup (`pages/popup/src/Popup.tsx`) buttons:
+- **Content Runtime** (`pages/content/src/matches/all/index.ts`):
+  - Initializes `TextAnnotateManager` and sets up React UI callbacks
+  - Handles messages: `openReadingMode` with `{ useFullContent: boolean }`, `closeReadingMode`
+  - Forwards UI updates to content-ui via Chrome messages with `target: 'content-ui'`
+  
+- **Content UI** (`pages/content-ui/src/matches/all/ReadingMode.tsx`):
+  - React component that renders the reading mode overlay
+  - Receives updates via Chrome messages: `readingModeShow`, `readingModeUpdate`, `readingModeHide`
+  - Manages UI state, tooltips, TTS, keyboard shortcuts, and settings controls
+
+- **Popup** (`pages/popup/src/Popup.tsx`) buttons:
   - “Open Reading Mode” (full content)
   - “🧪 Test Reading Mode (Demo)” (short Thai sample)
   - “Close Reading Mode” (debug)
@@ -111,10 +138,23 @@ Chrome AI APIs (Translator, LanguageModel, LanguageDetector)
 
 ## Message Passing
 
-- Popup → Content Script: `openReadingMode`, `closeReadingMode`
-- Content manages DOM overlay via `ReadingModeUI` (no React)
-- Internal progress via direct method calls and Chrome messaging (no CustomEvents)
-- Background fetch for images: UI/content asks background `fetchWikimediaImages` to avoid CORS; background calls Wikimedia Commons API using generator=search (namespace File) and returns URLs
+**Reading Mode Message Flow**:
+- Popup → Content Runtime: `openReadingMode`, `closeReadingMode`
+- Content Runtime → Content UI: `readingModeShow`, `readingModeUpdate`, `readingModeHide` (with `target: 'content-ui'`)
+- Background Script: Forwards messages with `target: 'content-ui'` to the active tab's content-ui script
+- Content UI React Component: Listens for messages and updates state/props accordingly
+
+**TextAnnotateManager Architecture**:
+- `TextAnnotateManager` is a utility class that does NOT handle Chrome messages directly
+- All message handling is done in the content-runtime script
+- `TextAnnotateManager` uses a callback-based UI system:
+  - `setUICallbacks()` method accepts callbacks for `onShow`, `onUpdate`, `onHide`
+  - Content-runtime provides callbacks that send Chrome messages to content-ui
+  - This allows `TextAnnotateManager` to work with both React UI (preferred) and legacy DOM UI (deprecated)
+
+**Image Fetching**:
+- Background fetch for images: UI/content asks background `fetchWikimediaImages` to avoid CORS
+- Background calls Wikimedia Commons API using generator=search (namespace File) and returns URLs
 
 ## UI Details
 
