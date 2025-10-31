@@ -153,8 +153,8 @@ export function getReadingModeStyles(): string {
       max-width: 400px;
       z-index: 1000000;
       pointer-events: none;
-      font-size: 0.9rem;
-      line-height: 1.4;
+      font-size: 1rem;
+      line-height: 1.5;
     }
 
     .text-annotate-tooltip-literal {

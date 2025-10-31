@@ -16,22 +16,14 @@ import {
   AArrowDown,
   AArrowUp,
   X,
+  Image,
+  ImageOff,
+  Captions,
+  CaptionsOff,
 } from 'lucide';
 import type { AnnotatedChunk } from './types.js';
 
-createIcons({
-  icons: {
-    ListChevronsDownUp,
-    ListChevronsUpDown,
-    FoldHorizontal,
-    UnfoldHorizontal,
-    SunMoon,
-    AArrowDown,
-    AArrowUp,
-    X,
-  },
-});
-
+// Icons will be initialized after DOM elements are created
 export class ReadingModeUI {
   private container: HTMLElement | null = null;
   private contentArea: HTMLElement | null = null;
@@ -166,6 +158,10 @@ export class ReadingModeUI {
     // Create header with progress bar and controls
     const header = this.createHeaderWithProgress(title, onClose);
     this.container.appendChild(header);
+
+    // Initialize Lucide icons after header is added to DOM
+    // Register all icons and let createIcons scan for data-lucide attributes
+    this.initializeIcons();
 
     // Create content area with plain text
     this.contentArea = this.createPlainTextContent(plainText);
@@ -409,10 +405,19 @@ export class ReadingModeUI {
     themeBtn.onclick = () => this.cycleTheme().catch(() => {});
     controls.appendChild(themeBtn);
 
-    // Show Images toggle (🖼)
-    const imgBtn = makeIconButton('🖼', 'Toggle images');
+    // Show Images toggle
+    const imgBtn = makeIconButton(
+      `<i data-lucide="${this.config.showImages ? 'image' : 'image-off'}" class="ta-icon"></i>`,
+      'Toggle images',
+    );
     const updateImgBtn = () => {
-      imgBtn.style.opacity = this.config.showImages ? '1' : '0.5';
+      imgBtn.innerHTML = `<i data-lucide="${this.config.showImages ? 'image' : 'image-off'}" class="ta-icon"></i>`;
+      // Re-initialize icon after updating HTML
+      setTimeout(() => {
+        createIcons({
+          icons: { Image, ImageOff },
+        });
+      }, 10);
     };
     updateImgBtn();
     imgBtn.onclick = () => {
@@ -423,10 +428,19 @@ export class ReadingModeUI {
     };
     controls.appendChild(imgBtn);
 
-    // Show Prefixes toggle (🔤)
-    const prefBtn = makeIconButton('🔤', 'Toggle "Literal:"/"Contextual:" prefixes');
+    // Show Prefixes toggle
+    const prefBtn = makeIconButton(
+      `<i data-lucide="${this.config.showPrefixes ? 'captions' : 'captions-off'}" class="ta-icon"></i>`,
+      'Toggle "Literal:"/"Contextual:" prefixes',
+    );
     const updatePrefBtn = () => {
-      prefBtn.style.opacity = this.config.showPrefixes ? '1' : '0.5';
+      prefBtn.innerHTML = `<i data-lucide="${this.config.showPrefixes ? 'captions' : 'captions-off'}" class="ta-icon"></i>`;
+      // Re-initialize icon after updating HTML
+      setTimeout(() => {
+        createIcons({
+          icons: { Captions, CaptionsOff },
+        });
+      }, 10);
     };
     updatePrefBtn();
     prefBtn.onclick = () => {
@@ -1019,6 +1033,34 @@ export class ReadingModeUI {
   }
 
   /**
+   * Initialize Lucide icons
+   */
+  private initializeIcons(): void {
+    // Use setTimeout to ensure DOM is ready
+    setTimeout(() => {
+      // First register all icons
+      createIcons({
+        icons: {
+          ListChevronsDownUp,
+          ListChevronsUpDown,
+          FoldHorizontal,
+          UnfoldHorizontal,
+          SunMoon,
+          AArrowDown,
+          AArrowUp,
+          X,
+          Image,
+          ImageOff,
+          Captions,
+          CaptionsOff,
+        },
+      });
+      // Then call createIcons without params to scan document for data-lucide attributes
+      createIcons();
+    }, 10);
+  }
+
+  /**
    * Map language codes to speech synthesis language codes
    */
   private mapLanguageToSpeechLang(language: string): string {
@@ -1086,7 +1128,24 @@ ${getReadingModeStyles()}
 #text-annotate-reading-mode .ta-icon-btn:active { transform: scale(0.97); }
 #text-annotate-reading-mode .ta-icon-btn[disabled] { opacity: 0.5; cursor: not-allowed; transform: none; }
 #text-annotate-reading-mode .ta-icon { height: 16px; width: 16px; display: inline-block; }
-#text-annotate-reading-mode .ta-icon svg { height: 16px; width: 16px; display: block; }
+#text-annotate-reading-mode .ta-icon svg { 
+  height: 16px !important; 
+  width: 16px !important; 
+  display: block !important; 
+}
+#text-annotate-reading-mode .ta-icon svg,
+#text-annotate-reading-mode .ta-icon svg path,
+#text-annotate-reading-mode .ta-icon svg circle,
+#text-annotate-reading-mode .ta-icon svg rect,
+#text-annotate-reading-mode .ta-icon svg line,
+#text-annotate-reading-mode .ta-icon svg polyline,
+#text-annotate-reading-mode .ta-icon svg polygon { 
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
 `;
     document.head.appendChild(style);
   }
