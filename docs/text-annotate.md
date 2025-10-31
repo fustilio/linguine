@@ -73,9 +73,11 @@ Content UI React Component
   - Forwards UI updates to content-ui via Chrome messages with `target: 'content-ui'`
   
 - **Content UI** (`pages/content-ui/src/matches/all/ReadingMode.tsx`):
-  - React component that renders the reading mode overlay
+  - React component that renders the reading mode overlay using Tailwind CSS
   - Receives updates via Chrome messages: `readingModeShow`, `readingModeUpdate`, `readingModeHide`
   - Manages UI state, tooltips, TTS, keyboard shortcuts, and settings controls
+  - Implements visual styling with dotted underlines for annotated chunks (green/orange)
+  - Includes image loading and display functionality for tooltips
 
 - **Popup** (`pages/popup/src/Popup.tsx`) buttons:
   - “Open Reading Mode” (full content)
@@ -108,10 +110,12 @@ Content UI React Component
 
 - Immediate plain text render
 - Inline, in-place wrapping for annotations (preserve offsets)
+- Visual styling: annotated chunks have dotted underlines (green for standard, orange for chunks with contextual differences)
+- Hover effects: chunks highlight with semi-transparent backgrounds on hover
 - Progress bar with locked total from pre-chunk estimate
-- Tooltips merge translations smartly: if literal and contextual are effectively identical (punctuation/case/synonym-insensitive), show a single combined line (white). Otherwise show Literal (light blue) then Contextual. Optional “Literal:”/“Contextual:” prefixes via toggle
-- Tooltips can include up to three Wikimedia images (lazy-fetched on hover); click image to cycle
-- TTS (`SpeechSynthesisUtterance`) on word click (language fallback)
+- Tooltips merge translations smartly: if literal and contextual are effectively identical (punctuation/case/synonym-insensitive), show a single combined line (white). Otherwise show Literal (light blue) then Contextual. Optional "Literal:"/"Contextual:" prefixes via toggle
+- Tooltips can include up to three Wikimedia images (lazy-fetched on hover); click image dots to cycle through images
+- TTS (`SpeechSynthesisUtterance`) on chunk click (language-aware)
 - Close via header X, Esc key, or backdrop click
 
 ## Chrome AI APIs and Constraints
@@ -121,20 +125,18 @@ Content UI React Component
 - `LanguageModel`: Used for contextual translations only (no longer used for POS)
 - User gesture requirement: handle `NotAllowedError` gracefully; literal still works
 
-## Performance and Logging
+## Performance
 
 - Chunking: Intl.Segmenter reduces pre-chunking to milliseconds on modern Chrome
 - Batching with `Promise.all()` (default `BATCH_SIZE = 6`)
 - Image fetching done post-translation per chunk, cached per term, capped at 3 per chunk
-- Per-chunk translation logging: `[TextAnnotate] Translation: "<src>" (src → dst) | literal="…" | contextual="…"`
-- Comprehensive timing metrics:
+- Comprehensive timing metrics tracked internally:
   - total time, text length, ms/char
   - total operations (chunks)
   - total translation time, avg ms/op
   - estimated sequential time, parallel speedup
-- Per-phase timings (extract, detect, segment, prechunk, translate, finalize) streamed to HUD
-- Demo mode: short Thai sample for end-to-end testing and timing
-- Robust console logs across all phases to diagnose “stuck” states
+- Per-phase timings (extract, detect, segment, prechunk, translate, finalize) tracked internally
+- Demo mode: short Thai sample for end-to-end testing
 
 ## Message Passing
 
@@ -160,12 +162,16 @@ Content UI React Component
 
 - Header rows: title + close (Esc supported); progress row centered; controls row for typography and settings
 - Scroll behavior: while reading mode is visible, page scroll is locked and the overlay is the only scrollable viewport
+- Visual indicators:
+  - Annotated chunks display with dotted underlines (green for standard translations, orange for contextual differences)
+  - Hover effects provide visual feedback with semi-transparent backgrounds
 - Controls (Lucide icons, popup-style buttons):
   - Font size: `a-arrow-down` (decrease), `a-arrow-up` (increase)
   - Line height: `list-chevrons-down-up` / `list-chevrons-up-down`
   - Column width: `fold-horizontal` (narrow), `unfold-horizontal` (widen)
   - Theme: `sun-moon` cycles light/dark/sepia
-  - Image and prefix toggles are preserved
+  - Image toggle: show/hide images in tooltips
+  - Prefix toggle: show/hide "Literal:"/"Contextual:" prefixes in tooltips
 - Limits & disabled states:
   - Font size: 12–32px; buttons disable at bounds
   - Line height: 1.2–2.0; buttons disable at bounds
@@ -184,21 +190,20 @@ Content UI React Component
 - When reading mode closes or a new run starts, all in-flight work is aborted to save resources
   - `TextAnnotateManager` uses an `AbortController` per run and passes `signal` to `annotator`
   - `annotateText` checks `signal.aborted` between phases/batches and throws `annotation_aborted`
-  - Abort-friendly logging: user-initiated aborts log `[TextAnnotate] Annotation aborted by user` without error stacks
+  - Abort-friendly handling: user-initiated aborts are handled silently without error stacks
 
 ## Error Handling
 
 - Language detection fallback when unavailable/low-confidence
 - AI user gesture errors produce safe fallbacks and continue
 - Network/availability errors degrade to `simple-annotator`
-- Errors surfaced in logs; overlay remains responsive
+- Errors handled gracefully; overlay remains responsive
 
-## Debugging Tools
+## Testing & Demo Tools
 
-- Popup debug buttons at bottom; clearly labeled
-- Demo mode toggle via `useFullContent`
-- HUD (Tab to toggle) bottom-left: shows phase, k/N, per-phase timings (ms), batch ms, literal/contextual ops and ms
-- Logs show extraction preview, segments, chunk counts, and timing
+- Popup test buttons for reading mode functionality
+- Demo mode toggle via `useFullContent` parameter (uses short Thai sample text for testing)
+- Error logging for troubleshooting annotation failures
 
 ## Roadmap
 

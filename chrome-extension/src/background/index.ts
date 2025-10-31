@@ -67,6 +67,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
   }
 
+  // Forward messages intended for content-ui (React components)
+  if (message.target === 'content-ui') {
+    console.log('[BG] Forwarding message to content-ui:', message.action, 'from sender:', sender.tab?.id);
+    // Get tab ID from sender, or find active tab if sender is extension page
+    const tabId = sender.tab?.id;
+    if (tabId) {
+      console.log('[BG] Sending to tab:', tabId);
+      chrome.tabs.sendMessage(tabId, message, response => {
+        if (chrome.runtime.lastError) {
+          // content-ui might not be loaded, that's okay
+          console.error('[BG] Failed to send message to content-ui:', chrome.runtime.lastError.message);
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          console.log('[BG] Successfully forwarded to content-ui, response:', response);
+          sendResponse(response || { success: true });
+        }
+      });
+      return true; // Keep channel open for async response
+    } else {
+      console.log('[BG] No tab ID from sender, querying active tab');
+      // If no tab ID from sender (e.g., from content script without tab context), query active tab
+      chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+        if (tabs[0]?.id) {
+          console.log('[BG] Found active tab:', tabs[0].id);
+          chrome.tabs.sendMessage(tabs[0].id, message, response => {
+            if (chrome.runtime.lastError) {
+              console.error('[BG] Failed to send message to content-ui:', chrome.runtime.lastError.message);
+              sendResponse({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+              console.log('[BG] Successfully forwarded to content-ui, response:', response);
+              sendResponse(response || { success: true });
+            }
+          });
+        } else {
+          console.error('[BG] No active tab found');
+          sendResponse({ success: false, error: 'No active tab found' });
+        }
+      });
+      return true; // Keep channel open for async response
+    }
+  }
+
   // Ignore messages not intended for background
   if (message.target && message.target !== 'background' && message.target !== 'offscreen') {
     return false;
@@ -338,33 +380,40 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
     } else if (info.menuItemId === 'read_with_linguine') {
       // Handle "Read with Linguine"
+      console.log('[BG] Context menu clicked: read_with_linguine', { hasSelection: !!info.selectionText });
       if (info.selectionText) {
         // If text is selected, open reading mode with selected text (current behavior)
         try {
-          await chrome.tabs.sendMessage(tab.id, { action: 'openReadingMode', data: { mode: 'manual' } });
-        } catch {
+          console.log('[BG] Sending openReadingMode (manual) to tab', tab.id);
+          await chrome.tabs.sendMessage(tab.id, { action: 'openReadingMode', target: 'content', data: { mode: 'manual' } });
+        } catch (error) {
+          console.error('[BG] Failed to send message, injecting content script:', error);
           // If no content runtime, inject and retry
           await chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            files: ['content-runtime/all.iife.js'],
+            files: ['content/all.iife.js'],
           });
-          await chrome.tabs.sendMessage(tab.id, { action: 'openReadingMode', data: { mode: 'manual' } });
+          await chrome.tabs.sendMessage(tab.id, { action: 'openReadingMode', target: 'content', data: { mode: 'manual' } });
         }
       } else {
         // If no selection, open reading mode for the whole page
         try {
+          console.log('[BG] Sending openReadingMode (auto) to tab', tab.id);
           await chrome.tabs.sendMessage(tab.id, {
             action: 'openReadingMode',
+            target: 'content',
             data: { mode: 'auto', useFullContent: true },
           });
-        } catch {
+        } catch (error) {
+          console.error('[BG] Failed to send message, injecting content script:', error);
           // If no content runtime, inject and retry
           await chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            files: ['content-runtime/all.iife.js'],
+            files: ['content/all.iife.js'],
           });
           await chrome.tabs.sendMessage(tab.id, {
             action: 'openReadingMode',
+            target: 'content',
             data: { mode: 'auto', useFullContent: true },
           });
         }

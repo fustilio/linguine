@@ -277,6 +277,7 @@ const Popup = () => {
 
                 const response = await chrome.tabs.sendMessage(currentTab.id, {
                   action: 'openReadingMode',
+                  target: 'content',
                   data: { mode: 'auto', useFullContent: true },
                 });
 

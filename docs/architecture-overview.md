@@ -114,12 +114,13 @@ The linguine extension follows a layered architecture pattern with clear separat
   
 - **Content UI (`pages/content-ui/`)**: 
   - Inject React components into web pages via Shadow DOM
-  - **FloatingWidget**: Draggable React component for triggering text rewrites
-  - **ReadingMode**: React component for reading mode overlay with progressive annotations
+  - **FloatingWidget**: Draggable React component for triggering text rewrites (styled with Tailwind CSS)
+  - **ReadingMode**: React component for reading mode overlay with progressive annotations (styled with Tailwind CSS)
   - Manages widget/reading mode state, drag behavior, and user interactions
   - Communicates with content-runtime via Chrome messages (`target: 'content-ui'`)
+  - Visual features: dotted underlines for annotated chunks, hover effects, image tooltips
   
-- **Text Annotate reading mode**: React-based overlay in content-ui; extraction, progressive annotations, TTS, settings controls
+- **Text Annotate reading mode**: React-based overlay in content-ui using Tailwind CSS; extraction, progressive annotations, TTS, settings controls, visual chunk indicators
 - **Text rewriting**: Chrome Rewriter API integration via WordReplacer utility class
 
 ### UI Pages

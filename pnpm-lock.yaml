@@ -474,6 +474,9 @@ importers:
 
   pages/content-ui:
     dependencies:
+      '@extension/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@extension/env':
         specifier: workspace:*
         version: link:../../packages/env
@@ -489,6 +492,9 @@ importers:
       '@extension/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      lucide-react:
+        specifier: ^0.548.0
+        version: 0.548.0(react@19.1.1)
     devDependencies:
       '@extension/hmr':
         specifier: workspace:*
@@ -3791,6 +3797,11 @@ packages:
   lru-cache@7.18.3:
     resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
     engines: {node: '>=12'}
+
+  lucide-react@0.548.0:
+    resolution: {integrity: sha512-63b16z63jM9yc1MwxajHeuu0FRZFsDtljtDjYm26Kd86UQ5HQzu9ksEtoUUw4RBuewodw/tGFmvipePvRsKeDA==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   lucide@0.548.0:
     resolution: {integrity: sha512-G9MtqYAKogbp23KCY+6jM/hQQLs9252z9IgmctZn2Fi95+ukR2jpXmUt4+y0q6bb9DrC+9P1jNymHLcyUgtapg==}
@@ -8764,6 +8775,10 @@ snapshots:
   lru-cache@11.1.0: {}
 
   lru-cache@7.18.3: {}
+
+  lucide-react@0.548.0(react@19.1.1):
+    dependencies:
+      react: 19.1.1
 
   lucide@0.548.0: {}
 

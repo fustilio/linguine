@@ -65,8 +65,8 @@ export const FloatingWidget = () => {
   }, [tooltipMessage]);
 
   // Cleanup event listeners on unmount
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       if (mouseMoveHandlerRef.current) {
         document.removeEventListener('mousemove', mouseMoveHandlerRef.current);
         mouseMoveHandlerRef.current = null;
@@ -75,8 +75,9 @@ export const FloatingWidget = () => {
         document.removeEventListener('mouseup', mouseUpHandlerRef.current);
         mouseUpHandlerRef.current = null;
       }
-    };
-  }, []);
+    },
+    [],
+  );
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!widgetRef.current) return;

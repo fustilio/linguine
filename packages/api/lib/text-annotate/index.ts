@@ -11,6 +11,8 @@ export { detectLanguageFromText, normalizeLanguageCode } from './language-detect
 export { chunkTextWithPOS } from './pos-chunker.js';
 export { translateChunk } from './translator.js';
 export { segmentText } from './segmenter.js';
+export { getReadingModeStyles } from './styles.js';
+export { getImagesForQuery } from './image-fetcher.js';
 export type {
   SupportedLanguage,
   POSChunk,

@@ -21,11 +21,13 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@extension/shared": "workspace:*",
-    "@extension/ui": "workspace:*",
-    "@extension/i18n": "workspace:*",
     "@extension/env": "workspace:*",
-    "@extension/storage": "workspace:*"
+    "@extension/i18n": "workspace:*",
+    "@extension/shared": "workspace:*",
+    "@extension/storage": "workspace:*",
+    "@extension/ui": "workspace:*",
+    "@extension/api": "workspace:*",
+    "lucide-react": "^0.548.0"
   },
   "devDependencies": {
     "@extension/hmr": "workspace:*",

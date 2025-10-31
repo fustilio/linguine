@@ -1,22 +1,74 @@
 import { WordReplacer, scrollToText, TextAnnotateManager } from '@extension/api';
 import { sampleFunction } from '@src/sample-function';
 
-console.log('[CEB] All content script loaded');
-
 void sampleFunction();
 
 // Initialize the word replacer when the script loads
-console.log('[CEB] Initializing word replacer');
 const wordReplacer = WordReplacer.getInstance();
-console.log('[CEB] Word replacer initialized');
 
 // Initialize text annotate manager
 let textAnnotateManager: TextAnnotateManager | null = null;
 try {
   textAnnotateManager = TextAnnotateManager.getInstance();
-  console.log('[CEB] Text annotate manager initialized');
+
+  // Set up React UI callbacks that send messages to content-ui
+  textAnnotateManager.setUICallbacks({
+    onShow: (title, plainText, totalChunks) => {
+      // Send message to content-ui to show reading mode
+      chrome.runtime
+        .sendMessage({
+          action: 'readingModeShow',
+          target: 'content-ui',
+          data: {
+            title,
+            plainText: plainText || '',
+            chunks: [],
+            progress: {
+              completed: 0,
+              total: totalChunks || 0,
+              isComplete: false,
+              phase: 'Initializing...',
+            },
+          },
+        })
+        .catch(() => {
+          // Ignore errors
+        });
+    },
+    onUpdate: (chunks, isComplete, totalChunks, phase) => {
+      // Send message to content-ui to update reading mode
+      chrome.runtime
+        .sendMessage({
+          action: 'readingModeUpdate',
+          target: 'content-ui',
+          data: {
+            chunks,
+            progress: {
+              completed: chunks.length,
+              total: totalChunks,
+              isComplete,
+              phase: phase || 'Processing...',
+            },
+          },
+        })
+        .catch(() => {
+          // Ignore errors
+        });
+    },
+    onHide: () => {
+      // Send message to content-ui to hide reading mode
+      chrome.runtime
+        .sendMessage({
+          action: 'readingModeHide',
+          target: 'content-ui',
+        })
+        .catch(() => {
+          // Ignore errors
+        });
+    },
+  });
 } catch (error) {
-  console.error('[CEB] Failed to initialize text annotate manager:', error);
+  // Silently handle initialization errors
 }
 
 // Handle messages from background script
@@ -38,6 +90,10 @@ chrome.runtime.onMessage.addListener(
     sender,
     sendResponse,
   ) => {
+    // Ignore messages intended for content-ui (let content-ui handle them)
+    if (message.target === 'content-ui') {
+      return false;
+    }
     // Ignore messages targeted to offscreen (database operations)
     if (message.target === 'offscreen') {
       return false;
@@ -94,10 +150,14 @@ chrome.runtime.onMessage.addListener(
       (async () => {
         try {
           console.log('[CEB] Received openReadingMode message:', message);
+          console.log('[CEB] Text annotate manager available:', !!textAnnotateManager);
+          // Check if callbacks are set (access private property via any cast for debugging)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          console.log('[CEB] UI callbacks check:', (textAnnotateManager as any)?.uiCallbacks ? 'SET' : 'NOT SET');
 
           if (!textAnnotateManager) {
-            console.log('[CEB] Text annotate manager not available, showing fallback');
-            sendResponse({ success: true, message: 'Message received but text annotate not available' });
+            console.error('[CEB] Text annotate manager not available, showing fallback');
+            sendResponse({ success: false, message: 'Text annotate manager not available' });
             return;
           }
 
@@ -105,14 +165,17 @@ chrome.runtime.onMessage.addListener(
           const mode = data.mode || 'auto';
           const url = window.location.href;
 
-          console.log('[CEB] Opening reading mode with mode:', mode);
+          console.log('[CEB] Opening reading mode with mode:', mode, 'data:', data);
 
           if (mode === 'auto') {
             const useFullContent = data.useFullContent !== false;
+            console.log('[CEB] Calling openReadingModeAuto with useFullContent:', useFullContent);
             await textAnnotateManager.openReadingModeAuto(document, url, useFullContent);
           } else if (mode === 'manual') {
+            console.log('[CEB] Calling openReadingModeManual');
             await textAnnotateManager.openReadingModeManual(document);
           } else if (mode === 'selector' && data.selector) {
+            console.log('[CEB] Calling openReadingModeSelector with selector:', data.selector);
             await textAnnotateManager.openReadingModeSelector(document, data.selector);
           } else {
             throw new Error(`Invalid mode: ${mode}`);
@@ -136,7 +199,6 @@ chrome.runtime.onMessage.addListener(
         }
         sendResponse({ success: true });
       } catch (error) {
-        console.error('[CEB] Failed to close reading mode:', error);
         sendResponse({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
       }
       return true;

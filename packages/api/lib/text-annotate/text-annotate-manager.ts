@@ -13,16 +13,34 @@ import {
   extractPlainText,
 } from './text-extractor.js';
 import { generateTitleForContent } from './title-generator.js';
-import type { ExtractedText, AnnotationResult, SupportedLanguage } from './types.js';
+import type { AnnotatedChunk, ExtractedText, AnnotationResult, SupportedLanguage } from './types.js';
+
+/**
+ * Callback interface for React-based UI updates
+ */
+export interface ReadingModeUICallbacks {
+  onShow?: (title: string | undefined, plainText: string, totalChunks: number) => void;
+  onUpdate?: (
+    chunks: AnnotatedChunk[],
+    isComplete: boolean,
+    totalChunks: number,
+    phase?: string,
+    metrics?: {
+      literalCount?: number;
+      contextualCount?: number;
+      literalTimeMs?: number;
+      contextualTimeMs?: number;
+      batchTimeMs?: number;
+    },
+  ) => void;
+  onHide?: () => void;
+}
 
 export class TextAnnotateManager {
   private static instance: TextAnnotateManager | null = null;
   private readingModeUI: ReadingModeUI | null = null;
+  private uiCallbacks: ReadingModeUICallbacks | null = null;
   private currentAbortController: AbortController | null = null;
-  private readonly ENABLE_TEXT_ANNOTATE_LOGS = false;
-  private taLog(...args: unknown[]): void {
-    if (this.ENABLE_TEXT_ANNOTATE_LOGS) console.log(...args);
-  }
 
   /**
    * Resolve user's native language from storage; fallback to en-US
@@ -54,59 +72,62 @@ export class TextAnnotateManager {
   }
 
   /**
+   * Set callbacks for React-based UI updates (alternative to ReadingModeUI)
+   */
+  public setUICallbacks(callbacks: ReadingModeUICallbacks | null): void {
+    this.uiCallbacks = callbacks;
+  }
+
+  /**
    * Open reading mode with auto-extracted content
    */
   public async openReadingModeAuto(document: Document, url: string, useFullContent: boolean = true): Promise<void> {
-    const startTime = performance.now();
-    this.taLog('[TextAnnotate] Starting openReadingModeAuto with URL:', url, 'useFullContent:', useFullContent);
-
     // Extract content
-    this.taLog('[TextAnnotate] Extracting content with Readability...');
     const extracted = extractContentWithReadability(document, url);
-    this.taLog('[TextAnnotate] Content extracted:', extracted ? 'Success' : 'Failed');
 
     if (!extracted) {
       throw new Error('Failed to extract content from page');
     }
 
-    this.taLog('[TextAnnotate] Extracted content preview:', {
-      title: extracted.title,
-      contentLength: extracted.content?.length || 0,
-      language: extracted.language,
-    });
-
     // For demo purposes, use a short Thai text sample if not using full content
     if (!useFullContent && extracted.content && extracted.content.length > 200) {
-      this.taLog('[TextAnnotate] Using demo Thai text sample for testing');
       extracted.content = 'สวัสดีครับ คุณสบายดีไหม วันนี้อากาศดีมาก';
       extracted.title = 'Demo Thai Text';
     }
 
-    // Initialize reading mode UI first
-    if (!this.readingModeUI) {
-      this.readingModeUI = new ReadingModeUI();
-      this.readingModeUI.initialize();
-    }
+    // Initialize UI (either React callbacks or DOM-based UI)
+    const plainText = extractPlainText(extracted.content);
 
-    // Show loading state
-    this.readingModeUI.displayAnnotation(
-      extracted.title,
-      [
-        {
-          text: 'Loading...',
-          type: 'single_word',
-          start: 0,
-          end: 7,
-          translation: {
-            literal: 'Loading...',
-            contextual: 'Loading...',
-            differs: false,
+    if (this.uiCallbacks) {
+      // Use React UI callbacks
+      this.uiCallbacks.onShow?.(extracted.title, plainText, 0);
+    } else {
+      // Use legacy DOM-based UI
+      if (!this.readingModeUI) {
+        this.readingModeUI = new ReadingModeUI();
+        this.readingModeUI.initialize();
+      }
+
+      // Show loading state
+      this.readingModeUI.displayAnnotation(
+        extracted.title,
+        [
+          {
+            text: 'Loading...',
+            type: 'single_word',
+            start: 0,
+            end: 7,
+            translation: {
+              literal: 'Loading...',
+              contextual: 'Loading...',
+              differs: false,
+            },
           },
-        },
-      ],
-      () => this.cancelCurrentWork(true),
-    );
-    this.readingModeUI.show();
+        ],
+        () => this.cancelCurrentWork(true),
+      );
+      this.readingModeUI.show();
+    }
 
     // Pre-warm models (non-blocking)
     try {
@@ -117,44 +138,41 @@ export class TextAnnotateManager {
         try {
           const { translateText } = await import('../chrome-ai/convenience-functions.js');
           await translateText('ping', 'th-TH', 'en-US');
-        } catch (err) {
-          console.debug('[TextAnnotate] Translator warmup failed (non-fatal):', err);
+        } catch {
+          // Ignore warmup errors
         }
       })();
-    } catch (err) {
-      console.debug('[TextAnnotate] AI pre-warm skipped/failed (non-fatal):', err);
+    } catch {
+      // Ignore pre-warm errors
     }
 
     // Process in background
-    this.taLog('[TextAnnotate] Starting background processing...');
     try {
       const nativeLang = await this.getNativeLanguageOrDefault();
       await this.processAndDisplay(extracted, nativeLang);
-      const endTime = performance.now();
-      this.taLog(
-        `[TextAnnotate] Background processing completed successfully in ${(endTime - startTime).toFixed(2)}ms`,
-      );
     } catch (error) {
-      const endTime = performance.now();
-      console.error(`[TextAnnotate] Failed to process text after ${(endTime - startTime).toFixed(2)}ms:`, error);
       // Show error state
-      this.readingModeUI.displayAnnotation(
-        extracted.title,
-        [
-          {
-            text: 'Error: ' + (error instanceof Error ? error.message : 'Unknown error'),
-            type: 'single_word',
-            start: 0,
-            end: 50,
-            translation: {
-              literal: 'Error occurred',
-              contextual: 'Error occurred',
-              differs: false,
+      if (this.uiCallbacks) {
+        this.uiCallbacks.onHide?.();
+      } else if (this.readingModeUI) {
+        this.readingModeUI.displayAnnotation(
+          extracted.title,
+          [
+            {
+              text: 'Error: ' + (error instanceof Error ? error.message : 'Unknown error'),
+              type: 'single_word',
+              start: 0,
+              end: 50,
+              translation: {
+                literal: 'Error occurred',
+                contextual: 'Error occurred',
+                differs: false,
+              },
             },
-          },
-        ],
-        () => this.readingModeUI?.hide(),
-      );
+          ],
+          () => this.readingModeUI?.hide(),
+        );
+      }
     }
   }
 
@@ -185,11 +203,16 @@ export class TextAnnotateManager {
         console.debug('[TextAnnotate] Title generation failed (non-fatal):', e);
       }
     }
-    // Ensure reading mode UI is initialized for manual mode
-    if (!this.readingModeUI) {
-      this.readingModeUI = new ReadingModeUI();
-      this.readingModeUI.initialize();
-      this.readingModeUI.show();
+    // Initialize UI
+    const plainText = extractPlainText(extracted.content);
+    if (this.uiCallbacks) {
+      this.uiCallbacks.onShow?.(extracted.title, plainText, 0);
+    } else {
+      if (!this.readingModeUI) {
+        this.readingModeUI = new ReadingModeUI();
+        this.readingModeUI.initialize();
+        this.readingModeUI.show();
+      }
     }
     const nativeLang = await this.getNativeLanguageOrDefault();
     await this.processAndDisplay(extracted, nativeLang);
@@ -204,11 +227,16 @@ export class TextAnnotateManager {
     if (!extracted) {
       throw new Error(`No element found for selector: ${selector}`);
     }
-    // Ensure reading mode UI is initialized for selector mode
-    if (!this.readingModeUI) {
-      this.readingModeUI = new ReadingModeUI();
-      this.readingModeUI.initialize();
-      this.readingModeUI.show();
+    // Initialize UI
+    const plainText = extractPlainText(extracted.content);
+    if (this.uiCallbacks) {
+      this.uiCallbacks.onShow?.(extracted.title, plainText, 0);
+    } else {
+      if (!this.readingModeUI) {
+        this.readingModeUI = new ReadingModeUI();
+        this.readingModeUI.initialize();
+        this.readingModeUI.show();
+      }
     }
     const nativeLang = await this.getNativeLanguageOrDefault();
     await this.processAndDisplay(extracted, nativeLang);
@@ -221,25 +249,29 @@ export class TextAnnotateManager {
     console.log('[TextAnnotate] processAndDisplay started with targetLanguage:', targetLanguage);
     try {
       // Defensive: ensure UI exists (manual/selector callers should set it up, but be safe)
-      if (!this.readingModeUI) {
-        this.readingModeUI = new ReadingModeUI();
-        this.readingModeUI.initialize();
-        this.readingModeUI.show();
-      }
-      // Try AI annotation first, fallback to simple if it fails
-      let result: AnnotationResult;
-      try {
-        console.log('[TextAnnotate] Attempting AI annotation with progressive updates...');
-        const aiStartTime = performance.now();
-
+      const plainText = extractPlainText(extracted.content);
+      if (this.uiCallbacks) {
+        // React UI: already shown via onShow callback
+      } else {
+        if (!this.readingModeUI) {
+          this.readingModeUI = new ReadingModeUI();
+          this.readingModeUI.initialize();
+          this.readingModeUI.show();
+        }
         // Display plain text first
-        const plainText = extractPlainText(extracted.content);
-        this.readingModeUI!.displayPlainTextWithProgress(
+        this.readingModeUI.displayPlainTextWithProgress(
           extracted.title,
           plainText,
           0, // Will be updated when we know the total
           () => this.cancelCurrentWork(true),
         );
+      }
+
+      // Try AI annotation first, fallback to simple if it fails
+      let result: AnnotationResult;
+      try {
+        console.log('[TextAnnotate] Attempting AI annotation with progressive updates...');
+        const aiStartTime = performance.now();
 
         // Use progressive annotation with streaming updates
         // Abort any previous run
@@ -271,12 +303,21 @@ export class TextAnnotateManager {
               `[TextAnnotate] Progressive update: ${chunks.length} chunks, complete: ${isComplete}, total: ${totalChunks}, phase: ${phase}`,
             );
 
-            // Update the reading mode UI with current chunks
-            this.readingModeUI!.addAnnotations(chunks, isComplete, phase, metrics);
-
-            // Update total chunks if provided
-            if (totalChunks && this.readingModeUI) {
-              this.readingModeUI.setTotalChunks(totalChunks);
+            // Update UI with current chunks
+            if (this.uiCallbacks) {
+              console.log('[TextAnnotate] Calling onUpdate callback with:', {
+                chunksCount: chunks.length,
+                isComplete,
+                totalChunks,
+                phase,
+              });
+              this.uiCallbacks.onUpdate?.(chunks, isComplete, totalChunks || chunks.length, phase, metrics);
+            } else if (this.readingModeUI) {
+              this.readingModeUI.addAnnotations(chunks, isComplete, phase, metrics);
+              // Update total chunks if provided
+              if (totalChunks) {
+                this.readingModeUI.setTotalChunks(totalChunks);
+              }
             }
           },
           this.currentAbortController.signal,
@@ -319,6 +360,9 @@ export class TextAnnotateManager {
    * Close reading mode
    */
   public closeReadingMode(): void {
+    if (this.uiCallbacks) {
+      this.uiCallbacks.onHide?.();
+    }
     this.cancelCurrentWork(true);
   }
 
@@ -350,8 +394,12 @@ export class TextAnnotateManager {
     } catch {
       /* empty */
     }
-    if (hideUI && this.readingModeUI) {
-      this.readingModeUI.hide();
+    if (hideUI) {
+      if (this.uiCallbacks) {
+        this.uiCallbacks.onHide?.();
+      } else if (this.readingModeUI) {
+        this.readingModeUI.hide();
+      }
     }
   }
 }

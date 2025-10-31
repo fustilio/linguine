@@ -1,6 +1,9 @@
 /**
  * Reading mode UI manager
  * Creates and manages the reading mode interface
+ * @deprecated This class is deprecated and will be removed in the future.
+ * The reading mode UI is now implemented as a React component in content-ui.
+ * See pages/content-ui/src/matches/all/ReadingMode.tsx
  */
 
 import { getImagesForQuery } from './image-fetcher.js';
@@ -24,6 +27,10 @@ import {
 import type { AnnotatedChunk } from './types.js';
 
 // Icons will be initialized after DOM elements are created
+/**
+ * @deprecated Use the React component in content-ui instead.
+ * This class is kept for backward compatibility but will be removed in the future.
+ */
 export class ReadingModeUI {
   private container: HTMLElement | null = null;
   private contentArea: HTMLElement | null = null;
