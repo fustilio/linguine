@@ -1,14 +1,14 @@
 import { analyzeText, summarizeVocabulary, formatVocabularyForAI } from '@extension/api';
 import { LANGUAGES } from '@extension/shared';
 import { getAllVocabularyForSummary, filterVocabulary } from '@extension/sqlite';
-import { LoadingSpinner, QueryInterface, TextEvaluator, Tabs, VocabularyStats, cn, themeVariants } from '@extension/ui';
+import { LoadingSpinner, QueryInterface, TextEvaluator, Tabs, VocabularyStats, cn } from '@extension/ui';
 import { useState } from 'react';
 import type { TextEvaluationResult } from '@extension/api';
 import type { VocabularyItem } from '@extension/sqlite';
 
-interface VocabularyAnalyticsProps {}
+// interface VocabularyAnalyticsProps {}
 
-export const VocabularyAnalytics = ({}: VocabularyAnalyticsProps) => {
+export const VocabularyAnalytics = () => {
   const [allVocabulary, setAllVocabulary] = useState<VocabularyItem[]>([]);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [textResult, setTextResult] = useState<TextEvaluationResult | null>(null);
@@ -67,11 +67,11 @@ export const VocabularyAnalytics = ({}: VocabularyAnalyticsProps) => {
 
   const insightsTabContent = (
     <div className="h-full overflow-y-auto">
-      <div className={cn('space-y-6 p-6 bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100')}>
+      <div className={cn('space-y-6 bg-white p-6 text-gray-900 dark:bg-gray-900 dark:text-gray-100')}>
         {error && (
           <div
             className={cn(
-              'rounded-lg border p-4 border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200',
+              'rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200',
             )}>
             <p className="font-medium">Error</p>
             <p className="text-sm">{error}</p>
@@ -82,11 +82,7 @@ export const VocabularyAnalytics = ({}: VocabularyAnalyticsProps) => {
           <h3 className={cn('mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100')}>
             Ask About Your Vocabulary
           </h3>
-          <QueryInterface
-            onQuery={handleQuery}
-            isLoading={isLoading}
-            availableLanguages={[...LANGUAGES]}
-          />
+          <QueryInterface onQuery={handleQuery} isLoading={isLoading} availableLanguages={[...LANGUAGES]} />
         </div>
 
         {isLoading && (
@@ -96,16 +92,12 @@ export const VocabularyAnalytics = ({}: VocabularyAnalyticsProps) => {
         )}
 
         {aiSummary && (
-          <div className="space-y-4 border-t border-gray-200 dark:border-gray-700 pt-6">
+          <div className="space-y-4 border-t border-gray-200 pt-6 dark:border-gray-700">
             <div>
               <h3 className={cn('mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100')}>Summary</h3>
               <div
-                className={cn(
-                  'rounded-lg border p-4 bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700',
-                )}>
-                <p className={cn('whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100')}>
-                  {aiSummary}
-                </p>
+                className={cn('rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800')}>
+                <p className={cn('whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100')}>{aiSummary}</p>
               </div>
             </div>
 
@@ -118,7 +110,7 @@ export const VocabularyAnalytics = ({}: VocabularyAnalyticsProps) => {
 
   const textAnalysisTabContent = (
     <div className="h-full overflow-y-auto">
-      <div className={cn('p-6 bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100')}>
+      <div className={cn('bg-white p-6 text-gray-900 dark:bg-gray-900 dark:text-gray-100')}>
         <TextEvaluator onAnalyze={handleAnalyzeText} result={textResult} isAnalyzing={isLoading} />
       </div>
     </div>
@@ -130,11 +122,9 @@ export const VocabularyAnalytics = ({}: VocabularyAnalyticsProps) => {
   ];
 
   return (
-    <div className={cn('flex h-3/5 flex-col bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100')}>
+    <div className={cn('flex h-3/5 flex-col bg-white p-6 text-gray-900 dark:bg-gray-900 dark:text-gray-100')}>
       <div className="mb-6">
-        <h2 className={cn('mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100')}>
-          Vocabulary Analytics
-        </h2>
+        <h2 className={cn('mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100')}>Vocabulary Analytics</h2>
         <p className={cn('text-sm text-gray-500 dark:text-gray-400')}>
           Get AI-powered insights about your vocabulary progress and analyze text comprehension
         </p>

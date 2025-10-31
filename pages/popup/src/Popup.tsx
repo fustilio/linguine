@@ -246,16 +246,14 @@ const Popup = () => {
             <br />
             <strong>2. Select text</strong> on any webpage
             <br />
-            <strong>3. Click the highlighted text</strong> to simplify it with AI
+            <strong>3. Click the widget</strong> to simplify it with AI
             <br />
             <br />
             <strong>Controls when viewing simplified text:</strong>
             <br />
-            1. ⇄ Toggle original/simplified
+            1. ⇄ Toggle between original or simplified text
             <br />
-            2. ✓ Apply toggle
-            <br />
-            3. 💾 Save sentence
+            2. ✓ Apply change
             <br />
             <br />
             <span className="text-[10px] opacity-70">
