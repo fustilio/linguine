@@ -257,44 +257,103 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Extension installed');
-  // Register selection-only context menu for Reading Mode
-  try {
-    chrome.contextMenus.remove('read_with_linguine', () => {
-      // Ignore errors on remove; we'll create fresh below
+  
+  // Register context menu items
+  const createContextMenus = () => {
+    // Remove existing menus first
+    chrome.contextMenus.removeAll(() => {
+      // Register "Read with Linguine" - appears both with and without selection
       chrome.contextMenus.create({
         id: 'read_with_linguine',
         title: 'Read with Linguine',
+        contexts: ['selection', 'page'],
+      });
+
+      // Register "Rewrite with Linguine" - appears only when text is selected
+      chrome.contextMenus.create({
+        id: 'rewrite_with_linguine',
+        title: 'Rewrite with Linguine',
         contexts: ['selection'],
       });
     });
-  } catch {
-    // Fallback: create without remove if remove throws synchronously
-    chrome.contextMenus.create({
-      id: 'read_with_linguine',
-      title: 'Read with Linguine',
-      contexts: ['selection'],
-    });
+  };
+
+  try {
+    createContextMenus();
+  } catch (error) {
+    console.error('Failed to create context menus:', error);
+    // Fallback: try to create individually
+    try {
+      chrome.contextMenus.create({
+        id: 'read_with_linguine',
+        title: 'Read with Linguine',
+        contexts: ['selection', 'page'],
+      });
+      chrome.contextMenus.create({
+        id: 'rewrite_with_linguine',
+        title: 'Rewrite with Linguine',
+        contexts: ['selection'],
+      });
+    } catch (fallbackError) {
+      console.error('Failed to create context menus with fallback:', fallbackError);
+    }
   }
 });
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== 'read_with_linguine' || !tab?.id) return;
+  if (!tab?.id) return;
 
   try {
-    // Try sending to existing content script first
-    await chrome.tabs.sendMessage(tab.id, { action: 'openReadingMode', data: { mode: 'manual' } });
-  } catch {
-    // If no content runtime, inject and retry
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['content-runtime/all.iife.js'],
-      });
-      await chrome.tabs.sendMessage(tab.id, { action: 'openReadingMode', data: { mode: 'manual' } });
-    } catch (e) {
-      console.error('Failed to open reading mode from context menu', e);
+    if (info.menuItemId === 'rewrite_with_linguine') {
+      // Handle "Rewrite with Linguine" - rewrite selected text
+      // Try sending to existing content script first
+      try {
+        await chrome.tabs.sendMessage(tab.id, { action: 'rewriteSelectedText' });
+      } catch {
+        // If no content script, inject and retry
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content/all.iife.js'],
+        });
+        await chrome.tabs.sendMessage(tab.id, { action: 'rewriteSelectedText' });
+      }
+    } else if (info.menuItemId === 'read_with_linguine') {
+      // Handle "Read with Linguine"
+      if (info.selectionText) {
+        // If text is selected, open reading mode with selected text (current behavior)
+        try {
+          await chrome.tabs.sendMessage(tab.id, { action: 'openReadingMode', data: { mode: 'manual' } });
+        } catch {
+          // If no content runtime, inject and retry
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['content-runtime/all.iife.js'],
+          });
+          await chrome.tabs.sendMessage(tab.id, { action: 'openReadingMode', data: { mode: 'manual' } });
+        }
+      } else {
+        // If no selection, open reading mode for the whole page
+        try {
+          await chrome.tabs.sendMessage(tab.id, {
+            action: 'openReadingMode',
+            data: { mode: 'auto', useFullContent: true },
+          });
+        } catch {
+          // If no content runtime, inject and retry
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['content-runtime/all.iife.js'],
+          });
+          await chrome.tabs.sendMessage(tab.id, {
+            action: 'openReadingMode',
+            data: { mode: 'auto', useFullContent: true },
+          });
+        }
+      }
     }
+  } catch (error) {
+    console.error('Failed to handle context menu action:', error);
   }
 });
 
