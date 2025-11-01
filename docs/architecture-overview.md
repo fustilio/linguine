@@ -283,6 +283,18 @@ UI Component (Display results)
 - **API**: Zod schemas for validation
 - **Database**: Language code normalization
 - **UI**: Language selection dropdowns
+- **Storage**: `packages/storage/lib/impl/language-storage.ts` for language preferences
+  - `nativeLanguage`: User's native language (default: 'en-US')
+  - `targetLearningLanguage`: Language currently being studied (default: 'en-US')
+  - Both languages are normalized to BCP 47 format and stored with `liveUpdate: true` for cross-tab synchronization
+
+**Target Learning Language Management**:
+- **Automatic Detection**: System can detect target language from vocabulary analysis, reading mode content, or added vocabulary items
+- **User Prompts**: Language mismatch prompts appear when adding vocabulary in different language - user chooses to change target or add anyway
+- **User Control**: Manual language selector dropdowns available in:
+  - Side panel (Vocabulary Tracker and Review tabs)
+  - Options page language settings
+- **No Silent Changes**: Target language is never changed automatically - all changes require explicit user confirmation through prompts or manual selection
 
 ## Technical Implementation Details
 

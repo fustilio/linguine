@@ -511,5 +511,6 @@ The package follows semantic versioning:
 - [Language Configuration System](language-config-system.md) - Detailed language system documentation
 - [Packages API](packages-api.md) - API layer documentation
 - [Packages SQLite](packages-sqlite.md) - Database layer documentation
+- [Packages Storage](packages-storage.md) - Storage layer documentation
 - [Vocabulary Analytics](vocabulary-analytics.md) - AI-powered analytics
 - [Text Rewrites](text-rewrites.md) - Text simplification feature

@@ -146,8 +146,9 @@ export const updateVocabularyItemKnowledgeLevel = async (id: number, level: numb
 };
 
 // Get review queue (words due for review)
-export const getReviewQueue = async (limit?: number): Promise<VocabularyItem[]> => {
-  return sendDatabaseMessageForArray<VocabularyItem>('getReviewQueue', { limit });
+// Optionally filters by language
+export const getReviewQueue = async (limit?: number, language?: string | null): Promise<VocabularyItem[]> => {
+  return sendDatabaseMessageForArray<VocabularyItem>('getReviewQueue', { limit, language });
 };
 
 // Mark vocabulary item as reviewed
@@ -156,8 +157,13 @@ export const markAsReviewed = async (id: number): Promise<boolean> => {
 };
 
 // Get next review date (when reviews will next be available)
-export const getNextReviewDate = async (): Promise<string | null> => {
-  return await sendDatabaseMessageForItem<string | null>('getNextReviewDate', {}, z.string().nullable().optional());
+// Optionally filters by language
+export const getNextReviewDate = async (language?: string | null): Promise<string | null> => {
+  return await sendDatabaseMessageForItem<string | null>(
+    'getNextReviewDate',
+    { language },
+    z.string().nullable(),
+  );
 };
 ```
 
@@ -342,10 +348,24 @@ export interface DatabaseResponse<T = unknown> {
 **Key Features**:
 
 ```typescript
-export const useVocabulary = () => {
+interface UseVocabularyOptions {
+  /**
+   * If true, use manual language filter instead of auto-filtering by target learning language.
+   * Useful for admin interfaces where you want full control.
+   */
+  manualLanguageFilter?: boolean;
+}
+
+export const useVocabulary = (options?: UseVocabularyOptions) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
-  const [languageFilter, setLanguageFilter] = useState<string | null>(null);
+  const { targetLearningLanguage } = useStorage(languageStorage);
+  const [manualLanguageFilter, setManualLanguageFilter] = useState<string | null>(null);
+  
+  // Auto-apply target learning language filter unless manual mode is enabled
+  const languageFilter = options?.manualLanguageFilter 
+    ? manualLanguageFilter 
+    : (targetLearningLanguage || null);
 
   // TanStack Query integration
   const { data: vocabularyData } = useQuery({
@@ -377,7 +397,7 @@ export const useVocabulary = () => {
     toggleItemSelected,
     toggleSelectAll,
     languageFilter,
-    setLanguageFilter,
+    setLanguageFilter: options?.manualLanguageFilter ? setManualLanguageFilter : undefined,
     addVocabularyItem,
     updateVocabularyItemKnowledgeLevel,
     deleteVocabularyItem,
@@ -391,36 +411,54 @@ export const useVocabulary = () => {
 - **Data**: `items`, `totalItems`, `currentPage`, `pageSize`
 - **Navigation**: `goToPage`
 - **Selection**: `selectedItems`, `toggleItemSelected`, `toggleSelectAll`
-- **Filtering**: `languageFilter`, `setLanguageFilter`
+- **Filtering**: `languageFilter` (auto-filtered by target learning language by default, or manual in admin mode), `setLanguageFilter` (only available when `manualLanguageFilter: true`)
+- **Auto-filtering**: By default, vocabulary is automatically filtered by `targetLearningLanguage` from `languageStorage`. Use `{ manualLanguageFilter: true }` option for admin interfaces that need full control.
+- **Cache Invalidation**: Queries automatically invalidate when target learning language changes (unless in manual mode)
 - **Mutations**: `addVocabularyItem`, `updateVocabularyItemKnowledgeLevel`, `deleteVocabularyItem`, `bulkDelete`, `clearAllVocabulary`
+
+**Target Learning Language Management**:
+- **Auto-filtering**: Vocabulary list automatically filters by user's `targetLearningLanguage`
+- **Manual Override**: Side panel provides dropdown to manually change target language at any time
+- **Visual Indicator**: Current target language is displayed in side panel header with language selector
+- **Language Mismatch Detection**: When adding vocabulary in different language, users are prompted to:
+  - Change target language to match the new vocabulary
+  - Or add vocabulary anyway without changing target language
+- **No Silent Changes**: Target language is never changed automatically - all changes require user confirmation
 
 **Note**: In the Vocabulary tab of the side panel, users **cannot manually modify knowledge levels**. Levels can only be changed through the review system. However, users can:
 - Delete vocabulary items (via the "more options" menu)
 - Reset mastered items to level 1 using "Learn Again" option (for items with level 5)
 - Toggle metadata display to see "due for review" times for each vocabulary item
+- Change target learning language via dropdown in the header
 
 ### Use Vocabulary Review Hook (`hooks/useVocabularyReview.ts`)
 
-**Purpose**: Vocabulary review functionality with spaced repetition support.
+**Purpose**: Vocabulary review functionality with ANKI-style flashcard interface and spaced repetition support.
 
 **Key Features**:
 
 ```typescript
 export const useVocabularyReview = (limit?: number) => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
 
   // TanStack Query integration
   const { data: reviewQueue = [], isLoading, refetch } = useQuery({
-    queryKey: ['reviewQueue', limit],
-    queryFn: async () => apiGetReviewQueue(limit),
+    queryKey: ['reviewQueue', limit, targetLearningLanguage],
+    queryFn: async () => apiGetReviewQueue(limit, targetLearningLanguage || null),
   });
 
   const { data: nextReviewDate } = useQuery({
-    queryKey: ['nextReviewDate'],
-    queryFn: apiGetNextReviewDate,
+    queryKey: ['nextReviewDate', targetLearningLanguage],
+    queryFn: () => apiGetNextReviewDate(targetLearningLanguage || null),
   });
 
   const currentItem = useMemo(() => reviewQueue[currentIndex] || null, [reviewQueue, currentIndex]);
+
+  // Reset flip state when item changes
+  useEffect(() => {
+    setIsFlipped(false);
+  }, [currentItem?.id]);
 
   const progress = useMemo(
     () => ({
@@ -430,23 +468,32 @@ export const useVocabularyReview = (limit?: number) => {
     [currentIndex, reviewQueue.length],
   );
 
-  // Review actions
-  const handleKnow = useCallback(() => {
-    if (!currentItem) return;
-    const newLevel = Math.min(5, currentItem.knowledge_level + 1);
-    markReviewed(currentItem.id, newLevel);
-  }, [currentItem, markReviewed]);
-
-  const handleDontKnow = useCallback(() => {
-    if (!currentItem) return;
+  // ANKI-style review actions
+  const handleAgain = useCallback(() => {
+    // User doesn't know the word - decrease level
     const newLevel = Math.max(1, currentItem.knowledge_level - 1);
     markReviewed(currentItem.id, newLevel);
   }, [currentItem, markReviewed]);
 
-  const handleMastered = useCallback(() => {
-    if (!currentItem) return;
+  const handleHard = useCallback(() => {
+    // Word is challenging - maintain current level
+    markReviewed(currentItem.id, currentItem.knowledge_level);
+  }, [currentItem, markReviewed]);
+
+  const handleGood = useCallback(() => {
+    // User knows the word - increase level
+    const newLevel = Math.min(5, currentItem.knowledge_level + 1);
+    markReviewed(currentItem.id, newLevel);
+  }, [currentItem, markReviewed]);
+
+  const handleEasy = useCallback(() => {
+    // Word is mastered - set to level 5
     markReviewed(currentItem.id, 5);
   }, [currentItem, markReviewed]);
+
+  const flipCard = useCallback(() => {
+    setIsFlipped(prev => !prev);
+  }, []);
 
   return {
     reviewQueue,
@@ -454,23 +501,31 @@ export const useVocabularyReview = (limit?: number) => {
     currentIndex,
     progress,
     isLoading,
+    isFlipped,
     nextItem,
     skip,
     markReviewed,
-    handleKnow,
-    handleDontKnow,
-    handleMastered,
+    handleAgain,  // ANKI-style: user doesn't know
+    handleHard,  // ANKI-style: challenging
+    handleGood,  // ANKI-style: user knows
+    handleEasy,  // ANKI-style: mastered
+    flipCard,
     refetch,
     resetIndex,
-    nextReviewDate, // ISO string of when next review will be available, or null
+    nextReviewDate,
+    // Legacy handlers (still available for backwards compatibility)
+    handleKnow: handleGood,
+    handleDontKnow: handleAgain,
+    handleMastered: handleEasy,
   };
 };
 ```
 
 **Returned Values**:
-- **Data**: `reviewQueue`, `currentItem`, `currentIndex`, `progress`, `isLoading`, `nextReviewDate`
-- **Navigation**: `nextItem`, `skip`, `resetIndex`
-- **Review Actions**: `handleKnow`, `handleDontKnow`, `handleMastered`, `markReviewed`
+- **Data**: `reviewQueue`, `currentItem`, `currentIndex`, `progress`, `isLoading`, `isFlipped`, `nextReviewDate`
+- **Navigation**: `nextItem`, `skip`, `resetIndex`, `flipCard`
+- **ANKI-style Review Actions**: `handleAgain`, `handleHard`, `handleGood`, `handleEasy`
+- **Legacy Actions** (for backwards compatibility): `handleKnow`, `handleDontKnow`, `handleMastered`, `markReviewed`
 - **Refresh**: `refetch`
 
 **Review Logic**:
@@ -479,6 +534,65 @@ export const useVocabularyReview = (limit?: number) => {
 - **Queue Order**: Words are sorted by oldest `last_reviewed_at` first, then by lowest `knowledge_level` (most challenging first)
 - **Next Review Date**: `nextReviewDate` indicates when the next batch of reviews will become available (1 hour after the most recently reviewed word, formatted as "In X mins/hours")
 - **Review Actions**: Reviewing a word updates both its `knowledge_level` and `last_reviewed_at` timestamp
+- **Language Filtering**: Review queue and next review date are automatically filtered by user's `targetLearningLanguage` from `languageStorage`
+- **Cache Invalidation**: Query keys include target language, so cache invalidates when target language changes
+
+**ANKI-style Rating System**:
+- **Again**: Decreases knowledge level by 1 (minimum 1) - equivalent to "I don't know"
+- **Hard**: Maintains current knowledge level, marks as reviewed - equivalent to "Skip"
+- **Good**: Increases knowledge level by 1 (maximum 5) - equivalent to "I know this"
+- **Easy**: Sets knowledge level to 5 (Mastered) - equivalent to "Mastered"
+
+### Use Vocabulary Card Back Hook (`hooks/useVocabularyCardBack.ts`)
+
+**Purpose**: Generates translation and example usage for vocabulary review cards in real-time.
+
+**Key Features**:
+
+```typescript
+export const useVocabularyCardBack = (item: VocabularyItem | null) => {
+  const { targetLearningLanguage } = useStorage(languageStorage);
+
+  const {
+    data: cardBackData,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['vocabularyCardBack', item?.id, targetLearningLanguage],
+    queryFn: () => fetchCardBackData(item, targetLearningLanguage || null),
+    enabled: !!item && !!targetLearningLanguage,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes
+  });
+
+  return {
+    translation: cardBackData?.translation || '',
+    exampleUsage: cardBackData?.exampleUsage || '',
+    isLoading,
+    error,
+  };
+};
+```
+
+**Returned Values**:
+- **`translation`**: Translated text (source language → target learning language)
+- **`exampleUsage`**: Example sentence using the word in context
+- **`isLoading`**: Loading state while generating data
+- **`error`**: Error state if generation fails
+
+**Data Generation**:
+- **Translation**: Uses Chrome Translator API (`translateText`)
+  - If source and target languages are the same, returns original text
+  - Falls back to original text on error
+- **Example Usage**: Uses Chrome AI Language Model API
+  - Prompt: "Provide a simple, natural example sentence using the word '{word}' in {language}. Keep it short and practical."
+  - Returns fallback message on error
+
+**Caching**:
+- React Query caches data for 5 minutes (staleTime)
+- Cache persists for 30 minutes (gcTime)
+- Data is regenerated when vocabulary item or target language changes
+- See `docs/vocabulary-review.md` for future database caching enhancement
 
 ### Use Text Rewrites Hook (`hooks/useTextRewrites.ts`)
 
@@ -751,12 +865,16 @@ const VocabularyReviewComponent = () => {
     currentItem,
     progress,
     isLoading,
-    handleKnow,
-    handleDontKnow,
-    handleMastered,
-    skip,
+    isFlipped,
+    handleAgain,
+    handleHard,
+    handleGood,
+    handleEasy,
+    flipCard,
     nextReviewDate,
   } = useVocabularyReview(50);
+  
+  const { translation, exampleUsage, isLoading: cardBackLoading } = useVocabularyCardBack(currentItem);
 
   if (isLoading) return <div>Loading...</div>;
   if (reviewQueue.length === 0) {
@@ -775,11 +893,38 @@ const VocabularyReviewComponent = () => {
       <div>Progress: {progress.current} of {progress.total}</div>
       {currentItem && (
         <div>
-          <h2>{currentItem.text}</h2>
-          <button onClick={handleKnow}>I know this</button>
-          <button onClick={handleDontKnow}>I don't know</button>
-          <button onClick={handleMastered}>Mastered</button>
-          <button onClick={skip}>Skip</button>
+          {/* ANKI-style Flashcard */}
+          <div onClick={() => !isFlipped && flipCard()}>
+            {!isFlipped ? (
+              // Front: Show word only
+              <div>
+                <h2>{currentItem.text}</h2>
+                <p>Click to reveal answer</p>
+              </div>
+            ) : (
+              // Back: Show translation and example
+              <div>
+                {cardBackLoading ? (
+                  <div>Generating translation...</div>
+                ) : (
+                  <>
+                    <h3>Translation: {translation}</h3>
+                    <p>Example: {exampleUsage}</p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          
+          {/* Rating buttons only show when flipped */}
+          {isFlipped && !cardBackLoading && (
+            <div>
+              <button onClick={handleAgain}>Again</button>
+              <button onClick={handleHard}>Hard</button>
+              <button onClick={handleGood}>Good</button>
+              <button onClick={handleEasy}>Easy</button>
+            </div>
+          )}
         </div>
       )}
       {nextReviewDate && (
@@ -837,7 +982,8 @@ const VocabularyReviewComponent = () => {
 - [Architecture Overview](architecture-overview.md) - High-level system architecture
 - [Message Passing System](message-passing-system.md) - Message passing details
 - [Packages SQLite](packages-sqlite.md) - Database layer documentation
+- [Packages Storage](packages-storage.md) - Storage layer documentation
 - [Packages Shared](packages-shared.md) - Shared utilities documentation
 - [Vocabulary Analytics](vocabulary-analytics.md) - AI-powered analytics
 - [Text Rewrites](text-rewrites.md) - Text simplification feature
- - [Text Annotate](text-annotate.md) - Reading mode annotation feature
+- [Text Annotate](text-annotate.md) - Reading mode annotation feature

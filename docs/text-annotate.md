@@ -85,6 +85,12 @@ Content UI React Component
   - Includes vocabulary difficulty modification in tooltips (Add to Learn, Mark as Mastered, Set as Easy, Set as Challenging)
   - Includes "Add All (N)" button for bulk adding unregistered words to vocabulary
   - Includes image loading and display functionality for tooltips
+  - **Language mismatch detection**: When adding vocabulary in a language different from target learning language:
+    - System detects the mismatch and shows a prompt dialog
+    - User can choose "Change Target Language" to update target to detected language
+    - User can choose "Add Anyway" to keep current target language and add vocabulary
+    - System never automatically changes target language without user confirmation
+    - Visual indicator shows current target language in side panel
 
 - **Popup** (`pages/popup/src/Popup.tsx`) buttons:
   - “Open Reading Mode” (full content)

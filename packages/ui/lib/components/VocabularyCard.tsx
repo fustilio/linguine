@@ -1,6 +1,5 @@
 import { Badge } from './badge';
 import { Card, CardContent } from './card';
-import { getLanguageDisplayName } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { Award, Calendar, MoreVertical, RotateCcw, Trash2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
@@ -16,12 +15,6 @@ interface VocabularyCardProps {
   showMetadata?: boolean;
 }
 
-const getKnowledgeLevelColor = (level: number): string => {
-  if (level === 5) return 'bg-gray-500'; // Mastered
-  if (level >= 3) return 'bg-green-500'; // Easy
-  if (level >= 2) return 'bg-yellow-500'; // Moderate
-  return 'bg-orange-500'; // Challenging
-};
 
 const getKnowledgeLevelLabel = (level: number): string => {
   if (level === 5) return 'Mastered';
@@ -114,7 +107,6 @@ export const VocabularyCard = ({
 }: VocabularyCardProps) => {
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const levelColor = getKnowledgeLevelColor(item.knowledge_level);
   const levelLabel = getKnowledgeLevelLabel(item.knowledge_level);
   const reviewDate = formatReviewDate(item.last_reviewed_at);
   const reviewBadgeVariant = getReviewBadgeVariant(item.last_reviewed_at);
@@ -153,9 +145,61 @@ export const VocabularyCard = ({
   return (
     <Card
       variant="interactive"
-      className={cn('transition-all duration-200 hover:shadow-md', isSelected && 'ring-2 ring-blue-500')}>
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
+      className={cn('transition-all duration-200 hover:shadow-md relative', isSelected && 'ring-2 ring-blue-500')}>
+      <CardContent className="p-2.5 space-y-0">
+          {/* More Options Menu - Absolutely positioned at top right */}
+        {(onDelete || onLearnAgain) && (
+          <div className="absolute right-1.5 top-1.5 z-10" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setShowMoreOptions(!showMoreOptions)}
+              className={cn(
+                'flex items-center justify-center rounded p-1 transition-colors',
+                'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700',
+              )}
+              title="More options">
+              <MoreVertical size={14} />
+            </button>
+
+            {showMoreOptions && (
+              <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                {onLearnAgain && item.knowledge_level === 5 && (
+                  <button
+                    type="button"
+                    onClick={handleLearnAgain}
+                    className={cn(
+                      'w-full px-4 py-2 text-left text-sm transition-colors',
+                      'flex items-center gap-2 text-gray-700 hover:bg-gray-100',
+                      'dark:text-gray-300 dark:hover:bg-gray-700',
+                      'first:rounded-t-md',
+                    )}
+                    title="Reset to level 1 to learn again">
+                    <RotateCcw size={14} />
+                    Learn Again
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    className={cn(
+                      'w-full px-4 py-2 text-left text-sm transition-colors',
+                      'flex items-center gap-2 text-red-600 hover:bg-red-50',
+                      'dark:text-red-400 dark:hover:bg-red-900/20',
+                      onLearnAgain && item.knowledge_level === 5 ? '' : 'first:rounded-t-md',
+                      'last:rounded-b-md',
+                    )}
+                    title="Delete vocabulary item">
+                    <Trash2 size={14} />
+                    Delete
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-start gap-2">
           {/* Checkbox */}
           {showCheckbox && onToggleSelect && (
             <input
@@ -167,22 +211,24 @@ export const VocabularyCard = ({
           )}
 
           {/* Main Content */}
-          <div className="min-w-0 flex-1">
-            {/* Vocabulary Text */}
-            <div className="mb-2">
-              <h3 className={cn('break-words text-base font-semibold text-gray-900 dark:text-gray-100')}>
+          <div className="min-w-0 flex-1 pr-8">
+            {/* Header: Vocabulary Text */}
+            <div className="mb-1.5">
+              <h3 className={cn('break-words text-sm font-semibold text-gray-900 dark:text-gray-100')}>
                 {item.text}
               </h3>
             </div>
 
-            {/* Metadata Row */}
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <Badge variant="default" size="sm">
-                {getLanguageDisplayName(item.language)}
-              </Badge>
+            {/* Metadata Row: Review Date + Knowledge Level */}
+            <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
               <Badge variant={reviewBadgeVariant} size="sm" className="flex items-center gap-1">
                 <Calendar size={12} />
                 {reviewDate}
+              </Badge>
+              <Badge
+                variant={item.knowledge_level === 5 ? 'default' : item.knowledge_level >= 3 ? 'success' : 'warning'}
+                size="sm">
+                {levelLabel}
               </Badge>
               {showMetadata && (
                 <Badge variant="default" size="sm" className="flex items-center gap-1">
@@ -192,83 +238,12 @@ export const VocabularyCard = ({
               )}
             </div>
 
-            {/* Knowledge Level Indicator */}
-            <div className="mb-3">
-              <div className="mb-1 flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Knowledge Level:</span>
-                <Badge
-                  variant={item.knowledge_level === 5 ? 'default' : item.knowledge_level >= 3 ? 'success' : 'warning'}
-                  size="sm">
-                  {levelLabel} ({item.knowledge_level}/5)
-                </Badge>
-              </div>
-              {/* Level Progress Bar */}
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                <div
-                  className={cn('h-full transition-all duration-300', levelColor)}
-                  style={{ width: `${(item.knowledge_level / 5) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 border-t border-gray-200 pt-2 dark:border-gray-700">
+            {/* Action Buttons - Bottom */}
+            <div className="flex items-center gap-2 border-t border-gray-200 pt-1.5 dark:border-gray-700">
               {item.knowledge_level === 5 && (
                 <span title="Mastered">
                   <Award size={16} className="text-yellow-500 dark:text-yellow-400" />
                 </span>
-              )}
-
-              {/* More Options Menu */}
-              {(onDelete || onLearnAgain) && (
-                <div className="relative ml-auto" ref={menuRef}>
-                  <button
-                    type="button"
-                    onClick={() => setShowMoreOptions(!showMoreOptions)}
-                    className={cn(
-                      'flex items-center justify-center rounded p-1.5 transition-colors',
-                      'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700',
-                    )}
-                    title="More options">
-                    <MoreVertical size={16} />
-                  </button>
-
-                  {showMoreOptions && (
-                    <div className="absolute right-0 top-full z-10 mt-1 w-48 rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                      {onLearnAgain && item.knowledge_level === 5 && (
-                        <button
-                          type="button"
-                          onClick={handleLearnAgain}
-                          className={cn(
-                            'w-full px-4 py-2 text-left text-sm transition-colors',
-                            'flex items-center gap-2 text-gray-700 hover:bg-gray-100',
-                            'dark:text-gray-300 dark:hover:bg-gray-700',
-                            'first:rounded-t-md',
-                          )}
-                          title="Reset to level 1 to learn again">
-                          <RotateCcw size={14} />
-                          Learn Again
-                        </button>
-                      )}
-                      {onDelete && (
-                        <button
-                          type="button"
-                          onClick={handleDelete}
-                          className={cn(
-                            'w-full px-4 py-2 text-left text-sm transition-colors',
-                            'flex items-center gap-2 text-red-600 hover:bg-red-50',
-                            'dark:text-red-400 dark:hover:bg-red-900/20',
-                            onLearnAgain && item.knowledge_level === 5 ? '' : 'first:rounded-t-md',
-                            'last:rounded-b-md',
-                          )}
-                          title="Delete vocabulary item">
-                          <Trash2 size={14} />
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
               )}
             </div>
           </div>

@@ -207,7 +207,9 @@ export const getMasteredWords = async (): Promise<VocabularyItem[]> => {
 ```typescript
 // Get words due for review (reviewed >1 hour ago or never reviewed)
 // New words are immediately available (last_reviewed_at equals created_at)
-export const getReviewQueue = async (limit?: number): Promise<VocabularyItem[]> => {
+// Optionally filters by language for ANKI-style review system
+// Language filter typically comes from user's targetLearningLanguage (can be set automatically detected or manually)
+export const getReviewQueue = async (limit?: number, language?: string | null): Promise<VocabularyItem[]> => {
   const now = new Date();
   // Changed from 7 days to 1 hour - recently added words should be available within minutes
   const oneHourAgo = new Date(now);
@@ -228,9 +230,14 @@ export const getReviewQueue = async (limit?: number): Promise<VocabularyItem[]> 
         // Words reviewed more than 1 hour ago
         eb('last_reviewed_at', '<', cutoffISO),
       ]),
-    )
-    .orderBy('last_reviewed_at', 'asc')
-    .orderBy('knowledge_level', 'asc');
+    );
+
+  // Filter by language if provided (for ANKI-style review system)
+  if (language) {
+    query = query.where('language', '=', language);
+  }
+
+  query = query.orderBy('last_reviewed_at', 'asc').orderBy('knowledge_level', 'asc');
 
   if (limit) {
     query = query.limit(limit);
@@ -251,7 +258,8 @@ export const markAsReviewed = async (id: number): Promise<void> => {
 
 // Get the next review date (when reviews will next be available)
 // Calculates when the earliest reviewed word will become due again (1 hour after last review)
-export const getNextReviewDate = async (): Promise<string | null> => {
+// Optionally filters by language for ANKI-style review system
+export const getNextReviewDate = async (language?: string | null): Promise<string | null> => {
   const now = new Date();
   // Changed from 7 days to 1 hour - recently added words should be available within minutes
   const oneHourAgo = new Date(now);
@@ -259,11 +267,17 @@ export const getNextReviewDate = async (): Promise<string | null> => {
   const cutoffISO = oneHourAgo.toISOString();
 
   // Find all words reviewed within the last 1 hour
-  const recentlyReviewedItems = await db
+  let query = db
     .selectFrom('vocabulary')
     .selectAll()
-    .where('last_reviewed_at', '>=', cutoffISO)
-    .execute();
+    .where('last_reviewed_at', '>=', cutoffISO);
+
+  // Filter by language if provided (for ANKI-style review system)
+  if (language) {
+    query = query.where('language', '=', language);
+  }
+
+  const recentlyReviewedItems = await query.execute();
 
   if (recentlyReviewedItems.length === 0) {
     // If no words have been reviewed recently, return null (all words available now)
@@ -685,15 +699,16 @@ await updateVocabularyItemKnowledgeLevel(1, 5);
 import { getReviewQueue, markAsReviewed, getNextReviewDate } from '@extension/sqlite';
 
 // Get words due for review (reviewed >1 hour ago or never reviewed)
+// Filtered by target learning language to focus on single language
 // New words are immediately available (last_reviewed_at equals created_at)
-const reviewQueue = await getReviewQueue(50);
+const reviewQueue = await getReviewQueue(50, 'es-ES'); // Spanish words only
 
 // Mark word as reviewed (updates last_reviewed_at to current time)
 // Word will be due again in 1 hour
 await markAsReviewed(wordId);
 
-// Get when next review will be available
-const nextReviewDate = await getNextReviewDate();
+// Get when next review will be available (filtered by target learning language)
+const nextReviewDate = await getNextReviewDate('es-ES'); // Spanish words only
 if (nextReviewDate) {
   console.log('Next review available:', new Date(nextReviewDate).toLocaleDateString());
 } else {
@@ -779,6 +794,7 @@ console.log(`Migration completed: ${result.updated} updated, ${result.errors} er
 - [Architecture Overview](architecture-overview.md) - High-level system architecture
 - [Message Passing System](message-passing-system.md) - Message passing details
 - [Packages API](packages-api.md) - API layer documentation
+- [Packages Storage](packages-storage.md) - Storage layer documentation
 - [Packages Shared](packages-shared.md) - Shared utilities documentation
 - [Vocabulary Analytics](vocabulary-analytics.md) - AI-powered analytics
 - [Text Rewrites](text-rewrites.md) - Text simplification feature

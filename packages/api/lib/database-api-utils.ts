@@ -234,6 +234,7 @@ const GetReviewQueueRequestSchema = z.object({
   data: z
     .object({
       limit: z.number().positive().optional(),
+      language: LanguageCodeSchema.nullable().optional(),
     })
     .optional(),
 });
@@ -247,7 +248,11 @@ const MarkAsReviewedRequestSchema = z.object({
 
 const GetNextReviewDateRequestSchema = z.object({
   action: z.literal('getNextReviewDate'),
-  data: z.object({}).optional(),
+  data: z
+    .object({
+      language: LanguageCodeSchema.nullable().optional(),
+    })
+    .optional(),
 });
 
 /**

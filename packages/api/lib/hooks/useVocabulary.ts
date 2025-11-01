@@ -9,27 +9,55 @@ import {
   updateVocabularyItemKnowledgeLevel as apiUpdateVocabularyItemKnowledgeLevel,
   updateVocabularyItemKnowledgeLevels as apiUpdateVocabularyItemKnowledgeLevels,
 } from '../vocabulary-api.js';
+import { useStorage } from '@extension/shared';
+import { languageStorage } from '@extension/storage';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { NewVocabularyItem } from '../vocabulary-api.js';
 
 const PAGE_SIZE = 10;
 
-export const useVocabulary = () => {
+interface UseVocabularyOptions {
+  /**
+   * If true, use manual language filter instead of auto-filtering by target learning language.
+   * Useful for admin interfaces where you want full control.
+   */
+  manualLanguageFilter?: boolean;
+}
+
+export const useVocabulary = (options?: UseVocabularyOptions) => {
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
-  const [languageFilter, setLanguageFilter] = useState<string | null>(null);
+  const { targetLearningLanguage } = useStorage(languageStorage);
+  const [manualLanguageFilter, setManualLanguageFilter] = useState<string | null>(null);
+
+  // Auto-apply target learning language filter unless manual mode is enabled
+  // Handle undefined targetLearningLanguage during storage initialization
+  const languageFilter = options?.manualLanguageFilter
+    ? manualLanguageFilter
+    : targetLearningLanguage !== undefined
+      ? targetLearningLanguage
+      : null;
 
   // Stabilize query key to prevent unnecessary cache misses
-  const queryKey = useMemo(() => ['vocabulary', currentPage, languageFilter], [currentPage, languageFilter]);
+  // Use null instead of undefined in query key to ensure consistent caching
+  const queryKey = useMemo(() => ['vocabulary', currentPage, languageFilter ?? null], [currentPage, languageFilter]);
+
+  // Invalidate queries when target language changes (only if not in manual mode)
+  useEffect(() => {
+    if (!options?.manualLanguageFilter) {
+      queryClient.invalidateQueries({ queryKey: ['vocabulary'] });
+      queryClient.invalidateQueries({ queryKey: ['vocabularyCount'] });
+    }
+  }, [targetLearningLanguage, queryClient, options?.manualLanguageFilter]);
 
   const { data: vocabularyData, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
       const [items, totalItems] = await Promise.all([
-        apiGetVocabulary(currentPage, PAGE_SIZE, languageFilter),
-        apiGetVocabularyCount(languageFilter),
+        apiGetVocabulary(currentPage, PAGE_SIZE, languageFilter ?? null),
+        apiGetVocabularyCount(languageFilter ?? null),
       ]);
       return { items, totalItems };
     },
@@ -128,7 +156,7 @@ export const useVocabulary = () => {
     toggleItemSelected,
     toggleSelectAll,
     languageFilter,
-    setLanguageFilter,
+    setLanguageFilter: options?.manualLanguageFilter ? setManualLanguageFilter : undefined,
     addVocabularyItem,
     updateVocabularyItemKnowledgeLevel,
     deleteVocabularyItem,

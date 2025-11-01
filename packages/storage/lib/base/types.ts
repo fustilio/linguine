@@ -56,10 +56,12 @@ export type ThemeStorageType = BaseStorageType<ThemeStateType> & {
 
 export interface LanguageStateType {
   nativeLanguage: string;
+  targetLearningLanguage: string;
 }
 
 export type LanguageStorageType = BaseStorageType<LanguageStateType> & {
   setNativeLanguage: (language: string) => Promise<void>;
+  setTargetLearningLanguage: (language: string) => Promise<void>;
 };
 
 export interface WordReplacerStateType {

@@ -4,8 +4,8 @@ import {
   updateVocabularyItemKnowledgeLevel,
   getVocabularyStatus,
 } from '@extension/api';
-import { useStorage } from '@extension/shared';
-import { readingModeSettingsStorage } from '@extension/storage';
+import { useStorage, normalizeLanguageCode, getLanguageDisplayName } from '@extension/shared';
+import { languageStorage, readingModeSettingsStorage } from '@extension/storage';
 import { cn } from '@extension/ui';
 import { useFloating, autoUpdate, offset, flip, shift } from '@floating-ui/react';
 import {
@@ -60,6 +60,7 @@ export const ReadingMode = ({
   const safePlainText = plainText || '';
 
   const settings = useStorage(readingModeSettingsStorage);
+  const { targetLearningLanguage } = useStorage(languageStorage);
   const [hoveredChunk, setHoveredChunk] = useState<AnnotatedChunk | null>(null);
   const [showImages, setShowImages] = useState(false);
   const [showPrefixes, setShowPrefixes] = useState(true);
@@ -67,6 +68,12 @@ export const ReadingMode = ({
   const [hoveredChunkImageIndex, setHoveredChunkImageIndex] = useState(0);
   const [vocabUpdateLoading, setVocabUpdateLoading] = useState(false);
   const [vocabularyMap, setVocabularyMap] = useState<Map<string, VocabularyItem>>(new Map());
+  const [languageMismatchPrompt, setLanguageMismatchPrompt] = useState<{
+    detectedLanguage: string;
+    targetLanguage: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
 
   // Helper function to check if text contains actual word characters (not just punctuation/whitespace)
   const hasWordCharacters = (text: string): boolean => /[\p{L}\p{N}]/u.test(text);
@@ -104,6 +111,61 @@ export const ReadingMode = ({
   const hoveredChunkRef = useRef<AnnotatedChunk | null>(null);
   // Cache images per chunk to avoid re-fetching and tooltip jumps
   const imageCacheRef = useRef<Map<string, string[]>>(new Map());
+
+  // Helper function to add vocabulary item
+  const addVocabItem = async (chunkText: string, chunkLanguage: string, level: number) => {
+    console.log('[ReadingMode] Adding new vocabulary item:', {
+      text: chunkText,
+      language: chunkLanguage,
+    });
+    const newItem = await addVocabularyItem({
+      text: chunkText,
+      language: chunkLanguage,
+    });
+
+    console.log('[ReadingMode] Added vocabulary item:', newItem);
+
+    if (!newItem) {
+      throw new Error('Failed to add vocabulary item: API returned null');
+    }
+
+    if (!newItem.id) {
+      throw new Error('Failed to add vocabulary item: Missing ID in response');
+    }
+
+    // Update with the new knowledge level
+    console.log('[ReadingMode] Updating knowledge level:', {
+      id: newItem.id,
+      level,
+    });
+    await updateVocabularyItemKnowledgeLevel(newItem.id, level);
+
+    // Update local vocabulary map
+    const updatedItem: VocabularyItem = {
+      ...newItem,
+      knowledge_level: level,
+    };
+    const newMap = new Map(vocabularyMap);
+    newMap.set(chunkText.toLowerCase().trim(), updatedItem);
+    setVocabularyMap(newMap);
+    console.log('[ReadingMode] Updated vocabulary map after add:', {
+      size: newMap.size,
+      hasEntry: newMap.has(chunkText.toLowerCase().trim()),
+      entry: newMap.get(chunkText.toLowerCase().trim()),
+    });
+
+    // Update chunk vocabulary match - find the chunk in the chunks array
+    chunks.forEach(c => {
+      if (c.text?.trim().toLowerCase() === chunkText.toLowerCase().trim()) {
+        c.vocabularyMatch = {
+          vocabularyItem: updatedItem,
+          knowledgeLevel: level,
+          isRegistered: true,
+        };
+      }
+    });
+    console.log('[ReadingMode] Updated chunk vocabulary match');
+  };
 
   // Handle vocabulary difficulty updates
   const handleUpdateVocabularyDifficulty = async (level: number) => {
@@ -161,58 +223,39 @@ export const ReadingMode = ({
           currentHoveredChunk.vocabularyMatch.vocabularyItem = updatedItem;
         }
       } else {
-        // Add new vocabulary item
-        console.log('[ReadingMode] Adding new vocabulary item:', {
-          text: chunkText,
-          language: chunkLanguage,
-        });
-        const newItem = await addVocabularyItem({
-          text: chunkText,
-          language: chunkLanguage,
-        });
+        // Check for language mismatch before adding
+        const normalizedChunkLang = normalizeLanguageCode(chunkLanguage);
+        const normalizedTargetLang = normalizeLanguageCode(targetLearningLanguage || 'en-US');
 
-        console.log('[ReadingMode] Added vocabulary item:', newItem);
-
-        if (!newItem) {
-          throw new Error('Failed to add vocabulary item: API returned null');
+        if (normalizedChunkLang !== normalizedTargetLang) {
+          // Show language mismatch prompt
+          setLanguageMismatchPrompt({
+            detectedLanguage: normalizedChunkLang,
+            targetLanguage: normalizedTargetLang,
+            onConfirm: async () => {
+              // Change target language
+              await languageStorage.setTargetLearningLanguage(normalizedChunkLang);
+              setLanguageMismatchPrompt(null);
+              // Retry adding vocabulary after language change
+              await addVocabItem(chunkText, normalizedChunkLang, level);
+              setVocabUpdateLoading(false);
+            },
+            onCancel: async () => {
+              // Add anyway with detected language
+              setLanguageMismatchPrompt(null);
+              await addVocabItem(chunkText, normalizedChunkLang, level);
+              setVocabUpdateLoading(false);
+            },
+          });
+          return;
         }
 
-        if (!newItem.id) {
-          throw new Error('Failed to add vocabulary item: Missing ID in response');
-        }
-
-        // Update with the new knowledge level
-        console.log('[ReadingMode] Updating knowledge level:', {
-          id: newItem.id,
-          level,
-        });
-        await updateVocabularyItemKnowledgeLevel(newItem.id, level);
-
-        // Update local vocabulary map
-        const updatedItem: VocabularyItem = {
-          ...newItem,
-          knowledge_level: level,
-        };
-        const newMap = new Map(vocabularyMap);
-        newMap.set(chunkText.toLowerCase().trim(), updatedItem);
-        setVocabularyMap(newMap);
-        console.log('[ReadingMode] Updated vocabulary map after add:', {
-          size: newMap.size,
-          hasEntry: newMap.has(chunkText.toLowerCase().trim()),
-          entry: newMap.get(chunkText.toLowerCase().trim()),
-        });
-
-        // Update chunk vocabulary match
-        currentHoveredChunk.vocabularyMatch = {
-          vocabularyItem: updatedItem,
-          knowledgeLevel: level,
-          isRegistered: true,
-        };
-        console.log('[ReadingMode] Updated chunk vocabulary match:', currentHoveredChunk.vocabularyMatch);
+        // Language matches, proceed with adding
+        await addVocabItem(chunkText, normalizedChunkLang, level);
       }
 
       // Update wrapper element colors immediately
-      if (triggerRef.current) {
+      if (triggerRef.current && currentHoveredChunk) {
         const wrapper = triggerRef.current as HTMLElement;
         const newStatus = getVocabularyStatus(currentHoveredChunk.vocabularyMatch);
         wrapper.setAttribute('data-vocab-status', newStatus);
@@ -236,15 +279,17 @@ export const ReadingMode = ({
       }
 
       // Update all matching chunks in the array
-      chunks.forEach(c => {
-        if (
-          c.start === currentHoveredChunk.start &&
-          c.end === currentHoveredChunk.end &&
-          c.text === currentHoveredChunk.text
-        ) {
-          c.vocabularyMatch = currentHoveredChunk.vocabularyMatch;
-        }
-      });
+      if (currentHoveredChunk) {
+        chunks.forEach(c => {
+          if (
+            c.start === currentHoveredChunk.start &&
+            c.end === currentHoveredChunk.end &&
+            c.text === currentHoveredChunk.text
+          ) {
+            c.vocabularyMatch = currentHoveredChunk.vocabularyMatch;
+          }
+        });
+      }
     } catch (error) {
       console.error('[ReadingMode] Failed to update vocabulary difficulty:', error);
       // Show error to user (could add toast notification here)
@@ -303,9 +348,40 @@ export const ReadingMode = ({
   const handleBulkAddVocabulary = async () => {
     if (vocabUpdateLoading || unregisteredChunks.length === 0) return;
 
+    // Check for language mismatch before bulk adding
+    const detectedLanguage = chunks[0]?.language || 'en-US';
+    const normalizedDetectedLang = normalizeLanguageCode(detectedLanguage);
+    const normalizedTargetLang = normalizeLanguageCode(targetLearningLanguage || 'en-US');
+
+    if (normalizedDetectedLang !== normalizedTargetLang) {
+      // Show language mismatch prompt
+      setLanguageMismatchPrompt({
+        detectedLanguage: normalizedDetectedLang,
+        targetLanguage: normalizedTargetLang,
+        onConfirm: async () => {
+          // Change target language
+          await languageStorage.setTargetLearningLanguage(normalizedDetectedLang);
+          setLanguageMismatchPrompt(null);
+          // Retry bulk add after language change
+          await performBulkAdd(normalizedDetectedLang);
+        },
+        onCancel: async () => {
+          // Add anyway with detected language
+          setLanguageMismatchPrompt(null);
+          await performBulkAdd(normalizedDetectedLang);
+        },
+      });
+      return;
+    }
+
+    // Language matches, proceed with bulk add
+    await performBulkAdd(normalizedDetectedLang);
+  };
+
+  // Helper function to perform bulk add
+  const performBulkAdd = async (language: string) => {
     setVocabUpdateLoading(true);
     try {
-      const language = chunks[0]?.language || 'en-US';
       let addedCount = 0;
       const errors: Array<{ text: string; error: unknown }> = [];
 
@@ -1294,6 +1370,50 @@ export const ReadingMode = ({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Language Mismatch Prompt Dialog */}
+      {languageMismatchPrompt && (
+        <div className="fixed inset-0 z-[2147483648] flex items-center justify-center bg-black/50">
+          <div
+            className={cn(
+              'mx-4 w-full max-w-md rounded-lg border p-6 shadow-xl',
+              'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800',
+            )}>
+            <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">Language Mismatch Detected</h3>
+            <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">
+              We detected <strong>{getLanguageDisplayName(languageMismatchPrompt.detectedLanguage)}</strong> on this
+              page, but your target learning language is{' '}
+              <strong>{getLanguageDisplayName(languageMismatchPrompt.targetLanguage)}</strong>.
+              <br />
+              <br />
+              Would you like to change your target learning language to{' '}
+              <strong>{getLanguageDisplayName(languageMismatchPrompt.detectedLanguage)}</strong>?
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => languageMismatchPrompt.onCancel()}
+                className={cn(
+                  'flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
+                  'border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
+                  'dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600',
+                )}>
+                Add Anyway
+              </button>
+              <button
+                type="button"
+                onClick={() => languageMismatchPrompt.onConfirm()}
+                className={cn(
+                  'flex-1 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors',
+                  'bg-blue-600 hover:bg-blue-700',
+                  'dark:bg-blue-700 dark:hover:bg-blue-600',
+                )}>
+                Change Target Language
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

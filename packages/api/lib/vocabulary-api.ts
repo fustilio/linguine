@@ -125,11 +125,11 @@ export const getVocabularyByLanguageMap = async (language: string): Promise<Map<
     limit: 10000,
     languageFilter: language,
   });
-  
+
   // Validate each item and create Map
   const validatedItems = response.map(item => VocabularyItemSchema.parse(item));
   const vocabularyMap = new Map<string, VocabularyItem>();
-  
+
   for (const item of validatedItems) {
     // Use lowercase text as key for case-insensitive matching
     const key = item.text.toLowerCase().trim();
@@ -139,16 +139,17 @@ export const getVocabularyByLanguageMap = async (language: string): Promise<Map<
       vocabularyMap.set(key, item);
     }
   }
-  
+
   return vocabularyMap;
 };
 
 /**
  * Get review queue - words that need to be reviewed
- * Returns words reviewed more than 7 days ago or never reviewed
+ * Returns words reviewed more than 1 hour ago or never reviewed
+ * Optionally filters by language
  */
-export const getReviewQueue = async (limit?: number): Promise<VocabularyItem[]> => {
-  const response = await sendDatabaseMessageForArray<VocabularyItem>('getReviewQueue', { limit });
+export const getReviewQueue = async (limit?: number, language?: string | null): Promise<VocabularyItem[]> => {
+  const response = await sendDatabaseMessageForArray<VocabularyItem>('getReviewQueue', { limit, language });
   return response.map(item => VocabularyItemSchema.parse(item));
 };
 
@@ -161,12 +162,11 @@ export const markAsReviewed = async (id: number): Promise<boolean> =>
 /**
  * Get the next review date (when reviews will next be available)
  * Returns ISO string of the date when the next word will be due for review, or null if no words exist
+ * Optionally filters by language
  */
-export const getNextReviewDate = async (): Promise<string | null> => {
-  const response = await sendDatabaseMessageForItem<string | null>(
-    'getNextReviewDate',
-    {},
-    z.string().nullable(),
-  );
+export const getNextReviewDate = async (language?: string | null): Promise<string | null> => {
+  // Only include language in data if it's defined (not null/undefined)
+  const data = language ? { language } : undefined;
+  const response = await sendDatabaseMessageForItem<string | null>('getNextReviewDate', data, z.string().nullable());
   return response ?? null;
 };

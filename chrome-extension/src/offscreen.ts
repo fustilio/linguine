@@ -66,9 +66,9 @@ const sendValidatedResponse = <T>(
     let result: { success: boolean; data?: unknown; error?: string };
 
     if (schema) {
-      // Handle undefined/null responseData before validation
-      if (responseData === undefined || responseData === null) {
-        console.error('Response validation failed: responseData is undefined or null');
+      // Handle undefined before validation (null is allowed if schema permits it)
+      if (responseData === undefined) {
+        console.error('Response validation failed: responseData is undefined');
         sendResponse({
           success: false,
           error: errorMessage || 'Response data is missing',
@@ -81,7 +81,7 @@ const sendValidatedResponse = <T>(
         // Extract error message directly from Zod error issues (avoid fromError which can crash)
         const zodError = validation.error;
         let errorMsg: string;
-        
+
         if (zodError?.issues && Array.isArray(zodError.issues) && zodError.issues.length > 0) {
           errorMsg = zodError.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
         } else {
@@ -259,10 +259,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
 
         case 'getReviewQueue': {
-          const reviewQueue = await getReviewQueue(message.data?.limit);
+          const reviewQueue = await getReviewQueue(message.data?.limit, message.data?.language);
           // Ensure reviewQueue is always an array before validation
           const safeReviewQueue = Array.isArray(reviewQueue) ? reviewQueue : [];
-          sendValidatedResponse(sendResponse, safeReviewQueue, VocabularyItemSchema.array(), 'Failed to get review queue');
+          sendValidatedResponse(
+            sendResponse,
+            safeReviewQueue,
+            VocabularyItemSchema.array(),
+            'Failed to get review queue',
+          );
           break;
         }
 
@@ -272,10 +277,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
 
         case 'getNextReviewDate': {
-          const nextReviewDate = await getNextReviewDate();
-          // Ensure nextReviewDate is string | null before validation
-          const safeNextReviewDate = nextReviewDate !== undefined ? nextReviewDate : null;
-          sendValidatedResponse(sendResponse, safeNextReviewDate, z.string().nullable(), 'Failed to get next review date');
+          try {
+            // Extract language from data, defaulting to undefined if not provided
+            const language = message.data?.language ?? undefined;
+            const nextReviewDate = await getNextReviewDate(language);
+            // Ensure nextReviewDate is string | null before validation
+            const safeNextReviewDate = nextReviewDate !== undefined ? nextReviewDate : null;
+            sendValidatedResponse(
+              sendResponse,
+              safeNextReviewDate,
+              z.string().nullable(),
+              'Failed to get next review date',
+            );
+          } catch (error) {
+            console.error('[Offscreen] Error in getNextReviewDate:', error);
+            sendResponse({
+              success: false,
+              error: error instanceof Error ? error.message : 'Failed to get next review date',
+            });
+          }
           break;
         }
 

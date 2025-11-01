@@ -1,12 +1,5 @@
 import { useVocabulary } from '@extension/api';
-import {
-  VocabularyForm,
-  VocabularyList,
-  VocabularyToolbar,
-  Pagination,
-  cn,
-  themeVariants,
-} from '@extension/ui';
+import { VocabularyForm, VocabularyList, VocabularyToolbar, Pagination, cn, themeVariants } from '@extension/ui';
 
 export const VocabularyAdmin = () => {
   const {
@@ -16,14 +9,13 @@ export const VocabularyAdmin = () => {
     pageSize,
     goToPage,
     addVocabularyItem,
-    updateVocabularyItemKnowledgeLevel,
     deleteVocabularyItem,
-    languageFilter,
-    setLanguageFilter,
     selectedItems,
     toggleItemSelected,
     toggleSelectAll,
-  } = useVocabulary();
+    languageFilter,
+    setLanguageFilter,
+  } = useVocabulary({ manualLanguageFilter: true });
 
   return (
     <div className={cn('flex h-full flex-col p-6', themeVariants.container())}>
@@ -40,7 +32,6 @@ export const VocabularyAdmin = () => {
             selectedItems={selectedItems}
             onToggleSelectAll={toggleSelectAll}
             onToggleItemSelected={toggleItemSelected}
-            onUpdateLevel={(id, level) => updateVocabularyItemKnowledgeLevel.mutate({ id, level })}
             onDeleteItem={id => deleteVocabularyItem.mutate(id)}
           />
         </div>

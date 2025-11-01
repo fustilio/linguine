@@ -293,7 +293,7 @@ const filterVocabulary = async (filters: {
   return await query.orderBy('knowledge_level', 'desc').orderBy('language', 'asc').execute();
 };
 
-const getReviewQueue = async (limit?: number): Promise<VocabularyItem[]> => {
+const getReviewQueue = async (limit?: number, language?: string | null): Promise<VocabularyItem[]> => {
   try {
     await ensureDatabaseInitialized();
     const db = getDb();
@@ -308,7 +308,7 @@ const getReviewQueue = async (limit?: number): Promise<VocabularyItem[]> => {
     oneHourAgo.setHours(oneHourAgo.getHours() - 1);
     const cutoffISO = oneHourAgo.toISOString();
 
-    console.log('[ReviewQueue] Fetching review queue:', { cutoffISO, limit });
+    console.log('[ReviewQueue] Fetching review queue:', { cutoffISO, limit, language });
 
     // Get words that need review:
     // 1. Words where last_reviewed_at is the same as created_at (never actually reviewed, just created)
@@ -324,9 +324,14 @@ const getReviewQueue = async (limit?: number): Promise<VocabularyItem[]> => {
           // Words reviewed more than 1 hour ago (changed from 7 days)
           eb('last_reviewed_at', '<', cutoffISO),
         ]),
-      )
-      .orderBy('last_reviewed_at', 'asc')
-      .orderBy('knowledge_level', 'asc');
+      );
+
+    // Filter by language if provided
+    if (language) {
+      query = query.where('language', '=', language);
+    }
+
+    query = query.orderBy('last_reviewed_at', 'asc').orderBy('knowledge_level', 'asc');
 
     if (limit) {
       query = query.limit(limit);
@@ -364,7 +369,7 @@ const markAsReviewed = async (id: number): Promise<void> => {
   await db.updateTable('vocabulary').set({ last_reviewed_at: now }).where('id', '=', id).execute();
 };
 
-const getNextReviewDate = async (): Promise<string | null> => {
+const getNextReviewDate = async (language?: string | null): Promise<string | null> => {
   try {
     await ensureDatabaseInitialized();
     const db = getDb();
@@ -378,11 +383,14 @@ const getNextReviewDate = async (): Promise<string | null> => {
 
     // Find all words that have been reviewed recently (within last 1 hour)
     // We want the one that will be due soonest
-    const recentlyReviewedItems = await db
-      .selectFrom('vocabulary')
-      .selectAll()
-      .where('last_reviewed_at', '>=', cutoffISO)
-      .execute();
+    let query = db.selectFrom('vocabulary').selectAll().where('last_reviewed_at', '>=', cutoffISO);
+
+    // Filter by language if provided
+    if (language) {
+      query = query.where('language', '=', language);
+    }
+
+    const recentlyReviewedItems = await query.execute();
 
     // Ensure results is always an array
     const items = Array.isArray(recentlyReviewedItems) ? recentlyReviewedItems : [];

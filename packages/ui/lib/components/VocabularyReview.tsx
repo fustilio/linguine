@@ -1,8 +1,7 @@
 import { Badge } from './badge';
 import { Card, CardContent, CardHeader } from './card';
-import { getLanguageDisplayName } from '@/lib/theme';
 import { cn } from '@/lib/utils';
-import { Award, CheckCircle2, ChevronRight, Loader2, XCircle } from 'lucide-react';
+import { Award, Loader2, RotateCcw } from 'lucide-react';
 import type { VocabularyItem } from '@extension/sqlite';
 
 interface VocabularyReviewProps {
@@ -10,10 +9,15 @@ interface VocabularyReviewProps {
   currentItem: VocabularyItem | null;
   progress: { current: number; total: number };
   isLoading?: boolean;
-  onKnow: () => void;
-  onDontKnow: () => void;
-  onMastered: () => void;
-  onSkip: () => void;
+  isFlipped?: boolean;
+  translation: string;
+  exampleUsage: string;
+  cardBackLoading?: boolean;
+  onFlip: () => void;
+  onAgain: () => void;
+  onHard: () => void;
+  onGood: () => void;
+  onEasy: () => void;
   onRefresh?: () => void;
   nextReviewDate?: string | null;
 }
@@ -23,10 +27,15 @@ export const VocabularyReview = ({
   currentItem,
   progress,
   isLoading = false,
-  onKnow,
-  onDontKnow,
-  onMastered,
-  onSkip,
+  isFlipped = false,
+  translation,
+  exampleUsage,
+  cardBackLoading = false,
+  onFlip,
+  onAgain,
+  onHard,
+  onGood,
+  onEasy,
   onRefresh,
   nextReviewDate,
 }: VocabularyReviewProps) => {
@@ -39,18 +48,17 @@ export const VocabularyReview = ({
   }
 
   const formatNextReviewDate = (dateString: string | null | undefined): string => {
-    // Changed from days/weeks to hours/minutes (1 hour review interval)
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
-    
+
     if (diffMs <= 0) return 'Available now';
-    
+
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
+
     if (diffMinutes < 60) {
       return `In ${diffMinutes} min${diffMinutes !== 1 ? 's' : ''}`;
     }
@@ -98,14 +106,6 @@ export const VocabularyReview = ({
     );
   }
 
-  const knowledgeLevelColors = {
-    5: 'bg-gray-500',
-    4: 'bg-green-500',
-    3: 'bg-green-500',
-    2: 'bg-yellow-500',
-    1: 'bg-orange-500',
-  };
-
   const knowledgeLevelLabels = {
     5: 'Mastered',
     4: 'Easy',
@@ -140,86 +140,123 @@ export const VocabularyReview = ({
         )}
       </div>
 
-      {/* Review Card */}
-      <Card variant="elevated" className="relative">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <Badge variant="default" size="sm">
-              {getLanguageDisplayName(currentItem.language)}
-            </Badge>
-            <Badge
-              variant={
-                currentItem.knowledge_level === 5 ? 'default' : currentItem.knowledge_level >= 3 ? 'success' : 'warning'
-              }
-              size="sm">
-              {knowledgeLevelLabels[currentItem.knowledge_level as keyof typeof knowledgeLevelLabels]} (
-              {currentItem.knowledge_level}/5)
-            </Badge>
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-6">
-          {/* Vocabulary Word */}
-          <div className="text-center">
-            <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100">{currentItem.text}</h2>
-            <div className="mt-2 flex items-center justify-center gap-2">
-              <div
-                className={cn(
-                  'h-1.5 w-full max-w-xs rounded-full',
-                  knowledgeLevelColors[currentItem.knowledge_level as keyof typeof knowledgeLevelColors],
-                )}
-              />
+      {/* Flashcard */}
+      <div className="relative">
+        <div
+          onClick={() => !isFlipped && onFlip()}
+          className={cn(
+            'cursor-pointer transition-all duration-300',
+            !isFlipped && 'cursor-pointer',
+            isFlipped && 'cursor-default',
+          )}>
+          <Card
+            variant="elevated"
+            className={cn('relative min-h-[300px] flex flex-col')}>
+          <CardHeader className="flex-shrink-0">
+            <div className="flex items-center justify-end">
+              <Badge
+                variant={
+                  currentItem.knowledge_level === 5
+                    ? 'default'
+                    : currentItem.knowledge_level >= 3
+                      ? 'success'
+                      : 'warning'
+                }
+                size="sm">
+                {knowledgeLevelLabels[currentItem.knowledge_level as keyof typeof knowledgeLevelLabels]} (
+                {currentItem.knowledge_level}/5)
+              </Badge>
             </div>
-          </div>
+          </CardHeader>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <CardContent className="flex flex-1 flex-col items-center justify-center space-y-6 py-12">
+            {!isFlipped ? (
+              // Front of card - Word only
+              <div className="text-center">
+                <h2 className="text-5xl font-bold text-gray-900 dark:text-gray-100">{currentItem.text}</h2>
+                <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Click to reveal answer</p>
+              </div>
+            ) : (
+              // Back of card - Translation and example
+              <div className="w-full space-y-6 text-center">
+                {cardBackLoading ? (
+                  <div className="flex flex-col items-center justify-center space-y-4 py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Generating translation...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Translation
+                      </p>
+                      <h3 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{translation}</h3>
+                    </div>
+                    {exampleUsage && (
+                      <div className="space-y-2 border-t border-gray-200 pt-6 dark:border-gray-700">
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Example Usage
+                        </p>
+                        <p className="text-lg text-gray-700 dark:text-gray-300 italic">"{exampleUsage}"</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </CardContent>
+          </Card>
+        </div>
+
+        {/* Rating Buttons - Only show when flipped */}
+        {isFlipped && !cardBackLoading && (
+          <div className="mt-6 grid grid-cols-4 gap-3">
             <button
               type="button"
-              onClick={onDontKnow}
+              onClick={onAgain}
               className={cn(
                 'flex flex-col items-center gap-2 rounded-lg border-2 border-red-300 bg-red-50 p-4 transition-all',
                 'hover:border-red-400 hover:bg-red-100 dark:border-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/30',
               )}>
-              <XCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
-              <span className="text-sm font-medium text-red-900 dark:text-red-200">I don't know</span>
+              <RotateCcw className="h-5 w-5 text-red-600 dark:text-red-400" />
+              <span className="text-xs font-medium text-red-900 dark:text-red-200">Again</span>
             </button>
 
             <button
               type="button"
-              onClick={onSkip}
+              onClick={onHard}
               className={cn(
-                'flex flex-col items-center gap-2 rounded-lg border-2 border-gray-300 bg-gray-50 p-4 transition-all',
-                'hover:border-gray-400 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
+                'flex flex-col items-center gap-2 rounded-lg border-2 border-orange-300 bg-orange-50 p-4 transition-all',
+                'hover:border-orange-400 hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-900/20 dark:hover:bg-orange-900/30',
               )}>
-              <ChevronRight className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Skip</span>
+              <span className="text-lg font-medium text-orange-900 dark:text-orange-200">😓</span>
+              <span className="text-xs font-medium text-orange-900 dark:text-orange-200">Hard</span>
             </button>
 
             <button
               type="button"
-              onClick={onKnow}
+              onClick={onGood}
               className={cn(
                 'flex flex-col items-center gap-2 rounded-lg border-2 border-green-300 bg-green-50 p-4 transition-all',
                 'hover:border-green-400 hover:bg-green-100 dark:border-green-700 dark:bg-green-900/20 dark:hover:bg-green-900/30',
               )}>
-              <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
-              <span className="text-sm font-medium text-green-900 dark:text-green-200">I know this</span>
+              <span className="text-lg font-medium text-green-900 dark:text-green-200">😊</span>
+              <span className="text-xs font-medium text-green-900 dark:text-green-200">Good</span>
             </button>
 
             <button
               type="button"
-              onClick={onMastered}
+              onClick={onEasy}
               className={cn(
-                'flex flex-col items-center gap-2 rounded-lg border-2 border-yellow-300 bg-yellow-50 p-4 transition-all',
-                'hover:border-yellow-400 hover:bg-yellow-100 dark:border-yellow-700 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/30',
+                'flex flex-col items-center gap-2 rounded-lg border-2 border-blue-300 bg-blue-50 p-4 transition-all',
+                'hover:border-blue-400 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/20 dark:hover:bg-blue-900/30',
               )}>
-              <Award className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-              <span className="text-sm font-medium text-yellow-900 dark:text-yellow-200">Mastered</span>
+              <span className="text-lg font-medium text-blue-900 dark:text-blue-200">😎</span>
+              <span className="text-xs font-medium text-blue-900 dark:text-blue-200">Easy</span>
             </button>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
     </div>
   );
 };

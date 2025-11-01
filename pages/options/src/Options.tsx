@@ -15,7 +15,7 @@ import { cn, ErrorDisplay, LoadingSpinner, useURLParam } from '@extension/ui';
 import { useState } from 'react';
 
 const Options = () => {
-  const { nativeLanguage } = useStorage(languageStorage);
+  const { nativeLanguage, targetLearningLanguage } = useStorage(languageStorage);
   const wordReplacerState = useStorage(wordReplacerStorage);
   const [saveStatus, setSaveStatus] = useState('');
 
@@ -81,7 +81,29 @@ const Options = () => {
                         </select>
                       </div>
 
-                      {/* Target Language removed: we auto-detect source and always output to nativeLanguage */}
+                      <div>
+                        <label htmlFor="targetLearningLanguage" className="mb-2 block text-sm font-medium">
+                          Target Learning Language
+                        </label>
+                        <select
+                          id="targetLearningLanguage"
+                          value={targetLearningLanguage}
+                          onChange={e => languageStorage.setTargetLearningLanguage(e.target.value)}
+                          className={cn(
+                            'w-full rounded-lg border px-3 py-2 transition-colors focus:outline-none focus:ring-2',
+                            'border-gray-300 bg-white text-gray-900 focus:ring-blue-500',
+                            'dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-blue-400',
+                          )}>
+                          {LANGUAGES.map(lang => (
+                            <option key={lang.value} value={lang.value}>
+                              {lang.label}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          The language you're currently learning. Vocabulary tracker and review will focus on this language.
+                        </p>
+                      </div>
                     </div>
                   </div>
 

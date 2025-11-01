@@ -246,6 +246,7 @@ export class TextAnnotateManager {
         //   `[TextAnnotate] Using cached vocabulary (${vocabularyMap.size} items) for language: ${sourceLanguage}`,
         // );
       } else {
+        /* empty */
       }
 
       // Try AI annotation first, fallback to simple if it fails
@@ -337,7 +338,7 @@ export class TextAnnotateManager {
       }
 
       // Progressive path already rendered in-place; do not re-render final annotation
-      const processEndTime = performance.now();
+      // const processEndTime = performance.now();
       // console.log(
       //   `[TextAnnotate] Reading mode display completed in ${(processEndTime - processStartTime).toFixed(2)}ms total`,
       // );

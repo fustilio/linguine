@@ -38,8 +38,8 @@ Database layer with new analytics query functions.
 **Core Functions in `packages/sqlite/lib/vocabulary.ts`:**
 
 **Query Functions:**
-- `getVocabulary(page, limit, language?)` - Paginated vocabulary retrieval
-- `getVocabularyCount(language?)` - Count vocabulary items
+- `getVocabulary(page, limit, language?)` - Paginated vocabulary retrieval (typically filtered by target learning language)
+- `getVocabularyCount(language?)` - Count vocabulary items (typically filtered by target learning language)
 - `getAllVocabularyForSummary()` - Returns all vocabulary items for AI analysis
 - `getVocabularyByLanguage(language)` - Filter by specific language
 - `getVocabularyByKnowledgeLevel(minLevel, maxLevel)` - Get words in a level range
@@ -47,6 +47,14 @@ Database layer with new analytics query functions.
 - `getStrugglingWords()` - Words with knowledge_level 1-2
 - `getMasteredWords()` - Words with knowledge_level 5
 - `filterVocabulary(filters)` - Advanced filtering with language and knowledge level options
+
+**Note**: By default, vocabulary queries are automatically filtered by the user's `targetLearningLanguage` from `languageStorage`. Admin interfaces can use manual language filtering for full control.
+
+**Target Learning Language Management**:
+- **Automatic Detection**: System can detect target language from vocabulary analysis, reading mode content, or added vocabulary items
+- **User Prompts**: Language mismatch prompts appear when adding vocabulary in different language - user chooses to change target or add anyway
+- **Manual Override**: Users can always manually set target language via side panel dropdowns or options page settings
+- **No Silent Changes**: Target language is never changed automatically - all changes require explicit user confirmation
 
 **Mutation Functions:**
 - `addVocabularyItem(item)` - Add new vocabulary item

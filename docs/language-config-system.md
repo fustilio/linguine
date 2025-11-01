@@ -224,12 +224,36 @@ const LanguageSelector = () => (
 );
 ```
 
+## Integration with Target Learning Language
+
+The vocabulary tracker system uses `targetLearningLanguage` from `languageStorage` to:
+- Auto-filter vocabulary items by target language
+- Filter review queues by target language
+- Prompt users when adding vocabulary in a different language
+- Focus learning sessions on a single language
+
+**Automatic Detection vs Manual Control**:
+- **Automatic Detection**: System detects potential target language from:
+  - Most common language in existing vocabulary database
+  - Detected language in reading mode content
+  - Language of vocabulary items being added
+- **User Prompts**: When language mismatch is detected (e.g., adding Spanish word while target is English), users are prompted with options:
+  - "Change Target Language" - Updates target to detected language
+  - "Add Anyway" - Keeps current target language and adds vocabulary
+- **Manual Override**: Users can always manually set target language via:
+  - Side panel dropdowns (Vocabulary Tracker and Review tabs)
+  - Options page language settings
+- **No Silent Changes**: System never automatically changes target language without explicit user confirmation through prompts
+
+Language codes are normalized using `normalizeLanguageCode` before storage and comparison to ensure consistency.
+
 ## Related Architecture Documentation
 
 - [Architecture Overview](architecture-overview.md) - High-level system architecture
 - [Packages Shared](packages-shared.md) - Shared utilities and constants
 - [Packages API](packages-api.md) - API layer documentation
 - [Packages SQLite](packages-sqlite.md) - Database layer documentation
+- [Packages Storage](packages-storage.md) - Storage layer documentation
 - [Message Passing System](message-passing-system.md) - Message passing architecture
 
 This system provides a robust, type-safe, and maintainable foundation for all language-related functionality in the application.

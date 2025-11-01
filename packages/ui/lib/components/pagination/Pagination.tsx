@@ -75,12 +75,21 @@ export const Pagination = ({
 
       {/* Desktop pagination */}
       <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-        {showInfo && totalItems && pageSize && (
+        {showInfo && (
           <div>
             <p className={cn(themeVariants.muted(), 'text-sm')}>
-              Showing <span className="font-medium">{(currentPage - 1) * pageSize + 1}</span> to{' '}
-              <span className="font-medium">{Math.min(currentPage * pageSize, totalItems)}</span> of{' '}
-              <span className="font-medium">{totalItems}</span> results
+              {totalItems && pageSize ? (
+                <>
+                  Showing <span className="font-medium">{(currentPage - 1) * pageSize + 1}</span> to{' '}
+                  <span className="font-medium">{Math.min(currentPage * pageSize, totalItems)}</span> of{' '}
+                  <span className="font-medium">{totalItems}</span> results
+                </>
+              ) : (
+                <>
+                  Page <span className="font-medium">{currentPage}</span> of{' '}
+                  <span className="font-medium">{totalPages}</span>
+                </>
+              )}
             </p>
           </div>
         )}

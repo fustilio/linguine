@@ -366,9 +366,14 @@ This prevents duplicate processing and ensures messages reach the correct handle
 | `getVocabularyCount` | Get vocabulary count | `{languageFilter}` | `number` |
 | `resetVocabularyDatabase` | Clear all vocabulary data | `{}` | `boolean` |
 | `populateDummyVocabulary` | Add sample data for testing | `{}` | `boolean` |
-| `getReviewQueue` | Get words due for review | `{limit?}` | `VocabularyItem[]` |
+| `getReviewQueue` | Get words due for review | `{limit?, language?}` | `VocabularyItem[]` |
 | `markAsReviewed` | Mark vocabulary item as reviewed | `{id}` | `boolean` |
-| `getNextReviewDate` | Get next review date | `{}` | `string \| null` |
+| `getNextReviewDate` | Get next review date | `{language?}` | `string \| null` |
+
+**Note**: The `language` parameter in `getReviewQueue` and `getNextReviewDate` filters results by the specified language. This is typically set to the user's target learning language (from `languageStorage.targetLearningLanguage`) to focus review sessions on a single language. Target learning language can be:
+- **Automatically detected** from vocabulary analysis, reading mode content, or language mismatch prompts
+- **Manually set** by users via side panel dropdowns or options page settings
+- **Never changed automatically** - all changes require explicit user confirmation through prompts or manual selection
 
 ### Text Rewrites Operations
 
