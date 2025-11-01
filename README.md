@@ -10,6 +10,8 @@
 
 **🚀 Submission to the [Google Chrome Built-in AI Challenge 2025](https://googlechromeai2025.devpost.com/)**
 
+**📹 [Watch Demo Video](https://youtu.be/ckd6fi7N4Oo)**
+
 </div>
 
 > [!NOTE]
@@ -19,17 +21,38 @@
 
 - [Table of Contents](#table-of-contents)
 - [About](#about)
+  - [Why (The Problem)](#why-the-problem)
+  - [How (The Solution)](#how-the-solution)
+  - [What (The Result)](#what-the-result)
 - [Chrome Built-in AI Challenge 2025](#chrome-built-in-ai-challenge-2025)
+  - [Submission Highlights](#submission-highlights)
 - [Features](#features)
+  - [Vocabulary Learning Loop Features](#vocabulary-learning-loop-features)
+  - [Comprehension Learning Loop Features](#comprehension-learning-loop-features)
+  - [General Features](#general-features)
 - [Architecture](#architecture)
+- [Core Learning Loops](#core-learning-loops)
+  - [Vocabulary Learning Loop](#vocabulary-learning-loop)
+  - [Comprehension Learning Loop](#comprehension-learning-loop)
+  - [How They Reinforce Each Other](#how-they-reinforce-each-other)
 - [Installation](#installation)
-- [Key Features in Detail](#key-features-in-detail)
+  - [Load in Chrome ](#load-in-chrome-)
+- [Flags to Enable](#flags-to-enable)
+- [Linguine Interfaces](#linguine-interfaces)
+  - [Popup](#popup)
+  - [Rewriter Widget](#rewriter-widget)
   - [Reading Mode](#reading-mode)
+  - [Side Panel](#side-panel)
+    - [Rewrites Tab](#rewrites-tab)
+    - [Vocabulary Tracker Tab](#vocabulary-tracker-tab)
+- [Key Features in Detail](#key-features-in-detail)
+  - [Reading Mode](#reading-mode-1)
   - [Text Simplification](#text-simplification)
   - [Vocabulary Analytics](#vocabulary-analytics)
   - [Text Rewrites Library](#text-rewrites-library)
 - [Theme System](#theme-system)
 - [Development](#development)
+- [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
 - [Reference](#reference)
@@ -37,6 +60,22 @@
 ## About
 
 **Linguine** transforms any webpage into a powerful language learning tool using Chrome's Built-in AI APIs. Everything runs locally on your device, meaning no data leaves your browser.
+
+### Why (The Problem)
+
+Language learning today is fragmented—vocabulary apps, translation tools, and reading platforms exist separately, breaking the natural learning flow. There's no unified tool that transforms everyday browsing into a seamless, contextual language learning experience.
+
+### How (The Solution)
+
+Linguine leverages Chrome's Built-in AI APIs (Prompt API, Translator API, Rewriter API, LanguageDetector API) to deliver intelligent language learning features entirely client-side. We built a layered architecture with SQLite (OPFS) for offline persistence, enabling privacy-first learning without external services.
+
+### What (The Result)
+
+Two interconnected learning loops that accelerate language acquisition:
+1. **Vocabulary Learning Loop**: Discover words while browsing → Add to database → Review with spaced repetition → Master through practice
+2. **Comprehension Learning Loop**: Encounter complex text → Simplify with AI → Understand better → Return with confidence
+
+These loops reinforce each other: vocabulary helps comprehension, and simplified texts provide context for vocabulary.
 
 **Why Linguine?**
 - 🔒 Privacy-first: All AI processing happens client-side
@@ -49,17 +88,50 @@
 
 🚀 **Submission to [Google Chrome Built-in AI Challenge 2025](https://googlechromeai2025.devpost.com/)**
 
-Linguine uses multiple Chrome Built-in AI APIs (LanguageModel, Translator, Rewriter, LanguageDetector) to deliver comprehensive language learning features entirely client-side.
+### Submission Highlights
+
+Linguine demonstrates comprehensive use of Chrome's Built-in AI ecosystem to solve real-world language learning challenges:
+
+**APIs Used:**
+- **Prompt API (LanguageModel)**: Contextual translations, vocabulary analytics, example sentence generation, natural language query parsing
+- **Translator API**: Fast literal translations for word-by-word annotations
+- **Rewriter API**: Text simplification to make complex content accessible
+- **LanguageDetector API**: Automatic language detection from webpage content
+
+**Problem Solved:**
+Language learning is fragmented across separate tools, breaking natural learning flow. Linguine unifies vocabulary acquisition, text comprehension, and spaced repetition into a seamless browsing-integrated experience.
+
+**Key Innovations:**
+- Two reinforcing learning loops that work together
+- Privacy-first client-side architecture with zero data transmission
+- Progressive AI streaming for non-blocking user experience
+- Multi-language support with intelligent segmentation
+- Offline capability with SQLite persistence
+
+See [ABOUT.md](ABOUT.md) for complete project details.
 
 ## Features
 
-- 📖 **Reading Mode**: Word-by-word translations with progressive loading
+Linguine's features support two interconnected learning loops that accelerate language acquisition:
+
+### Vocabulary Learning Loop Features
+- 📚 **Vocabulary Tracking**: Personal database with knowledge levels (1-5) and spaced repetition
+- 🃏 **ANKI-Style Review**: Flashcard system with automatic review scheduling (1-hour intervals)
+<!-- - 📊 **AI Analytics**: Natural language queries about your vocabulary progress -->
+- 🎯 **Visual Indicators**: Color-coded underlines in Reading Mode show vocabulary status (red=unknown, orange=challenging, green=easy, gray=mastered)
+- ➕ **Quick Add**: One-click vocabulary addition while browsing any webpage
+
+### Comprehension Learning Loop Features
+- 📖 **Reading Mode**: Word-by-word translations with progressive loading and instant text display
 - ✏️ **Text Simplification**: Simplify complex texts using Rewriter API (experimental multi-language support)
-- 📚 **Vocabulary Tracking**: Personal vocabulary database with knowledge levels
-<!-- - 📊 **AI Analytics**: Natural language queries about your progress
-- 🎯 **Text Evaluation**: Analyze any text against your vocabulary
-- 📈 **CEFR Estimation**: AI-powered proficiency assessment -->
-- 🌍 **Multi-Language**: Supports languages available in Chrome's Built-in AI APIs
+- 💾 **Rewrite Library**: Save simplified texts with source links and readability scores for future reference
+- 🔗 **Context Preservation**: Jump back to original text locations using Chrome Text Fragment API
+
+### General Features
+- 🌍 **Multi-Language**: Supports 6+ languages with intelligent detection and segmentation
+- 🔒 **Privacy-First**: Everything runs client-side with zero data leaving your browser
+- 🌐 **Offline Capable**: Works entirely offline after initial setup
+- 📈 **Progress Tracking**: Monitor vocabulary growth and text comprehension improvements over time
 
 > [!NOTE]
 > **Experimental Language Support**: The Rewriter API officially supports English, Spanish, and Japanese. We use it optimistically for all languages - results may vary. Tested on: English, Spanish, French, Thai, Japanese, and Mandarin.
@@ -71,6 +143,49 @@ Linguine uses multiple Chrome Built-in AI APIs (LanguageModel, Translator, Rewri
 Layered architecture: UI (React) → API Layer → Background/Offscreen → SQLite (OPFS)
 
 See [Architecture Overview](docs/architecture-overview.md) for details.
+
+## Core Learning Loops
+
+Linguine is built around two interconnected learning loops that work together to accelerate language acquisition:
+
+### Vocabulary Learning Loop
+
+**Flow**: Browse → Discover → Add → Review → Master
+
+1. **Browse**: Engage with authentic web content in your target language
+2. **Discover**: Encounter unfamiliar words naturally in context
+3. **Add**: One-click vocabulary addition to your personal database
+4. **Review**: ANKI-style spaced repetition flashcards with 1-hour review intervals
+5. **Master**: Track knowledge levels (1-5) and progress toward mastery
+
+**Key Features:**
+- Visual vocabulary indicators in Reading Mode (color-coded underlines)
+- Automatic review scheduling based on knowledge level
+- Translation and example sentences generated on-demand
+- Progress tracking and analytics
+
+### Comprehension Learning Loop
+
+**Flow**: Encounter → Simplify → Understand → Return
+
+1. **Encounter**: Discover complex text while browsing authentic content
+2. **Simplify**: Use Chrome's Rewriter API to make text more accessible
+3. **Understand**: Save simplified versions with readability scores
+4. **Return**: Jump back to original text locations with better understanding
+
+**Key Features:**
+- Text simplification with readability scoring
+- Personal library of simplified texts with source links
+- Jump-to-original functionality using Chrome Text Fragment API
+- Progress tracking showing comprehension improvements
+
+### How They Reinforce Each Other
+
+- **Vocabulary → Comprehension**: Words learned through the vocabulary loop help you understand more complex texts
+- **Comprehension → Vocabulary**: Simplified texts provide context and examples for vocabulary words
+- **Unified Experience**: Both loops happen seamlessly while you browse, creating natural, contextual learning
+
+This dual-loop system creates a powerful learning cycle where vocabulary acquisition and text comprehension mutually reinforce each other, accelerating overall language proficiency.
 
 ## Installation
 
