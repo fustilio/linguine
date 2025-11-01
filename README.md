@@ -8,6 +8,8 @@
 ![](https://badges.aleen42.com/src/vitejs.svg)
 ![Chrome AI](https://img.shields.io/badge/Chrome%20Built--in%20AI-2025-blue?style=flat-square)
 
+**Learn languages faster with Linguine! Transform any webpage into a learning feast using Chrome Built-in AI. Vocabulary tracking, text simplification—get al dente with language mastery, all client-side!**
+
 **🚀 Submission to the [Google Chrome Built-in AI Challenge 2025](https://googlechromeai2025.devpost.com/)**
 
 **📹 [Watch Demo Video](https://youtu.be/ckd6fi7N4Oo)**
@@ -110,7 +112,7 @@ See [ABOUT.md](ABOUT.md) for complete details.
 
 ### Vocabulary Learning Loop
 - 📚 Personal database with knowledge levels (1-5) and spaced repetition
-- 🃏 ANKI-style flashcards with 1-hour review intervals
+- 🃏 ANKI-style flashcards with 1-minute review intervals (for testing)
 - 🎯 Color-coded underlines (red=unknown, orange=challenging, green=easy, gray=mastered)
 - ➕ One-click vocabulary addition while browsing
 
