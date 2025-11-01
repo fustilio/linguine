@@ -122,6 +122,8 @@ await db.schema
 
 ```typescript
 // Basic CRUD operations
+// Add new vocabulary item
+// New words have last_reviewed_at set equal to created_at, making them immediately available for review
 export const addVocabularyItem = async (item: Pick<NewVocabularyItem, 'text' | 'language'>) => {
   await ensureDatabaseInitialized();
   const db = getDb();
@@ -197,6 +199,88 @@ export const getMasteredWords = async (): Promise<VocabularyItem[]> => {
     .where('knowledge_level', '=', 5)
     .orderBy('last_reviewed_at', 'desc')
     .execute();
+};
+```
+
+**Review Operations**:
+
+```typescript
+// Get words due for review (reviewed >1 hour ago or never reviewed)
+// New words are immediately available (last_reviewed_at equals created_at)
+export const getReviewQueue = async (limit?: number): Promise<VocabularyItem[]> => {
+  const now = new Date();
+  // Changed from 7 days to 1 hour - recently added words should be available within minutes
+  const oneHourAgo = new Date(now);
+  oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+  const cutoffISO = oneHourAgo.toISOString();
+
+  // Get words that need review:
+  // 1. Words where last_reviewed_at equals created_at (never actually reviewed, just created)
+  // 2. Words reviewed more than 1 hour ago
+  // Sorted by oldest last_reviewed_at first, then by lowest knowledge_level (most challenging first)
+  let query = db
+    .selectFrom('vocabulary')
+    .selectAll()
+    .where(eb =>
+      eb.or([
+        // Words that have never been reviewed (last_reviewed_at equals created_at)
+        eb('last_reviewed_at', '=', eb.ref('created_at')),
+        // Words reviewed more than 1 hour ago
+        eb('last_reviewed_at', '<', cutoffISO),
+      ]),
+    )
+    .orderBy('last_reviewed_at', 'asc')
+    .orderBy('knowledge_level', 'asc');
+
+  if (limit) {
+    query = query.limit(limit);
+  }
+
+  return await query.execute();
+};
+
+// Mark vocabulary item as reviewed (updates last_reviewed_at to current time)
+export const markAsReviewed = async (id: number): Promise<void> => {
+  const now = new Date().toISOString();
+  await db
+    .updateTable('vocabulary')
+    .set({ last_reviewed_at: now })
+    .where('id', '=', id)
+    .execute();
+};
+
+// Get the next review date (when reviews will next be available)
+// Calculates when the earliest reviewed word will become due again (1 hour after last review)
+export const getNextReviewDate = async (): Promise<string | null> => {
+  const now = new Date();
+  // Changed from 7 days to 1 hour - recently added words should be available within minutes
+  const oneHourAgo = new Date(now);
+  oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+  const cutoffISO = oneHourAgo.toISOString();
+
+  // Find all words reviewed within the last 1 hour
+  const recentlyReviewedItems = await db
+    .selectFrom('vocabulary')
+    .selectAll()
+    .where('last_reviewed_at', '>=', cutoffISO)
+    .execute();
+
+  if (recentlyReviewedItems.length === 0) {
+    // If no words have been reviewed recently, return null (all words available now)
+    return null;
+  }
+
+  // Calculate when each word will be due (1 hour after last_reviewed_at)
+  const nextReviewDates = recentlyReviewedItems.map(item => {
+    const lastReviewed = new Date(item.last_reviewed_at);
+    const nextReviewDate = new Date(lastReviewed);
+    nextReviewDate.setHours(nextReviewDate.getHours() + 1);
+    return nextReviewDate;
+  });
+
+  // Return the earliest date when reviews will become available
+  const earliestDate = new Date(Math.min(...nextReviewDates.map(d => d.getTime())));
+  return earliestDate.toISOString();
 };
 ```
 
@@ -593,6 +677,28 @@ const items = await getVocabulary(1, 10, 'en-US');
 
 // Update knowledge level
 await updateVocabularyItemKnowledgeLevel(1, 5);
+```
+
+### Review Operations
+
+```typescript
+import { getReviewQueue, markAsReviewed, getNextReviewDate } from '@extension/sqlite';
+
+// Get words due for review (reviewed >1 hour ago or never reviewed)
+// New words are immediately available (last_reviewed_at equals created_at)
+const reviewQueue = await getReviewQueue(50);
+
+// Mark word as reviewed (updates last_reviewed_at to current time)
+// Word will be due again in 1 hour
+await markAsReviewed(wordId);
+
+// Get when next review will be available
+const nextReviewDate = await getNextReviewDate();
+if (nextReviewDate) {
+  console.log('Next review available:', new Date(nextReviewDate).toLocaleDateString());
+} else {
+  console.log('All words are available for review now');
+}
 ```
 
 ### Text Rewrites Operations

@@ -6,6 +6,7 @@ interface Tab {
   id: string;
   label: string;
   content: ReactNode;
+  disabled?: boolean;
 }
 
 interface TabsProps {
@@ -14,9 +15,18 @@ interface TabsProps {
 }
 
 export const Tabs = ({ tabs, defaultTabId }: TabsProps) => {
-  const [activeTab, setActiveTab] = useState(defaultTabId || tabs[0]?.id);
+  // Find first non-disabled tab as fallback
+  const getDefaultTab = () => {
+    if (defaultTabId) {
+      const defaultTab = tabs.find(tab => tab.id === defaultTabId && !tab.disabled);
+      if (defaultTab) return defaultTabId;
+    }
+    return tabs.find(tab => !tab.disabled)?.id || tabs[0]?.id;
+  };
 
-  const activeTabData = tabs.find(tab => tab.id === activeTab);
+  const [activeTab, setActiveTab] = useState(getDefaultTab);
+
+  const activeTabData = tabs.find(tab => tab.id === activeTab && !tab.disabled);
 
   return (
     <div className="flex h-full flex-col">
@@ -25,12 +35,14 @@ export const Tabs = ({ tabs, defaultTabId }: TabsProps) => {
         {tabs.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => !tab.disabled && setActiveTab(tab.id)}
+            disabled={tab.disabled}
             className={cn(
               'px-6 py-3 text-sm font-medium transition-colors',
-              activeTab === tab.id
+              tab.disabled && 'cursor-not-allowed opacity-50',
+              activeTab === tab.id && !tab.disabled
                 ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100',
+                : !tab.disabled && 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100',
             )}>
             {tab.label}
           </button>

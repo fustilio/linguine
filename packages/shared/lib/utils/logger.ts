@@ -1,13 +1,10 @@
-import log from 'loglevel';
 import { COLORS } from './const.js';
+import log from 'loglevel';
 import type { ColorType } from './types.js';
 
 // Configure loglevel
-if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
-  log.setLevel('warn');
-} else {
-  log.setLevel('debug');
-}
+// Always use debug level in extension context (browser doesn't have process.env)
+log.setLevel('debug');
 
 // Color mapping for backward compatibility
 const colorMap: Record<ColorType, string> = {
@@ -23,8 +20,9 @@ const colorMap: Record<ColorType, string> = {
  */
 export const colorfulLog = (message: string, type: ColorType = 'info'): void => {
   const color = colorMap[type] || COLORS.FgWhite;
-  const logMethod = type === 'error' ? log.error : type === 'warning' ? log.warn : type === 'success' ? log.info : log.debug;
-  
+  const logMethod =
+    type === 'error' ? log.error : type === 'warning' ? log.warn : type === 'success' ? log.info : log.debug;
+
   logMethod(color + message + COLORS.Reset);
 };
 
@@ -33,4 +31,3 @@ export const colorfulLog = (message: string, type: ColorType = 'info'): void => 
  */
 export { log };
 export default log;
-

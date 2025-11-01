@@ -1,6 +1,5 @@
 import { useVocabulary } from '@extension/api';
 import {
-  DebugActions,
   VocabularyForm,
   VocabularyList,
   VocabularyToolbar,
@@ -19,8 +18,6 @@ export const VocabularyAdmin = () => {
     addVocabularyItem,
     updateVocabularyItemKnowledgeLevel,
     deleteVocabularyItem,
-    populateDummyVocabulary,
-    clearAllVocabulary,
     languageFilter,
     setLanguageFilter,
     selectedItems,
@@ -31,11 +28,6 @@ export const VocabularyAdmin = () => {
   return (
     <div className={cn('flex h-full flex-col p-6', themeVariants.container())}>
       <div className="flex-shrink-0 space-y-4">
-        <DebugActions
-          populateDummyVocabulary={() => populateDummyVocabulary.mutate()}
-          clearAllVocabulary={() => clearAllVocabulary.mutate()}
-        />
-
         <VocabularyForm onAddItem={item => addVocabularyItem.mutate(item)} />
 
         <VocabularyToolbar languageFilter={languageFilter} onLanguageChange={setLanguageFilter} />

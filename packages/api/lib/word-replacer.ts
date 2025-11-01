@@ -295,6 +295,13 @@ export class WordReplacer {
   }
 
   /**
+   * Check if there are any active rewrites on the current page
+   */
+  hasActiveRewrites(): boolean {
+    return undoManager.hasActiveRewrites();
+  }
+
+  /**
    * Undo all interactive rewrites on the page, restoring original text
    */
   undoAllRewrites() {

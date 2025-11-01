@@ -12,6 +12,8 @@ export { translateChunk } from './translator.js';
 export { segmentText } from './segmenter.js';
 export { getReadingModeStyles } from './styles.js';
 export { getImagesForQuery } from './image-fetcher.js';
+export { getVocabularyStatus } from './vocabulary-styles.js';
+export { matchChunkToVocabulary } from './vocabulary-matcher.js';
 export type {
   SupportedLanguage,
   POSChunk,
@@ -22,3 +24,4 @@ export type {
   AnnotationResult,
   ReadingModeConfig,
 } from './types.js';
+export type { VocabularyMatch } from './vocabulary-matcher.js';

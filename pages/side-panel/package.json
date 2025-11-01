@@ -25,7 +25,8 @@
     "@extension/storage": "workspace:*",
     "@extension/i18n": "workspace:*",
     "@extension/ui": "workspace:*",
-    "@tanstack/react-query": "^5.90.5"
+    "@tanstack/react-query": "^5.90.5",
+    "lucide-react": "^0.548.0"
   },
   "devDependencies": {
     "@extension/tailwindcss-config": "workspace:*",

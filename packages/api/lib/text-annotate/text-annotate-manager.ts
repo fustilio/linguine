@@ -12,7 +12,9 @@ import {
   extractPlainText,
 } from './text-extractor.js';
 import { generateTitleForContent } from './title-generator.js';
+import { getVocabularyByLanguageMap } from '../vocabulary-api.js';
 import type { AnnotatedChunk, ExtractedText, AnnotationResult, SupportedLanguage } from './types.js';
+import type { VocabularyItem } from '../vocabulary-api.js';
 
 /**
  * Callback interface for React-based UI updates
@@ -40,6 +42,8 @@ export class TextAnnotateManager {
   private static instance: TextAnnotateManager | null = null;
   private uiCallbacks: ReadingModeUICallbacks | null = null;
   private currentAbortController: AbortController | null = null;
+  private vocabularyMap: Map<string, VocabularyItem> | null = null;
+  private vocabularyLanguage: string | null = null;
 
   /**
    * Resolve user's native language from storage; fallback to en-US
@@ -196,7 +200,7 @@ export class TextAnnotateManager {
    */
   private async processAndDisplay(extracted: ExtractedText, targetLanguage: SupportedLanguage): Promise<void> {
     const processStartTime = performance.now();
-    console.log('[TextAnnotate] processAndDisplay started with targetLanguage:', targetLanguage);
+    // console.log('[TextAnnotate] processAndDisplay started with targetLanguage:', targetLanguage);
     try {
       // Defensive: ensure UI exists (manual/selector callers should set it up, but be safe)
       if (!this.uiCallbacks) {
@@ -204,10 +208,50 @@ export class TextAnnotateManager {
       }
       // React UI: already shown via onShow callback
 
+      // Extract plain text first for accurate language detection
+      const plainTextForDetection = extractPlainText(extracted.content || '');
+
+      // Detect language from plain text (more accurate than HTML content)
+      const detectedLanguage = await detectLanguageFromText(plainTextForDetection);
+      const sourceLanguage = detectedLanguage || extracted.language || targetLanguage;
+
+      // console.log('[TextAnnotate] Language detection result:', {
+      //   detectedLanguage,
+      //   extractedLanguage: extracted.language,
+      //   targetLanguage,
+      //   sourceLanguage,
+      //   plainTextLength: plainTextForDetection.length,
+      // });
+
+      // Load vocabulary for the source language if not already loaded
+      let vocabularyMap: Map<string, VocabularyItem> | null = null;
+      if (sourceLanguage && sourceLanguage !== this.vocabularyLanguage) {
+        try {
+          // console.log('[TextAnnotate] Loading vocabulary for language:', sourceLanguage);
+          vocabularyMap = await getVocabularyByLanguageMap(sourceLanguage);
+          this.vocabularyMap = vocabularyMap;
+          this.vocabularyLanguage = sourceLanguage;
+          // console.log(`[TextAnnotate] Loaded ${vocabularyMap.size} vocabulary items`);
+          // Log sample vocabulary items for debugging
+          // if (vocabularyMap.size > 0) {
+          //   const sampleItems = Array.from(vocabularyMap.entries()).slice(0, 3);
+          //   console.log('[TextAnnotate] Sample vocabulary items:', sampleItems);
+          // }
+        } catch (error) {
+          console.warn('[TextAnnotate] Failed to load vocabulary, continuing without vocabulary matching:', error);
+        }
+      } else if (this.vocabularyMap && sourceLanguage === this.vocabularyLanguage) {
+        vocabularyMap = this.vocabularyMap;
+        // console.log(
+        //   `[TextAnnotate] Using cached vocabulary (${vocabularyMap.size} items) for language: ${sourceLanguage}`,
+        // );
+      } else {
+      }
+
       // Try AI annotation first, fallback to simple if it fails
       let result: AnnotationResult;
       try {
-        console.log('[TextAnnotate] Attempting AI annotation with progressive updates...');
+        // console.log('[TextAnnotate] Attempting AI annotation with progressive updates...');
         const aiStartTime = performance.now();
 
         // Use progressive annotation with streaming updates
@@ -220,9 +264,16 @@ export class TextAnnotateManager {
           }
         }
         this.currentAbortController = new AbortController();
+        // console.log('[TextAnnotate] Calling annotateText with vocabularyMap:', {
+        //   hasVocabularyMap: vocabularyMap !== null && vocabularyMap !== undefined,
+        //   vocabularyMapSize: vocabularyMap?.size ?? 0,
+        //   vocabularyMapType: vocabularyMap instanceof Map ? 'Map' : typeof vocabularyMap,
+        //   sourceLanguage,
+        // });
         result = await annotateText(
           extracted,
           targetLanguage,
+          vocabularyMap,
           (
             chunks,
             isComplete,
@@ -242,12 +293,12 @@ export class TextAnnotateManager {
 
             // Update UI with current chunks
             if (this.uiCallbacks) {
-              console.log('[TextAnnotate] Calling onUpdate callback with:', {
-                chunksCount: chunks.length,
-                isComplete,
-                totalChunks,
-                phase,
-              });
+              // console.log('[TextAnnotate] Calling onUpdate callback with:', {
+              //   chunksCount: chunks.length,
+              //   isComplete,
+              //   totalChunks,
+              //   phase,
+              // });
               // Note: isSimplifyMode will be passed from result after annotation completes
               // For now, we can infer it from phase === 'simplify'
               const isSimplify = phase === 'simplify';
@@ -278,7 +329,7 @@ export class TextAnnotateManager {
         }
       } catch (aiError) {
         if (aiError instanceof Error && aiError.message === 'annotation_aborted') {
-          console.log('[TextAnnotate] Annotation aborted by user');
+          // console.log('[TextAnnotate] Annotation aborted by user');
           return; // stop processing silently
         }
         console.error('[TextAnnotate] AI annotation failed:', aiError);
@@ -287,12 +338,12 @@ export class TextAnnotateManager {
 
       // Progressive path already rendered in-place; do not re-render final annotation
       const processEndTime = performance.now();
-      console.log(
-        `[TextAnnotate] Reading mode display completed in ${(processEndTime - processStartTime).toFixed(2)}ms total`,
-      );
+      // console.log(
+      //   `[TextAnnotate] Reading mode display completed in ${(processEndTime - processStartTime).toFixed(2)}ms total`,
+      // );
     } catch (error) {
       if (error instanceof Error && error.message === 'annotation_aborted') {
-        console.log('[TextAnnotate] Annotation aborted by user');
+        // console.log('[TextAnnotate] Annotation aborted by user');
         return;
       }
       const processEndTime = performance.now();

@@ -2,9 +2,17 @@
  * Type definitions for the text annotate system
  */
 
+import type { VocabularyMatch } from './vocabulary-matcher.js';
+
 export type SupportedLanguage = 'zh-CN' | 'th-TH' | 'en-US' | 'es-ES' | 'fr-FR' | 'de-DE' | 'ja-JP' | 'ko-KR';
 
-export type POSChunkType = 'noun_phrase' | 'verb_phrase' | 'adjective_phrase' | 'adverb_phrase' | 'prepositional_phrase' | 'single_word';
+export type POSChunkType =
+  | 'noun_phrase'
+  | 'verb_phrase'
+  | 'adjective_phrase'
+  | 'adverb_phrase'
+  | 'prepositional_phrase'
+  | 'single_word';
 
 /**
  * Represents a chunk of text with POS information
@@ -32,6 +40,7 @@ export interface ChunkTranslation {
 export interface AnnotatedChunk extends POSChunk {
   translation: ChunkTranslation;
   imageUrls?: string[];
+  vocabularyMatch?: VocabularyMatch | null;
 }
 
 /**

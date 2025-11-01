@@ -1,7 +1,6 @@
 // offscreen.ts - Handles all database operations via OPFS
 
 import { DatabaseActionRequestSchema, TextRewriteSchema, VocabularyItemSchema } from '@extension/api';
-import { fromError } from 'zod-validation-error';
 import {
   // Vocabulary operations
   getAllVocabularyForSummary,
@@ -15,6 +14,9 @@ import {
   resetVocabularyDatabase,
   populateDummyVocabulary,
   ensureDatabaseInitialized,
+  getReviewQueue,
+  markAsReviewed,
+  getNextReviewDate,
 
   // Text rewrites operations
   addTextRewrite,
@@ -35,6 +37,7 @@ import {
   getDatabaseManager,
 } from '@extension/sqlite';
 import { z } from 'zod';
+// Removed fromError import - using Zod error issues directly to avoid crashes
 
 console.log('Offscreen document loaded');
 
@@ -63,10 +66,28 @@ const sendValidatedResponse = <T>(
     let result: { success: boolean; data?: unknown; error?: string };
 
     if (schema) {
+      // Handle undefined/null responseData before validation
+      if (responseData === undefined || responseData === null) {
+        console.error('Response validation failed: responseData is undefined or null');
+        sendResponse({
+          success: false,
+          error: errorMessage || 'Response data is missing',
+        });
+        return;
+      }
+
       const validation = schema.safeParse(responseData);
       if (!validation.success) {
-        const validationError = fromError(validation.error);
-        throw validationError;
+        // Extract error message directly from Zod error issues (avoid fromError which can crash)
+        const zodError = validation.error;
+        let errorMsg: string;
+        
+        if (zodError?.issues && Array.isArray(zodError.issues) && zodError.issues.length > 0) {
+          errorMsg = zodError.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
+        } else {
+          errorMsg = errorMessage || 'Validation failed: Invalid response data structure';
+        }
+        throw new Error(errorMsg);
       }
       result = { success: true, data: validation.data };
     } else {
@@ -115,6 +136,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     'resetVocabularyDatabase',
     'populateDummyVocabulary',
     'ensureDatabaseInitialized',
+    'getReviewQueue',
+    'markAsReviewed',
+    'getNextReviewDate',
     'addTextRewrite',
     'getTextRewrites',
     'getTextRewriteCount',
@@ -143,7 +167,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Validate incoming message structure for database actions
       const baseValidation = DatabaseActionRequestSchema.safeParse(message);
       if (!baseValidation.success) {
-        const validationError = fromError(baseValidation.error);
+        // Extract error message directly from Zod error issues (avoid fromError which can crash)
+        const zodError = baseValidation.error;
+        const validationError =
+          zodError?.issues && Array.isArray(zodError.issues) && zodError.issues.length > 0
+            ? new Error(zodError.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', '))
+            : new Error('Invalid message structure');
         console.error('❌ Invalid database message structure:', validationError.toString());
         console.error('Message:', message);
         sendResponse({
@@ -228,6 +257,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await populateDummyVocabulary();
           sendResponse({ success: true });
           break;
+
+        case 'getReviewQueue': {
+          const reviewQueue = await getReviewQueue(message.data?.limit);
+          // Ensure reviewQueue is always an array before validation
+          const safeReviewQueue = Array.isArray(reviewQueue) ? reviewQueue : [];
+          sendValidatedResponse(sendResponse, safeReviewQueue, VocabularyItemSchema.array(), 'Failed to get review queue');
+          break;
+        }
+
+        case 'markAsReviewed':
+          await markAsReviewed(message.data.id);
+          sendResponse({ success: true });
+          break;
+
+        case 'getNextReviewDate': {
+          const nextReviewDate = await getNextReviewDate();
+          // Ensure nextReviewDate is string | null before validation
+          const safeNextReviewDate = nextReviewDate !== undefined ? nextReviewDate : null;
+          sendValidatedResponse(sendResponse, safeNextReviewDate, z.string().nullable(), 'Failed to get next review date');
+          break;
+        }
 
         // Text rewrites operations
         case 'addTextRewrite':

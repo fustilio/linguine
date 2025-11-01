@@ -13,7 +13,9 @@ import {
   rewriteChunk,
   getAndResetTranslatorMetrics,
 } from './translator.js';
+import { matchChunkToVocabulary } from './vocabulary-matcher.js';
 import type { AnnotatedChunk, AnnotationResult, ChunkTranslation, ExtractedText, SupportedLanguage } from './types.js';
+import type { VocabularyItem } from '../vocabulary-api.js';
 
 /**
  * Annotates extracted text with translations
@@ -21,6 +23,7 @@ import type { AnnotatedChunk, AnnotationResult, ChunkTranslation, ExtractedText,
 export const annotateText = async (
   extractedText: ExtractedText,
   targetLanguage: SupportedLanguage = 'en-US',
+  vocabularyMap?: Map<string, VocabularyItem> | null,
   onProgress?: (
     chunks: AnnotatedChunk[],
     isComplete: boolean,
@@ -80,17 +83,17 @@ export const annotateText = async (
   throwIfAborted();
   taLog('[TextAnnotate] Plain text length:', textLength);
 
-  // Log extracted text details for debugging
-  console.log('[TextAnnotate] Extracted text details:', {
-    title: extractedText.title || '(no title)',
-    language: extractedText.language || '(no language from extraction)',
-    contentLength: extractedText.content?.length || 0,
-    plainTextLength: textLength,
-    plainTextPreview: plainText.substring(0, 200) + (plainText.length > 200 ? '...' : ''),
-    contentHtmlPreview:
-      extractedText.content?.substring(0, 200) +
-      (extractedText.content && extractedText.content.length > 200 ? '...' : ''),
-  });
+  // Log extracted text details for debugging (suppressed)
+  // console.log('[TextAnnotate] Extracted text details:', {
+  //   title: extractedText.title || '(no title)',
+  //   language: extractedText.language || '(no language from extraction)',
+  //   contentLength: extractedText.content?.length || 0,
+  //   plainTextLength: textLength,
+  //   plainTextPreview: plainText.substring(0, 200) + (plainText.length > 200 ? '...' : ''),
+  //   contentHtmlPreview:
+  //     extractedText.content?.substring(0, 200) +
+  //     (extractedText.content && extractedText.content.length > 200 ? '...' : ''),
+  // });
 
   // Phase: extract
   const extractEnd = performance.now();
@@ -101,33 +104,33 @@ export const annotateText = async (
   // Detect source language
   const languageStartTime = performance.now();
   let detectedLanguage: SupportedLanguage;
-  let detectionMethod = 'unknown';
+  // let detectionMethod = 'unknown'; // Only used in suppressed logs
 
   // Priority 1: Try Chrome LanguageDetector API (most accurate - analyzes actual text content)
   const detected = await detectLanguageFromText(plainText);
   if (detected) {
     detectedLanguage = detected;
-    detectionMethod = 'Chrome LanguageDetector API';
-    console.log(`[TextAnnotate] Language detected via Chrome API: ${detected}`);
+    // detectionMethod = 'Chrome LanguageDetector API';
+    // console.log(`[TextAnnotate] Language detected via Chrome API: ${detected}`);
   } else {
     // Priority 2: Use character-based fallback (analyzes character patterns in text)
     const fallbackResult = detectLanguageFromTextFallback(plainText);
     if (fallbackResult) {
       detectedLanguage = fallbackResult;
-      detectionMethod = 'character-based fallback';
-      console.warn(`[TextAnnotate] Chrome API failed, using character-based fallback: ${fallbackResult}`);
+      // detectionMethod = 'character-based fallback';
+      // console.warn(`[TextAnnotate] Chrome API failed, using character-based fallback: ${fallbackResult}`);
     } else {
       // Priority 3: Use Readability's language hint (may be wrong - based on HTML metadata, not content)
       if (extractedText.language) {
         detectedLanguage = normalizeLanguageCode(extractedText.language);
-        detectionMethod = 'extractedText.language (Readability hint - unreliable)';
+        // detectionMethod = 'extractedText.language (Readability hint - unreliable)';
         console.warn(
           `[TextAnnotate] Language detection failed, using Readability hint: ${extractedText.language} -> normalized to ${detectedLanguage}. WARNING: This is based on HTML metadata, not actual text content!`,
         );
       } else {
         // Last resort: use targetLanguage but warn
         detectedLanguage = targetLanguage;
-        detectionMethod = 'targetLanguage fallback (last resort)';
+        // detectionMethod = 'targetLanguage fallback (last resort)';
         console.warn(
           `[TextAnnotate] All language detection methods failed, defaulting to targetLanguage: ${targetLanguage}`,
         );
@@ -144,15 +147,15 @@ export const annotateText = async (
   // Check if we're in English simplification mode (source === target === English)
   const isSimplifyMode = detectedLanguage === 'en-US' && targetLanguage === 'en-US';
   if (isSimplifyMode) {
-    console.log(`[TextAnnotate] English simplification mode detected - using Rewriter API instead of Translator`);
-    console.log(
-      `[TextAnnotate] Simplify mode reason: detectedLanguage=${detectedLanguage}, targetLanguage=${targetLanguage}, detectionMethod=${detectionMethod}`,
-    );
-    console.log(`[TextAnnotate] Text preview (first 100 chars): "${plainText.substring(0, 100)}..."`);
+    // console.log(`[TextAnnotate] English simplification mode detected - using Rewriter API instead of Translator`);
+    // console.log(
+    //   `[TextAnnotate] Simplify mode reason: detectedLanguage=${detectedLanguage}, targetLanguage=${targetLanguage}, detectionMethod=${detectionMethod}`,
+    // );
+    // console.log(`[TextAnnotate] Text preview (first 100 chars): "${plainText.substring(0, 100)}..."`);
   } else {
-    console.log(
-      `[TextAnnotate] Translation mode: detectedLanguage=${detectedLanguage}, targetLanguage=${targetLanguage}, detectionMethod=${detectionMethod}`,
-    );
+    // console.log(
+    //   `[TextAnnotate] Translation mode: detectedLanguage=${detectedLanguage}, targetLanguage=${targetLanguage}, detectionMethod=${detectionMethod}`,
+    // );
   }
 
   // Phase: detect
@@ -423,6 +426,28 @@ export const annotateText = async (
               }
             }
 
+            // Match chunks against vocabulary before sending progress update
+            // Even if map is empty, we still want to mark chunks as unregistered
+            if (vocabularyMap !== null && vocabularyMap !== undefined && detectedLanguage) {
+              for (const chunk of annotatedChunks) {
+                if (!chunk.vocabularyMatch) {
+                  try {
+                    const match = matchChunkToVocabulary(chunk.text, detectedLanguage, vocabularyMap);
+                    chunk.vocabularyMatch = match;
+                  } catch {
+                    chunk.vocabularyMatch = null;
+                  }
+                }
+              }
+            } else if (detectedLanguage) {
+              // If vocabulary map is not available but we have detected language, mark all as unregistered
+              for (const chunk of annotatedChunks) {
+                if (!chunk.vocabularyMatch) {
+                  chunk.vocabularyMatch = null;
+                }
+              }
+            }
+
             // Send progressive update after each literal batch (stream to UI immediately)
             if (onProgress) {
               const tMetrics = getAndResetTranslatorMetrics();
@@ -535,6 +560,28 @@ export const annotateText = async (
               }
             }
 
+            // Match chunks against vocabulary before sending progress update
+            // Even if map is empty, we still want to mark chunks as unregistered
+            if (vocabularyMap !== null && vocabularyMap !== undefined && detectedLanguage) {
+              for (const chunk of annotatedChunks) {
+                if (!chunk.vocabularyMatch) {
+                  try {
+                    const match = matchChunkToVocabulary(chunk.text, detectedLanguage, vocabularyMap);
+                    chunk.vocabularyMatch = match;
+                  } catch {
+                    chunk.vocabularyMatch = null;
+                  }
+                }
+              }
+            } else if (detectedLanguage) {
+              // If vocabulary map is not available but we have detected language, mark all as unregistered
+              for (const chunk of annotatedChunks) {
+                if (!chunk.vocabularyMatch) {
+                  chunk.vocabularyMatch = null;
+                }
+              }
+            }
+
             // Send progressive update after each contextual batch
             if (onProgress) {
               const tMetrics = getAndResetTranslatorMetrics();
@@ -639,6 +686,56 @@ export const annotateText = async (
   taLog(`[TextAnnotate] Parallel speedup factor: ${speedupFactor.toFixed(2)}x`);
   taLog(`[TextAnnotate] Chunks created: ${annotatedChunks.length}`);
   taLog(`[TextAnnotate] ========================`);
+
+  // Debug: Log vocabulary matching parameters (suppressed)
+  // console.log('[TextAnnotate] Vocabulary matching check:', {
+  //   vocabularyMap: vocabularyMap !== null && vocabularyMap !== undefined,
+  //   vocabularyMapSize: vocabularyMap?.size ?? 0,
+  //   vocabularyMapType: vocabularyMap instanceof Map ? 'Map' : typeof vocabularyMap,
+  //   detectedLanguage,
+  //   chunksCount: annotatedChunks.length,
+  // });
+
+  // Match chunks against vocabulary if vocabulary map is provided
+  // Even if map is empty, we still want to set vocabularyMatch to null so UI knows they're unregistered
+  if (vocabularyMap !== null && vocabularyMap !== undefined && detectedLanguage) {
+    // console.log(
+    //   '[TextAnnotate] Matching chunks against vocabulary (map size:',
+    //   vocabularyMap.size,
+    //   ', language:',
+    //   detectedLanguage,
+    //   ')',
+    // );
+    // let matchedCount = 0;
+    for (const chunk of annotatedChunks) {
+      try {
+        const match = matchChunkToVocabulary(chunk.text, detectedLanguage, vocabularyMap);
+        chunk.vocabularyMatch = match;
+        // if (match && match.isRegistered) {
+        //   matchedCount++;
+        // }
+      } catch {
+        // Gracefully handle matching errors
+        // console.warn('[TextAnnotate] Failed to match chunk to vocabulary:', error);
+        chunk.vocabularyMatch = null;
+      }
+    }
+    // console.log(`[TextAnnotate] Matched ${matchedCount} out of ${annotatedChunks.length} chunks to vocabulary`);
+  } else {
+    // console.log(
+    //   '[TextAnnotate] Skipping vocabulary matching (vocabularyMap:',
+    //   !!vocabularyMap,
+    //   ', detectedLanguage:',
+    //   detectedLanguage,
+    //   ')',
+    // );
+    // Set vocabularyMatch to null for all chunks so UI knows they're unregistered
+    for (const chunk of annotatedChunks) {
+      if (!chunk.vocabularyMatch) {
+        chunk.vocabularyMatch = null;
+      }
+    }
+  }
 
   // Send final progress update
   if (onProgress) {

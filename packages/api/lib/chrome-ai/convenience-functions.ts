@@ -84,7 +84,7 @@ export const writeWithWriter = async (
     throw new Error('Writer API unavailable');
   }
 
-  const writerOptions: any = {
+  const writerOptions: WriterCreateOptions = {
     tone: options?.tone ?? 'neutral',
     format: options?.format ?? 'plain-text',
     length: options?.length ?? 'short',
@@ -100,6 +100,8 @@ export const writeWithWriter = async (
   } finally {
     try {
       writer.destroy();
-    } catch {}
+    } catch {
+      /* empty */
+    }
   }
 };

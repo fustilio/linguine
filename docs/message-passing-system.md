@@ -366,6 +366,9 @@ This prevents duplicate processing and ensures messages reach the correct handle
 | `getVocabularyCount` | Get vocabulary count | `{languageFilter}` | `number` |
 | `resetVocabularyDatabase` | Clear all vocabulary data | `{}` | `boolean` |
 | `populateDummyVocabulary` | Add sample data for testing | `{}` | `boolean` |
+| `getReviewQueue` | Get words due for review | `{limit?}` | `VocabularyItem[]` |
+| `markAsReviewed` | Mark vocabulary item as reviewed | `{id}` | `boolean` |
+| `getNextReviewDate` | Get next review date | `{}` | `string \| null` |
 
 ### Text Rewrites Operations
 

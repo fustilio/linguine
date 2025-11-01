@@ -24,7 +24,7 @@ export const useVocabulary = () => {
   // Stabilize query key to prevent unnecessary cache misses
   const queryKey = useMemo(() => ['vocabulary', currentPage, languageFilter], [currentPage, languageFilter]);
 
-  const { data: vocabularyData } = useQuery({
+  const { data: vocabularyData, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
       const [items, totalItems] = await Promise.all([
@@ -136,5 +136,6 @@ export const useVocabulary = () => {
     bulkDelete,
     bulkUpdateLevel,
     clearAllVocabulary,
+    refetch,
   };
 };

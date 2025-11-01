@@ -1,6 +1,6 @@
+import { getDatabaseManager } from './database-manager.js';
 import { ManualSqliteClient } from './manual.js';
 import type { VocabularyItem, NewVocabularyItem } from './types.js';
-import { getDatabaseManager } from './database-manager.js';
 
 const dummyData: Array<Pick<NewVocabularyItem, 'text' | 'language'>> = [
   { text: 'Hello', language: 'en-US' },
@@ -88,16 +88,14 @@ const addVocabularyItem = async (item: Pick<NewVocabularyItem, 'text' | 'languag
   if (!db) {
     throw new Error('Database not available');
   }
-  
+
+  // Set last_reviewed_at equal to created_at so new words are immediately available for review
+  // (words where last_reviewed_at = created_at are considered never reviewed and immediately available)
   const now = new Date().toISOString();
   const insertValues = { ...item, last_reviewed_at: now, created_at: now, knowledge_level: 1 };
-  
+
   // Use returningAll() to get the inserted row back directly
-  const result = await db
-    .insertInto('vocabulary')
-    .values(insertValues)
-    .returningAll()
-    .executeTakeFirstOrThrow();
+  const result = await db.insertInto('vocabulary').values(insertValues).returningAll().executeTakeFirstOrThrow();
 
   return result as VocabularyItem;
 };
@@ -161,11 +159,12 @@ const populateDummyVocabulary = async () => {
   const db = getDb();
   if (!db) return;
 
+  // Set last_reviewed_at equal to created_at so dummy words are immediately available for review
   const now = new Date().toISOString();
   const itemsToInsert = dummyData.map(item => ({
     ...item,
     knowledge_level: Math.ceil(Math.random() * 5),
-    last_reviewed_at: now,
+    last_reviewed_at: now, // Equal to created_at = immediately available
     created_at: now,
   }));
 
@@ -294,6 +293,123 @@ const filterVocabulary = async (filters: {
   return await query.orderBy('knowledge_level', 'desc').orderBy('language', 'asc').execute();
 };
 
+const getReviewQueue = async (limit?: number): Promise<VocabularyItem[]> => {
+  try {
+    await ensureDatabaseInitialized();
+    const db = getDb();
+    if (!db) {
+      console.warn('[ReviewQueue] Database not initialized');
+      return [];
+    }
+
+    const now = new Date();
+    // Changed from 7 days to 1 hour - recently added words should be available within minutes
+    const oneHourAgo = new Date(now);
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+    const cutoffISO = oneHourAgo.toISOString();
+
+    console.log('[ReviewQueue] Fetching review queue:', { cutoffISO, limit });
+
+    // Get words that need review:
+    // 1. Words where last_reviewed_at is the same as created_at (never actually reviewed, just created)
+    // 2. Words reviewed more than 1 hour ago (changed from 7 days - new words available within minutes)
+    // Sort by oldest last_reviewed_at first, then by lowest knowledge_level (most challenging first)
+    let query = db
+      .selectFrom('vocabulary')
+      .selectAll()
+      .where(eb =>
+        eb.or([
+          // Words that have never been reviewed (last_reviewed_at equals created_at means it was never actually reviewed)
+          eb('last_reviewed_at', '=', eb.ref('created_at')),
+          // Words reviewed more than 1 hour ago (changed from 7 days)
+          eb('last_reviewed_at', '<', cutoffISO),
+        ]),
+      )
+      .orderBy('last_reviewed_at', 'asc')
+      .orderBy('knowledge_level', 'asc');
+
+    if (limit) {
+      query = query.limit(limit);
+    }
+
+    const results = await query.execute();
+    // Ensure results is always an array
+    const items = Array.isArray(results) ? results : [];
+    console.log('[ReviewQueue] Found items:', items.length);
+    if (items.length > 0) {
+      console.log(
+        '[ReviewQueue] Sample items:',
+        items.slice(0, 5).map(r => ({
+          id: r.id,
+          text: r.text,
+          last_reviewed_at: r.last_reviewed_at,
+          created_at: r.created_at,
+          knowledge_level: r.knowledge_level,
+        })),
+      );
+    }
+    // Ensure we return a valid array (not undefined)
+    return items || [];
+  } catch (error) {
+    console.error('[ReviewQueue] Error fetching review queue:', error);
+    return [];
+  }
+};
+
+const markAsReviewed = async (id: number): Promise<void> => {
+  await ensureDatabaseInitialized();
+  const db = getDb();
+  if (!db) return;
+  const now = new Date().toISOString();
+  await db.updateTable('vocabulary').set({ last_reviewed_at: now }).where('id', '=', id).execute();
+};
+
+const getNextReviewDate = async (): Promise<string | null> => {
+  try {
+    await ensureDatabaseInitialized();
+    const db = getDb();
+    if (!db) return null;
+
+    const now = new Date();
+    // Changed from 7 days to 1 hour - recently added words should be available within minutes
+    const oneHourAgo = new Date(now);
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+    const cutoffISO = oneHourAgo.toISOString();
+
+    // Find all words that have been reviewed recently (within last 1 hour)
+    // We want the one that will be due soonest
+    const recentlyReviewedItems = await db
+      .selectFrom('vocabulary')
+      .selectAll()
+      .where('last_reviewed_at', '>=', cutoffISO)
+      .execute();
+
+    // Ensure results is always an array
+    const items = Array.isArray(recentlyReviewedItems) ? recentlyReviewedItems : [];
+
+    if (items.length === 0) {
+      // If no words have been reviewed recently, return null (all words are available now or don't exist)
+      return null;
+    }
+
+    // Find the word that will be due soonest (earliest next review date)
+    // Calculate when each word will be due (1 hour after last_reviewed_at)
+    const nextReviewDates = items.map(item => {
+      const lastReviewed = new Date(item.last_reviewed_at);
+      const nextReviewDate = new Date(lastReviewed);
+      nextReviewDate.setHours(nextReviewDate.getHours() + 1);
+      return nextReviewDate;
+    });
+
+    // Return the earliest date
+    const earliestDate = new Date(Math.min(...nextReviewDates.map(d => d.getTime())));
+    return earliestDate.toISOString();
+  } catch (error) {
+    console.error('[ReviewQueue] Error getting next review date:', error);
+    return null;
+  }
+};
+
 // Export all functions
 export {
   initializeVocabularyDatabase,
@@ -314,4 +430,7 @@ export {
   getStrugglingWords,
   getMasteredWords,
   filterVocabulary,
+  getReviewQueue,
+  markAsReviewed,
+  getNextReviewDate,
 };

@@ -2,8 +2,8 @@
 // Shared utilities for message passing to offscreen document
 
 import { LanguageCodeSchema } from '@extension/shared';
-import { z } from 'zod';
 import pRetry from 'p-retry';
+import { z } from 'zod';
 
 interface DatabaseResponse<T = unknown> {
   success: boolean;
@@ -229,6 +229,27 @@ const GetTextRewritesContainingWordRequestSchema = z.object({
   }),
 });
 
+const GetReviewQueueRequestSchema = z.object({
+  action: z.literal('getReviewQueue'),
+  data: z
+    .object({
+      limit: z.number().positive().optional(),
+    })
+    .optional(),
+});
+
+const MarkAsReviewedRequestSchema = z.object({
+  action: z.literal('markAsReviewed'),
+  data: z.object({
+    id: z.number().positive(),
+  }),
+});
+
+const GetNextReviewDateRequestSchema = z.object({
+  action: z.literal('getNextReviewDate'),
+  data: z.object({}).optional(),
+});
+
 /**
  * Union of all request schemas
  */
@@ -252,6 +273,9 @@ const DatabaseActionRequestSchema = z.discriminatedUnion('action', [
   GetVocabularyCountRequestSchema,
   GetVocabularyWordsInTextRequestSchema,
   GetTextRewritesContainingWordRequestSchema,
+  GetReviewQueueRequestSchema,
+  MarkAsReviewedRequestSchema,
+  GetNextReviewDateRequestSchema,
   z.object({ action: z.literal('getAllVocabularyForSummary') }),
   z.object({ action: z.literal('resetVocabularyDatabase') }),
   z.object({ action: z.literal('populateDummyVocabulary') }),
@@ -304,10 +328,7 @@ const ensureOffscreenDocument = async (): Promise<void> => {
 /**
  * Generic function to send messages directly to the offscreen document with retry logic
  */
-const sendDatabaseMessage = async <T = unknown>(
-  action: string,
-  data?: unknown,
-): Promise<DatabaseResponse<T>> => {
+const sendDatabaseMessage = async <T = unknown>(action: string, data?: unknown): Promise<DatabaseResponse<T>> => {
   // Ensure offscreen document exists (only on first attempt)
   await ensureOffscreenDocument();
 
@@ -353,7 +374,9 @@ const sendDatabaseMessage = async <T = unknown>(
           ) {
             throw error; // Don't retry for other errors
           }
-          console.log(`🔄 Retrying ${action}... (attempt ${error.attemptNumber}/${error.retriesLeft + error.attemptNumber})`);
+          console.log(
+            `🔄 Retrying ${action}... (attempt ${error.attemptNumber}/${error.retriesLeft + error.attemptNumber})`,
+          );
         },
       },
     );

@@ -51,17 +51,19 @@ Content UI React Component
 
 ### Key Modules (packages/api/lib/text-annotate)
 
-- `types.ts`: Core interfaces (`ExtractedText`, `SupportedLanguage`, `POSChunk`, `AnnotatedChunk`, `ReadingModeConfig`)
+- `types.ts`: Core interfaces (`ExtractedText`, `SupportedLanguage`, `POSChunk`, `AnnotatedChunk`, `VocabularyMatch`, `ReadingModeConfig`)
 - `language-detector.ts`: Uses Chrome `LanguageDetector` with character-based fallback
 - `text-extractor.ts`: Extracts content (Mozilla Readability, selection, selector) and plain text
 - `segmenter.ts`: Language-aware segmentation (Thai via `wordcut`)
 - `pos-chunker.ts`: Fast token chunking with `Intl.Segmenter` (no AI); whitespace fallback
 - `translator.ts`: Literal translation with `Translator` and contextual translation with `LanguageModel` (graceful fallbacks, user gesture handling)
-- `annotator.ts`: Orchestrates detection → segmentation → POS → translation with batching and progressive streaming, comprehensive timing
+- `vocabulary-matcher.ts`: Matches text chunks against vocabulary database, determines knowledge level and registration status
+- `vocabulary-styles.ts`: Utilities for determining vocabulary status and visual styling
+- `annotator.ts`: Orchestrates detection → segmentation → POS → translation with batching and progressive streaming, comprehensive timing, vocabulary matching
 - `simple-annotator.ts`: Lightweight mock annotator for demo/testing
 - Wikimedia image enrichment: optional images per annotated chunk (up to 3), fetched via background
 - `styles.ts`: Styles for overlay, underlines, tooltips, progress bar
-- `text-annotate-manager.ts`: Entry point managing extraction, annotation, UI lifecycle, and message handling
+- `text-annotate-manager.ts`: Entry point managing extraction, annotation, UI lifecycle, vocabulary loading, and message handling
 - `index.ts`: Public exports; re-exported by `packages/api/index.mts`
 
 ### Content Script Integration
@@ -75,7 +77,13 @@ Content UI React Component
   - React component that renders the reading mode overlay using Tailwind CSS
   - Receives updates via Chrome messages: `readingModeShow`, `readingModeUpdate`, `readingModeHide`
   - Manages UI state, tooltips, TTS, keyboard shortcuts, and settings controls
-  - Implements visual styling with dotted underlines for annotated chunks (green/orange)
+  - Implements visual styling with vocabulary-based colored underlines:
+    - **Light gray**: Mastered (knowledge_level 5)
+    - **Green**: Registered and easy (knowledge_level 3-4)
+    - **Orange**: Registered and challenging (knowledge_level 1-2)
+    - **Red**: Unregistered (not in vocabulary database)
+  - Includes vocabulary difficulty modification in tooltips (Add to Learn, Mark as Mastered, Set as Easy, Set as Challenging)
+  - Includes "Add All (N)" button for bulk adding unregistered words to vocabulary
   - Includes image loading and display functionality for tooltips
 
 - **Popup** (`pages/popup/src/Popup.tsx`) buttons:
@@ -96,29 +104,44 @@ Content UI React Component
    - Fallback: whitespace/character heuristics
 4) Chunking
    - Use Intl.Segmenter output directly as chunks with start/end offsets
-5) Translation (parallel batched, two-phase for translation mode)
+5) Vocabulary matching (for detected language)
+   - Load vocabulary map from database for detected language
+   - Match each chunk against vocabulary database
+   - Determine knowledge level and registration status
+   - Attach vocabulary match information to each chunk
+6) Translation (parallel batched, two-phase for translation mode)
    - **Simplify Mode** (English → English): Single phase using Chrome `Rewriter` API with contextual prompting
    - **Translation Mode** (other languages): Two-phase process:
      - **Phase 1 - Literal Translation**: Fast, streams to UI immediately using Chrome `Translator` API
      - **Phase 2 - Contextual Translation**: Slower, uses Chrome `LanguageModel` API with literal results as input, updates existing annotations
    - `Promise.all()` batching with configurable `BATCH_SIZE`
    - Progressive `onProgress` callback streams annotated chunks with separate literal/contextual progress tracking
-6) UI progressive rendering
+7) UI progressive rendering
    - Show plain text instantly (char spans)
    - Wrap ranges in-place as annotations arrive (no text shifting)
+   - Apply vocabulary-based colors to underlines based on knowledge level
    - Stable progress bar; spaces preserved; header X aligned
 
 ## Progressive UX
 
 - Immediate plain text render
 - Inline, in-place wrapping for annotations (preserve offsets)
-- Visual styling: annotated chunks have dotted underlines (green for standard, orange for chunks with contextual differences)
+- **Vocabulary-based visual styling**: Annotated chunks have colored dotted underlines based on vocabulary status:
+  - **Light gray**: Mastered words (knowledge_level 5)
+  - **Green**: Registered easy words (knowledge_level 3-4)
+  - **Orange**: Registered challenging words (knowledge_level 1-2)
+  - **Red**: Unregistered words (not in vocabulary database)
 - Hover effects: chunks highlight with semi-transparent backgrounds on hover
 - **Dual progress bars** (translation mode): Shows separate progress for literal and contextual translation phases concurrently
 - Single progress bar for simplify mode and other phases
 - Tooltips optimized to avoid re-rendering during progressive loading:
   - Uses memoized chunk lookup to always show latest translations
   - Only updates when translation content actually changes
+- **Vocabulary difficulty modification**: Tooltips include buttons to modify vocabulary difficulty:
+  - "Add to Learn" (sets level 3), "Mark as Mastered" (sets level 5)
+  - "Set as Easy" (level 3-4), "Set as Challenging" (level 1-2)
+  - Context-aware buttons that update based on current vocabulary status
+- **Bulk vocabulary operations**: "Add All (N)" button in header to add all unregistered words at once
 - **Simplify Mode** UI: Shows "Simplify Mode" badge in header; tooltips show only simplified text (white) without prefixes
 - **Translation Mode** tooltips: 
   - Show literal (light blue) if it differs from contextual or if contextual not available yet

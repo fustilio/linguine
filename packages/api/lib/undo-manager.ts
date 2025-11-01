@@ -17,6 +17,11 @@ class UndoManager {
     this.wrapperRegistry.delete(wrapper);
   }
 
+  hasActiveRewrites(): boolean {
+    const wrappers = this.collectAllWrappers();
+    return wrappers.length > 0;
+  }
+
   undoAll(): UndoStats {
     const start = performance.now();
     let buttonsRemoved = 0;

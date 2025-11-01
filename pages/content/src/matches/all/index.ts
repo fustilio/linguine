@@ -366,6 +366,23 @@ chrome.runtime.onMessage.addListener(
         });
         return true;
       }
+    } else if (message.action === 'checkActiveRewrites') {
+      // Check if there are any active rewrites on the page
+      try {
+        if (!wordReplacer) {
+          sendResponse({ success: false, error: 'WordReplacer not initialized', data: { hasActiveRewrites: false } });
+          return true;
+        }
+        const hasActiveRewrites = wordReplacer.hasActiveRewrites();
+        sendResponse({ success: true, data: { hasActiveRewrites } });
+      } catch (error) {
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          data: { hasActiveRewrites: false },
+        });
+      }
+      return true; // Keep channel open for async
     } else if (message.action === 'undoAllRewrites') {
       // Handle undoAllRewrites via WordReplacer
       try {

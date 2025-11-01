@@ -2,6 +2,7 @@ import '@src/SidePanel.css';
 import { Header } from './components/Header';
 import { RewritesView } from './components/RewritesView';
 import { SidePanelChatbot } from './components/SidePanelChatbot';
+import VocabularyReviewView from './components/VocabularyReviewView';
 import VocabularyView from './components/VocabularyView';
 import { withErrorBoundary, withSuspense } from '@extension/shared';
 import { Tabs, ErrorDisplay, LoadingSpinner } from '@extension/ui';
@@ -33,10 +34,16 @@ const SidePanel = () => {
       content: <VocabularyView />,
     },
     {
-      id: 'chatbot',
-      label: '🤖 Chatbot',
-      content: <SidePanelChatbot />,
+      id: 'review',
+      label: '📚 Review',
+      content: <VocabularyReviewView />,
     },
+    // {
+    //   id: 'chatbot',
+    //   label: '🤖 Chatbot',
+    //   content: <SidePanelChatbot />,
+    //   disabled: true,
+    // },
   ];
 
   return (

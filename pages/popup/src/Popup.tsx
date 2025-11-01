@@ -3,7 +3,7 @@ import './Popup.css';
 import { PROJECT_URL_OBJECT, useStorage, withErrorBoundary, withSuspense } from '@extension/shared';
 import { wordReplacerStorage } from '@extension/storage';
 import { cn, ErrorDisplay, LoadingSpinner, Switch, ThemeToggleIcon } from '@extension/ui';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 // const notificationOptions = {
 //   type: 'basic',
@@ -20,6 +20,7 @@ const Popup = () => {
 
   // Local state for UI
   const [currentTab, setCurrentTab] = useState<chrome.tabs.Tab | null>(null);
+  const [hasActiveRewrites, setHasActiveRewrites] = useState(false);
 
   // Get safe values with fallbacks
   const isActive = wordReplacerState?.isActive ?? false;
@@ -38,6 +39,9 @@ const Popup = () => {
 
         // Check if content script is loaded
         await checkContentScript(tab);
+
+        // Check for active rewrites
+        await checkActiveRewrites(tab);
       } catch (error) {
         console.error('Error loading state:', error);
       }
@@ -66,6 +70,40 @@ const Popup = () => {
       }
     }
   };
+
+  // Check if there are active rewrites on the current page
+  const checkActiveRewrites = useCallback(async (tab: chrome.tabs.Tab) => {
+    if (!tab?.id || !tab.url?.startsWith('http')) {
+      setHasActiveRewrites(false);
+      return;
+    }
+
+    try {
+      await checkContentScript(tab);
+      const response = await chrome.tabs.sendMessage(tab.id, { action: 'checkActiveRewrites' });
+      if (response?.success && response.data) {
+        setHasActiveRewrites(response.data.hasActiveRewrites || false);
+      } else {
+        setHasActiveRewrites(false);
+      }
+    } catch {
+      setHasActiveRewrites(false);
+    }
+  }, []);
+
+  // Check for active rewrites periodically and after state changes
+  useEffect(() => {
+    if (!currentTab?.id || !isActive) {
+      setHasActiveRewrites(false);
+      return;
+    }
+
+    const checkInterval = setInterval(async () => {
+      await checkActiveRewrites(currentTab);
+    }, 1000); // Check every second
+
+    return () => clearInterval(checkInterval);
+  }, [currentTab, isActive, checkActiveRewrites]);
 
   // Helper function to notify content script with updated state
   const notifyContentScriptWithUpdatedState = async (
@@ -198,6 +236,36 @@ const Popup = () => {
           {/* Theme Toggle Icon */}
           <ThemeToggleIcon size="md" />
 
+          {/* Side Panel Button */}
+          <button
+            onClick={async () => {
+              try {
+                await chrome.sidePanel.open({ windowId: (await chrome.windows.getCurrent()).id });
+              } catch (error) {
+                console.error('Failed to open side panel:', error);
+              }
+            }}
+            aria-label="Open side panel"
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-lg border transition-all',
+              'border-gray-300 bg-white text-gray-700 hover:scale-110 active:scale-95',
+              'dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300',
+            )}
+            title="Open side panel">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <line x1="9" y1="3" x2="9" y2="21" />
+            </svg>
+          </button>
+
           {/* Settings Button Icon */}
           <button
             onClick={openOptionsPage}
@@ -312,113 +380,43 @@ const Popup = () => {
           </p>
         </div>
 
-        {/* Undo Section */}
-        <div className="mb-5">
-          <h3 className={cn('mb-3 text-sm font-semibold text-[#444] dark:text-gray-200')}>Undo</h3>
-          <button
-            onClick={async () => {
-              if (!currentTab?.id) return;
-              try {
-                console.log('[Popup] Undo clicked, tabId:', currentTab.id);
-                await checkContentScript(currentTab);
-                await new Promise(resolve => setTimeout(resolve, 50));
-                const response = await chrome.tabs.sendMessage(currentTab.id, { action: 'undoAllRewrites' });
-                console.log('[Popup] Undo response:', response);
-                if (!response?.success) {
-                  console.warn('[Popup] Undo failed:', response?.error);
-                }
-              } catch (error) {
-                console.error('[Popup] Failed to undo rewrites:', error);
-              }
-            }}
-            className={cn(
-              'w-full rounded-lg px-4 py-2.5 font-medium transition-colors',
-              'bg-red-500 text-white hover:bg-red-600',
-              'dark:bg-red-600 dark:hover:bg-red-500',
-            )}
-            title="Undo all on-page rewrites">
-            ↩ Undo All Rewrites
-          </button>
-          <p className={cn('mt-2 text-[11px] leading-relaxed text-[#666] dark:text-gray-400')}>
-            Restores all simplified segments back to their original text on this page.
-          </p>
-        </div>
-
-        {/* Debug Section */}
-        <div className="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700">
-          <h3 className={cn('mb-3 text-sm font-semibold text-[#444] dark:text-gray-200')}>🐛 Debug Tools</h3>
-          <div className="space-y-3">
+        {/* Undo Section - Only show when there are active rewrites */}
+        {hasActiveRewrites && (
+          <div className="mb-5">
+            <h3 className={cn('mb-3 text-sm font-semibold text-[#444] dark:text-gray-200')}>Undo</h3>
             <button
               onClick={async () => {
                 if (!currentTab?.id) return;
                 try {
-                  // Ensure content script is loaded first
+                  console.log('[Popup] Undo clicked, tabId:', currentTab.id);
                   await checkContentScript(currentTab);
-
-                  // Wait a bit for content script to initialize
-                  await new Promise(resolve => setTimeout(resolve, 100));
-
-                  const response = await chrome.tabs.sendMessage(currentTab.id, {
-                    action: 'openReadingMode',
-                    data: { mode: 'auto', useFullContent: false },
-                  });
-
+                  await new Promise(resolve => setTimeout(resolve, 50));
+                  const response = await chrome.tabs.sendMessage(currentTab.id, { action: 'undoAllRewrites' });
+                  console.log('[Popup] Undo response:', response);
                   if (response?.success) {
-                    console.log('Reading mode opened successfully');
+                    // Update state after undo
+                    await checkActiveRewrites(currentTab);
                   } else {
-                    console.error('Failed to open reading mode:', response?.error);
+                    console.warn('[Popup] Undo failed:', response?.error);
                   }
                 } catch (error) {
-                  console.error('Failed to open reading mode:', error);
-                  // Try to inject content script again if message failed
-                  try {
-                    await chrome.scripting.executeScript({
-                      target: { tabId: currentTab.id },
-                      files: ['content-runtime/all.iife.js'],
-                    });
-                    console.log('Content script re-injected, try again');
-                  } catch (injectError) {
-                    console.error('Failed to re-inject content script:', injectError);
-                  }
+                  console.error('[Popup] Failed to undo rewrites:', error);
                 }
               }}
               className={cn(
                 'w-full rounded-lg px-4 py-2.5 font-medium transition-colors',
-                'bg-orange-500 text-white hover:bg-orange-600',
-                'dark:bg-orange-600 dark:hover:bg-orange-500',
-              )}>
-              🧪 Test Reading Mode (Demo)
+                'bg-red-500 text-white hover:bg-red-600',
+                'dark:bg-red-600 dark:hover:bg-red-500',
+              )}
+              title="Undo all on-page rewrites">
+              ↩ Undo All Rewrites
             </button>
-            <p className={cn('text-[11px] leading-relaxed text-[#666] dark:text-gray-400')}>
-              Tests text annotation with short Thai sample. Check console for timing logs.
+            <p className={cn('mt-2 text-[11px] leading-relaxed text-[#666] dark:text-gray-400')}>
+              Restores all simplified segments back to their original text on this page.
             </p>
-            <button
-              onClick={async () => {
-                if (!currentTab?.id) return;
-                try {
-                  await checkContentScript(currentTab);
-                  await new Promise(resolve => setTimeout(resolve, 100));
-                  const response = await chrome.tabs.sendMessage(currentTab.id, {
-                    action: 'closeReadingMode',
-                  });
-                  if (response?.success) {
-                    console.log('Reading mode closed');
-                  } else {
-                    console.error('Failed to close reading mode:', response?.error);
-                  }
-                } catch (error) {
-                  console.error('Failed to close reading mode:', error);
-                }
-              }}
-              className={cn(
-                'w-full rounded-lg px-4 py-2.5 font-medium transition-colors',
-                'bg-gray-200 text-gray-800 hover:bg-gray-300',
-                'dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600',
-              )}>
-              ✖ Close Reading Mode
-            </button>
           </div>
-        </div>
+        )}
+
       </div>
     </div>
   );

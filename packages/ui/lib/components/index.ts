@@ -7,6 +7,8 @@ export * from './LoadingSpinner';
 export * from './error-display/ErrorDisplay';
 export * from './VocabularyForm';
 export * from './VocabularyList';
+export * from './VocabularyCard';
+export * from './VocabularyReview';
 export * from './VocabularyToolbar';
 export * from './QueryInterface';
 export * from './TextEvaluator';

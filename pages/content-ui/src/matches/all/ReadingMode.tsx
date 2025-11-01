@@ -1,4 +1,9 @@
-import { getImagesForQuery } from '@extension/api';
+import {
+  getImagesForQuery,
+  addVocabularyItem,
+  updateVocabularyItemKnowledgeLevel,
+  getVocabularyStatus,
+} from '@extension/api';
 import { useStorage } from '@extension/shared';
 import { readingModeSettingsStorage } from '@extension/storage';
 import { cn } from '@extension/ui';
@@ -6,6 +11,9 @@ import { useFloating, autoUpdate, offset, flip, shift } from '@floating-ui/react
 import {
   AArrowDown,
   AArrowUp,
+  Award,
+  BookOpen,
+  BookPlus,
   Captions,
   CaptionsOff,
   FoldHorizontal,
@@ -14,11 +22,13 @@ import {
   ListChevronsDownUp,
   ListChevronsUpDown,
   SunMoon,
+  TrendingDown,
+  TrendingUp,
   UnfoldHorizontal,
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState, useMemo } from 'react';
-import type { AnnotatedChunk } from '@extension/api';
+import type { AnnotatedChunk, VocabularyItem } from '@extension/api';
 
 interface ReadingModeProps {
   isVisible: boolean;
@@ -51,10 +61,37 @@ export const ReadingMode = ({
 
   const settings = useStorage(readingModeSettingsStorage);
   const [hoveredChunk, setHoveredChunk] = useState<AnnotatedChunk | null>(null);
-  const [showImages, setShowImages] = useState(true);
+  const [showImages, setShowImages] = useState(false);
   const [showPrefixes, setShowPrefixes] = useState(true);
   const [hoveredChunkImages, setHoveredChunkImages] = useState<string[]>([]);
   const [hoveredChunkImageIndex, setHoveredChunkImageIndex] = useState(0);
+  const [vocabUpdateLoading, setVocabUpdateLoading] = useState(false);
+  const [vocabularyMap, setVocabularyMap] = useState<Map<string, VocabularyItem>>(new Map());
+
+  // Helper function to check if text contains actual word characters (not just punctuation/whitespace)
+  const hasWordCharacters = (text: string): boolean => /[\p{L}\p{N}]/u.test(text);
+
+  // Calculate unregistered chunks for bulk add
+  // Include vocabularyMap in dependencies to recalculate when map is updated manually
+  // Filter out punctuation-only chunks
+  const unregisteredChunks = useMemo(
+    () =>
+      chunks.filter(chunk => {
+        const chunkText = chunk.text?.trim();
+        if (!chunkText) return false;
+
+        // Filter out punctuation-only chunks
+        if (!hasWordCharacters(chunkText)) {
+          return false;
+        }
+
+        // Check if chunk is registered either via vocabularyMatch or vocabularyMap
+        const isRegistered = chunk.vocabularyMatch?.isRegistered || vocabularyMap.has(chunkText.toLowerCase());
+
+        return !isRegistered;
+      }),
+    [chunks, vocabularyMap],
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
@@ -67,6 +104,322 @@ export const ReadingMode = ({
   const hoveredChunkRef = useRef<AnnotatedChunk | null>(null);
   // Cache images per chunk to avoid re-fetching and tooltip jumps
   const imageCacheRef = useRef<Map<string, string[]>>(new Map());
+
+  // Handle vocabulary difficulty updates
+  const handleUpdateVocabularyDifficulty = async (level: number) => {
+    if (!currentHoveredChunk || vocabUpdateLoading) return;
+
+    setVocabUpdateLoading(true);
+    try {
+      const chunkText = currentHoveredChunk.text.trim();
+
+      // Skip punctuation-only chunks
+      if (!hasWordCharacters(chunkText)) {
+        alert('Cannot add punctuation-only text to vocabulary');
+        setVocabUpdateLoading(false);
+        return;
+      }
+
+      const chunkLanguage = currentHoveredChunk.language || 'en-US';
+      const vocabMatch = currentHoveredChunk.vocabularyMatch;
+
+      console.log('[ReadingMode] Updating vocabulary difficulty:', {
+        text: chunkText,
+        language: chunkLanguage,
+        level,
+        isExisting: !!vocabMatch?.vocabularyItem?.id,
+        vocabMatch,
+      });
+
+      if (vocabMatch?.vocabularyItem?.id) {
+        // Update existing vocabulary item
+        console.log('[ReadingMode] Updating existing vocabulary item:', {
+          id: vocabMatch.vocabularyItem.id,
+          oldLevel: vocabMatch.vocabularyItem.knowledge_level,
+          newLevel: level,
+        });
+        await updateVocabularyItemKnowledgeLevel(vocabMatch.vocabularyItem.id, level);
+
+        // Update local vocabulary map
+        const updatedItem: VocabularyItem = {
+          ...vocabMatch.vocabularyItem,
+          knowledge_level: level,
+          last_reviewed_at: new Date().toISOString(),
+        };
+        const newMap = new Map(vocabularyMap);
+        newMap.set(chunkText.toLowerCase().trim(), updatedItem);
+        setVocabularyMap(newMap);
+        console.log('[ReadingMode] Updated vocabulary map:', {
+          size: newMap.size,
+          hasEntry: newMap.has(chunkText.toLowerCase().trim()),
+          entry: newMap.get(chunkText.toLowerCase().trim()),
+        });
+
+        // Update chunk vocabulary match
+        if (currentHoveredChunk.vocabularyMatch) {
+          currentHoveredChunk.vocabularyMatch.knowledgeLevel = level;
+          currentHoveredChunk.vocabularyMatch.vocabularyItem = updatedItem;
+        }
+      } else {
+        // Add new vocabulary item
+        console.log('[ReadingMode] Adding new vocabulary item:', {
+          text: chunkText,
+          language: chunkLanguage,
+        });
+        const newItem = await addVocabularyItem({
+          text: chunkText,
+          language: chunkLanguage,
+        });
+
+        console.log('[ReadingMode] Added vocabulary item:', newItem);
+
+        if (!newItem) {
+          throw new Error('Failed to add vocabulary item: API returned null');
+        }
+
+        if (!newItem.id) {
+          throw new Error('Failed to add vocabulary item: Missing ID in response');
+        }
+
+        // Update with the new knowledge level
+        console.log('[ReadingMode] Updating knowledge level:', {
+          id: newItem.id,
+          level,
+        });
+        await updateVocabularyItemKnowledgeLevel(newItem.id, level);
+
+        // Update local vocabulary map
+        const updatedItem: VocabularyItem = {
+          ...newItem,
+          knowledge_level: level,
+        };
+        const newMap = new Map(vocabularyMap);
+        newMap.set(chunkText.toLowerCase().trim(), updatedItem);
+        setVocabularyMap(newMap);
+        console.log('[ReadingMode] Updated vocabulary map after add:', {
+          size: newMap.size,
+          hasEntry: newMap.has(chunkText.toLowerCase().trim()),
+          entry: newMap.get(chunkText.toLowerCase().trim()),
+        });
+
+        // Update chunk vocabulary match
+        currentHoveredChunk.vocabularyMatch = {
+          vocabularyItem: updatedItem,
+          knowledgeLevel: level,
+          isRegistered: true,
+        };
+        console.log('[ReadingMode] Updated chunk vocabulary match:', currentHoveredChunk.vocabularyMatch);
+      }
+
+      // Update wrapper element colors immediately
+      if (triggerRef.current) {
+        const wrapper = triggerRef.current as HTMLElement;
+        const newStatus = getVocabularyStatus(currentHoveredChunk.vocabularyMatch);
+        wrapper.setAttribute('data-vocab-status', newStatus);
+
+        // Update border color using inline style
+        switch (newStatus) {
+          case 'mastered':
+            wrapper.style.borderBottomColor = '#9ca3af'; // gray-400
+            break;
+          case 'easy':
+            wrapper.style.borderBottomColor = '#22c55e'; // green-500
+            break;
+          case 'challenging':
+            wrapper.style.borderBottomColor = '#f97316'; // orange-500
+            break;
+          case 'unregistered':
+          default:
+            wrapper.style.borderBottomColor = '#ef4444'; // red-500
+            break;
+        }
+      }
+
+      // Update all matching chunks in the array
+      chunks.forEach(c => {
+        if (
+          c.start === currentHoveredChunk.start &&
+          c.end === currentHoveredChunk.end &&
+          c.text === currentHoveredChunk.text
+        ) {
+          c.vocabularyMatch = currentHoveredChunk.vocabularyMatch;
+        }
+      });
+    } catch (error) {
+      console.error('[ReadingMode] Failed to update vocabulary difficulty:', error);
+      // Show error to user (could add toast notification here)
+      alert(`Failed to update vocabulary: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setVocabUpdateLoading(false);
+    }
+  };
+
+  // Helper functions for simplified actions
+  const handleAddToLearn = async () => {
+    await handleUpdateVocabularyDifficulty(3); // Level 3 = Easy, new word
+  };
+
+  const handleMarkAsMastered = async () => {
+    await handleUpdateVocabularyDifficulty(5); // Level 5 = Mastered
+  };
+
+  // Refresh all wrapper colors after bulk operations
+  const refreshAllWrapperColors = () => {
+    if (!plainTextRef.current) return;
+
+    const container = plainTextRef.current;
+    const allWrappers = container.querySelectorAll<HTMLElement>('[data-vocab-status]');
+
+    allWrappers.forEach(wrapper => {
+      const start = parseInt(wrapper.getAttribute('data-start') || '0');
+      const end = parseInt(wrapper.getAttribute('data-end') || '0');
+      const chunk = chunks.find(c => c.start === start && c.end === end && c.text.trim());
+
+      if (chunk) {
+        const newStatus = getVocabularyStatus(chunk.vocabularyMatch);
+        wrapper.setAttribute('data-vocab-status', newStatus);
+
+        // Update border color
+        switch (newStatus) {
+          case 'mastered':
+            wrapper.style.borderBottomColor = '#9ca3af'; // gray-400
+            break;
+          case 'easy':
+            wrapper.style.borderBottomColor = '#22c55e'; // green-500
+            break;
+          case 'challenging':
+            wrapper.style.borderBottomColor = '#f97316'; // orange-500
+            break;
+          case 'unregistered':
+          default:
+            wrapper.style.borderBottomColor = '#ef4444'; // red-500
+            break;
+        }
+      }
+    });
+  };
+
+  // Bulk add all unregistered vocabulary
+  const handleBulkAddVocabulary = async () => {
+    if (vocabUpdateLoading || unregisteredChunks.length === 0) return;
+
+    setVocabUpdateLoading(true);
+    try {
+      const language = chunks[0]?.language || 'en-US';
+      let addedCount = 0;
+      const errors: Array<{ text: string; error: unknown }> = [];
+
+      // Build a Set of currently unregistered chunk texts for efficient checking
+      const unregisteredTexts = new Set(unregisteredChunks.map(chunk => chunk.text.trim().toLowerCase()));
+
+      console.log(`[ReadingMode] Starting bulk add: ${unregisteredChunks.length} words`);
+
+      // Create a new vocabulary map that we'll build up
+      const updatedVocabularyMap = new Map(vocabularyMap);
+
+      for (const chunk of unregisteredChunks) {
+        try {
+          const chunkText = chunk.text.trim();
+          if (!chunkText) continue;
+
+          // Skip punctuation-only chunks
+          if (!hasWordCharacters(chunkText)) {
+            console.log(`[ReadingMode] Skipping "${chunkText}" - punctuation only`);
+            continue;
+          }
+
+          const chunkTextLower = chunkText.toLowerCase();
+
+          // Double-check this chunk is still unregistered (might have been added manually)
+          if (!unregisteredTexts.has(chunkTextLower) || updatedVocabularyMap.has(chunkTextLower)) {
+            console.log(`[ReadingMode] Skipping "${chunkText}" - already registered`);
+            continue;
+          }
+
+          // Add with default level 3 (easy, new word)
+          const newItem = await addVocabularyItem({
+            text: chunkText,
+            language: language,
+          });
+
+          if (!newItem || !newItem.id) {
+            throw new Error('Failed to add vocabulary item: Invalid response');
+          }
+
+          await updateVocabularyItemKnowledgeLevel(newItem.id, 3);
+
+          addedCount++;
+
+          // Update local vocabulary map
+          const updatedItem: VocabularyItem = {
+            ...newItem,
+            knowledge_level: 3,
+          };
+          updatedVocabularyMap.set(chunkTextLower, updatedItem);
+
+          // Update chunk vocabulary match
+          chunk.vocabularyMatch = {
+            vocabularyItem: updatedItem,
+            knowledgeLevel: 3,
+            isRegistered: true,
+          };
+
+          // Also update all matching chunks in the array
+          chunks.forEach(c => {
+            if (c.text?.trim().toLowerCase() === chunkTextLower) {
+              c.vocabularyMatch = chunk.vocabularyMatch;
+            }
+          });
+        } catch (error) {
+          errors.push({ text: chunk.text, error });
+          console.error(`[ReadingMode] Failed to add "${chunk.text}":`, error);
+        }
+      }
+
+      // Update vocabulary map state once after all additions
+      setVocabularyMap(updatedVocabularyMap);
+
+      // Show feedback
+      if (addedCount > 0) {
+        console.log(`[ReadingMode] Successfully added ${addedCount} words to vocabulary`);
+        // Refresh all wrapper colors
+        refreshAllWrapperColors();
+
+        // Notify side panel to refresh vocabulary list if it's open
+        // We'll trigger a refresh by sending a message that React Query will listen to
+        try {
+          // Send message to invalidate vocabulary cache
+          chrome.runtime
+            .sendMessage({
+              action: 'invalidateVocabularyCache',
+              target: 'sidepanel',
+            })
+            .catch(() => {
+              // Side panel might not be open, ignore error
+            });
+        } catch {
+          // Message sending failed, ignore
+        }
+      }
+      if (errors.length > 0) {
+        console.warn(`[ReadingMode] Failed to add ${errors.length} words:`, errors);
+      }
+
+      // Show user feedback
+      if (addedCount === unregisteredChunks.length) {
+        // All succeeded - no need to show alert
+      } else if (addedCount > 0) {
+        alert(`Added ${addedCount} of ${unregisteredChunks.length} words. ${errors.length} failed.`);
+      } else {
+        alert(`Failed to add words. Check console for details.`);
+      }
+    } catch (error) {
+      console.error('[ReadingMode] Bulk add failed:', error);
+      alert(`Bulk add failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setVocabUpdateLoading(false);
+    }
+  };
 
   // Get current chunk from chunks array when hoveredChunk is set
   // This ensures we always have the latest translation without re-rendering unnecessarily
@@ -164,6 +517,19 @@ export const ReadingMode = ({
   useEffect(() => {
     if (!plainTextRef.current || chunks.length === 0) return;
 
+    // Debug: log first few chunks to see if vocabularyMatch is present
+    if (chunks.length > 0) {
+      const sampleChunks = chunks.slice(0, 3);
+      console.log(
+        '[ReadingMode] Sample chunks with vocabularyMatch:',
+        sampleChunks.map(c => ({
+          text: c.text.substring(0, 20),
+          hasVocabMatch: !!c.vocabularyMatch,
+          vocabStatus: c.vocabularyMatch ? getVocabularyStatus(c.vocabularyMatch) : 'none',
+        })),
+      );
+    }
+
     const container = plainTextRef.current;
 
     for (const chunk of chunks) {
@@ -185,29 +551,69 @@ export const ReadingMode = ({
         toWrap.push(el);
       }
 
-      // Create wrapper element
+      // Create wrapper element with vocabulary-based styling
       const wrapper = document.createElement('span');
-      wrapper.className = 'text-annotate-chunk inline cursor-help transition-colors border-b border-dotted';
-      if (chunk.translation.differs) {
-        wrapper.classList.add('text-annotate-chunk-differs');
-        wrapper.style.borderBottomColor = '#FF9800';
-      } else {
-        wrapper.style.borderBottomColor = '#4CAF50';
-      }
-      wrapper.setAttribute('data-start', String(chunk.start));
-      wrapper.setAttribute('data-end', String(chunk.end));
+      const vocabularyStatus = getVocabularyStatus(chunk.vocabularyMatch);
 
-      // Add hover effect
-      wrapper.addEventListener('mouseenter', () => {
-        if (chunk.translation.differs) {
-          wrapper.style.backgroundColor = 'rgba(255, 152, 0, 0.2)';
-        } else {
-          wrapper.style.backgroundColor = 'rgba(76, 175, 80, 0.2)';
-        }
-      });
+      // Explicit debug - log the first chunk's vocabularyMatch to understand what's happening
+      if (chunks.indexOf(chunk) === 0) {
+        console.log('[ReadingMode] FIRST CHUNK vocabularyMatch debug:', {
+          vocabularyMatch: chunk.vocabularyMatch,
+          vocabularyMatchType: typeof chunk.vocabularyMatch,
+          isNull: chunk.vocabularyMatch === null,
+          isUndefined: chunk.vocabularyMatch === undefined,
+          vocabularyStatus,
+          getVocabularyStatusResult: getVocabularyStatus(chunk.vocabularyMatch),
+        });
+      }
+
+      // Base classes
+      wrapper.className = 'inline cursor-help transition-colors border-b border-dotted';
+
+      // Apply vocabulary-based colors using inline styles (more reliable than Tailwind classes in this context)
+      switch (vocabularyStatus) {
+        case 'mastered':
+          wrapper.style.borderBottomColor = '#9ca3af'; // gray-400
+          wrapper.addEventListener('mouseenter', () => {
+            wrapper.style.backgroundColor = 'rgba(156, 163, 175, 0.2)'; // gray-400/20
+          });
+          break;
+        case 'easy':
+          wrapper.style.borderBottomColor = '#22c55e'; // green-500
+          wrapper.addEventListener('mouseenter', () => {
+            wrapper.style.backgroundColor = 'rgba(34, 197, 94, 0.2)'; // green-500/20
+          });
+          break;
+        case 'challenging':
+          wrapper.style.borderBottomColor = '#f97316'; // orange-500
+          wrapper.addEventListener('mouseenter', () => {
+            wrapper.style.backgroundColor = 'rgba(249, 115, 22, 0.2)'; // orange-500/20
+          });
+          break;
+        case 'unregistered':
+        default:
+          wrapper.style.borderBottomColor = '#ef4444'; // red-500
+          wrapper.addEventListener('mouseenter', () => {
+            wrapper.style.backgroundColor = 'rgba(239, 68, 68, 0.2)'; // red-500/20
+          });
+          break;
+      }
+
       wrapper.addEventListener('mouseleave', () => {
         wrapper.style.backgroundColor = '';
       });
+
+      // Debug logging for ALL chunks to see what's happening
+      console.log('[ReadingMode] Chunk wrapper created:', {
+        text: chunk.text.substring(0, 30),
+        vocabularyMatch: chunk.vocabularyMatch,
+        vocabularyStatus,
+        hasVocabMatch: !!chunk.vocabularyMatch,
+      });
+
+      wrapper.setAttribute('data-start', String(chunk.start));
+      wrapper.setAttribute('data-end', String(chunk.end));
+      wrapper.setAttribute('data-vocab-status', vocabularyStatus);
 
       // Compose combined text
       const combined = toWrap.map(el => el.textContent || '').join('');
@@ -487,7 +893,7 @@ export const ReadingMode = ({
           <div className="flex min-h-[28px] flex-col items-center gap-2 px-8 pb-4">
             {showDualProgress ? (
               <>
-                <div className="text-center text-sm text-gray-400">
+                <div className="text-center text-gray-400" style={{ fontSize: '16px' }}>
                   {progress.phase === 'translate-literal'
                     ? 'Literal Translation'
                     : progress.phase === 'translate-contextual'
@@ -497,7 +903,7 @@ export const ReadingMode = ({
                 <div className="flex w-full max-w-[300px] flex-col gap-2">
                   {/* Literal progress bar */}
                   <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center justify-between text-gray-500" style={{ fontSize: '16px' }}>
                       <span>Literal</span>
                       <span>
                         {progress.literalCompleted !== undefined
@@ -521,7 +927,7 @@ export const ReadingMode = ({
                   </div>
                   {/* Contextual progress bar */}
                   <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center justify-between text-gray-500" style={{ fontSize: '16px' }}>
                       <span>Contextual</span>
                       <span>
                         {progress.contextualCompleted !== undefined
@@ -545,7 +951,7 @@ export const ReadingMode = ({
               </>
             ) : (
               <>
-                <div className="text-center text-sm text-gray-400">
+                <div className="text-center text-gray-400" style={{ fontSize: '16px' }}>
                   {progress.phase || 'Processing...'} ({progress.completed}/{progress.total})
                 </div>
                 <div className="h-1.5 w-full max-w-[300px] overflow-hidden rounded-full bg-white/20">
@@ -620,6 +1026,22 @@ export const ReadingMode = ({
             title={showPrefixes ? 'Hide translation prefixes' : 'Show translation prefixes'}>
             {showPrefixes ? <Captions size={16} /> : <CaptionsOff size={16} />}
           </button>
+          {unregisteredChunks.length > 0 && (
+            <button
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-5 py-2.5 text-base font-semibold transition-all',
+                'bg-gradient-to-r from-green-600 to-green-700 text-white',
+                'hover:from-green-700 hover:to-green-800 hover:shadow-lg',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+                'ring-2 ring-green-500/30',
+              )}
+              onClick={handleBulkAddVocabulary}
+              disabled={vocabUpdateLoading}
+              title={`Add all ${unregisteredChunks.length} unregistered words to vocabulary`}>
+              <BookPlus size={20} className="flex-shrink-0" />
+              <span className="whitespace-nowrap">Add All ({unregisteredChunks.length})</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -720,6 +1142,103 @@ export const ReadingMode = ({
                 </div>
               )}
             </>
+          )}
+
+          {/* Vocabulary Difficulty Modification */}
+          {currentHoveredChunk && (
+            <div className="mt-3 border-t border-white/10 pt-3">
+              <div className="mb-2 flex items-center gap-2 text-sm text-gray-400">
+                {currentHoveredChunk.vocabularyMatch?.isRegistered ? (
+                  currentHoveredChunk.vocabularyMatch.knowledgeLevel === 5 ? (
+                    <>
+                      <Award size={14} className="text-gray-400" />
+                      <span>Vocabulary: Mastered</span>
+                    </>
+                  ) : (
+                    <>
+                      <BookOpen size={14} className="text-gray-400" />
+                      <span>
+                        Vocabulary: Difficulty Level {currentHoveredChunk.vocabularyMatch.knowledgeLevel || 1}/5
+                      </span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <BookPlus size={14} className="text-gray-400" />
+                    <span>Vocabulary: Not in vocabulary</span>
+                  </>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {!currentHoveredChunk.vocabularyMatch?.isRegistered ? (
+                  // Not registered: Show Add to Learn and Mark as Mastered
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleAddToLearn}
+                      disabled={vocabUpdateLoading}
+                      className={cn(
+                        'flex items-center rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+                        'bg-green-600/80 text-white hover:bg-green-600',
+                      )}>
+                      <BookPlus size={14} className="mr-1.5" />
+                      Add to Learn
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleMarkAsMastered}
+                      disabled={vocabUpdateLoading}
+                      className={cn(
+                        'flex items-center rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+                        'bg-gray-600/80 text-white hover:bg-gray-600',
+                      )}>
+                      <Award size={14} className="mr-1.5" />
+                      Mark as Mastered
+                    </button>
+                  </>
+                ) : currentHoveredChunk.vocabularyMatch.knowledgeLevel === 5 ? (
+                  // Mastered: Show option to change to easy or challenging
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateVocabularyDifficulty(3)}
+                      disabled={vocabUpdateLoading}
+                      className={cn(
+                        'flex items-center rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+                        'bg-green-600/80 text-white hover:bg-green-600',
+                      )}>
+                      <TrendingUp size={14} className="mr-1.5" />
+                      Set as Easy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateVocabularyDifficulty(1)}
+                      disabled={vocabUpdateLoading}
+                      className={cn(
+                        'flex items-center rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+                        'bg-orange-600/80 text-white hover:bg-orange-600',
+                      )}>
+                      <TrendingDown size={14} className="mr-1.5" />
+                      Set as Challenging
+                    </button>
+                  </>
+                ) : (
+                  // Registered but not mastered: Show Mark as Mastered
+                  <button
+                    type="button"
+                    onClick={handleMarkAsMastered}
+                    disabled={vocabUpdateLoading}
+                    className={cn(
+                      'flex items-center rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+                      'bg-gray-600/80 text-white hover:bg-gray-600',
+                    )}>
+                    <Award size={14} className="mr-1.5" />
+                    Mark as Mastered
+                  </button>
+                )}
+              </div>
+              {vocabUpdateLoading && <div className="mt-1 text-xs text-gray-500">Updating...</div>}
+            </div>
           )}
 
           {/* Image Viewer */}

@@ -144,6 +144,21 @@ export const updateVocabularyItemKnowledgeLevel = async (id: number, level: numb
   const result = await sendDatabaseMessageForBoolean('updateVocabularyItemKnowledgeLevel', { id, level });
   return result;
 };
+
+// Get review queue (words due for review)
+export const getReviewQueue = async (limit?: number): Promise<VocabularyItem[]> => {
+  return sendDatabaseMessageForArray<VocabularyItem>('getReviewQueue', { limit });
+};
+
+// Mark vocabulary item as reviewed
+export const markAsReviewed = async (id: number): Promise<boolean> => {
+  return await sendDatabaseMessageForBoolean('markAsReviewed', { id });
+};
+
+// Get next review date (when reviews will next be available)
+export const getNextReviewDate = async (): Promise<string | null> => {
+  return await sendDatabaseMessageForItem<string | null>('getNextReviewDate', {}, z.string().nullable().optional());
+};
 ```
 
 **Data Types**:
@@ -378,6 +393,92 @@ export const useVocabulary = () => {
 - **Selection**: `selectedItems`, `toggleItemSelected`, `toggleSelectAll`
 - **Filtering**: `languageFilter`, `setLanguageFilter`
 - **Mutations**: `addVocabularyItem`, `updateVocabularyItemKnowledgeLevel`, `deleteVocabularyItem`, `bulkDelete`, `clearAllVocabulary`
+
+**Note**: In the Vocabulary tab of the side panel, users **cannot manually modify knowledge levels**. Levels can only be changed through the review system. However, users can:
+- Delete vocabulary items (via the "more options" menu)
+- Reset mastered items to level 1 using "Learn Again" option (for items with level 5)
+- Toggle metadata display to see "due for review" times for each vocabulary item
+
+### Use Vocabulary Review Hook (`hooks/useVocabularyReview.ts`)
+
+**Purpose**: Vocabulary review functionality with spaced repetition support.
+
+**Key Features**:
+
+```typescript
+export const useVocabularyReview = (limit?: number) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // TanStack Query integration
+  const { data: reviewQueue = [], isLoading, refetch } = useQuery({
+    queryKey: ['reviewQueue', limit],
+    queryFn: async () => apiGetReviewQueue(limit),
+  });
+
+  const { data: nextReviewDate } = useQuery({
+    queryKey: ['nextReviewDate'],
+    queryFn: apiGetNextReviewDate,
+  });
+
+  const currentItem = useMemo(() => reviewQueue[currentIndex] || null, [reviewQueue, currentIndex]);
+
+  const progress = useMemo(
+    () => ({
+      current: currentIndex + 1,
+      total: reviewQueue.length,
+    }),
+    [currentIndex, reviewQueue.length],
+  );
+
+  // Review actions
+  const handleKnow = useCallback(() => {
+    if (!currentItem) return;
+    const newLevel = Math.min(5, currentItem.knowledge_level + 1);
+    markReviewed(currentItem.id, newLevel);
+  }, [currentItem, markReviewed]);
+
+  const handleDontKnow = useCallback(() => {
+    if (!currentItem) return;
+    const newLevel = Math.max(1, currentItem.knowledge_level - 1);
+    markReviewed(currentItem.id, newLevel);
+  }, [currentItem, markReviewed]);
+
+  const handleMastered = useCallback(() => {
+    if (!currentItem) return;
+    markReviewed(currentItem.id, 5);
+  }, [currentItem, markReviewed]);
+
+  return {
+    reviewQueue,
+    currentItem,
+    currentIndex,
+    progress,
+    isLoading,
+    nextItem,
+    skip,
+    markReviewed,
+    handleKnow,
+    handleDontKnow,
+    handleMastered,
+    refetch,
+    resetIndex,
+    nextReviewDate, // ISO string of when next review will be available, or null
+  };
+};
+```
+
+**Returned Values**:
+- **Data**: `reviewQueue`, `currentItem`, `currentIndex`, `progress`, `isLoading`, `nextReviewDate`
+- **Navigation**: `nextItem`, `skip`, `resetIndex`
+- **Review Actions**: `handleKnow`, `handleDontKnow`, `handleMastered`, `markReviewed`
+- **Refresh**: `refetch`
+
+**Review Logic**:
+- **Review Interval**: Words become due for review **1 hour** after their last review (changed from 7 days)
+- **New Words**: Newly added words are immediately available for review (`last_reviewed_at` equals `created_at`)
+- **Queue Order**: Words are sorted by oldest `last_reviewed_at` first, then by lowest `knowledge_level` (most challenging first)
+- **Next Review Date**: `nextReviewDate` indicates when the next batch of reviews will become available (1 hour after the most recently reviewed word, formatted as "In X mins/hours")
+- **Review Actions**: Reviewing a word updates both its `knowledge_level` and `last_reviewed_at` timestamp
 
 ### Use Text Rewrites Hook (`hooks/useTextRewrites.ts`)
 
@@ -616,7 +717,7 @@ const level = await estimateCEFRLevel(vocabularyData);
 ### React Hook Usage
 
 ```typescript
-import { useVocabulary, useTextRewrites } from '@extension/api';
+import { useVocabulary, useVocabularyReview, useTextRewrites } from '@extension/api';
 
 const VocabularyComponent = () => {
   const {
@@ -640,6 +741,50 @@ const VocabularyComponent = () => {
           </button>
         </div>
       ))}
+    </div>
+  );
+};
+
+const VocabularyReviewComponent = () => {
+  const {
+    reviewQueue,
+    currentItem,
+    progress,
+    isLoading,
+    handleKnow,
+    handleDontKnow,
+    handleMastered,
+    skip,
+    nextReviewDate,
+  } = useVocabularyReview(50);
+
+  if (isLoading) return <div>Loading...</div>;
+  if (reviewQueue.length === 0) {
+    return (
+      <div>
+        <h2>All caught up!</h2>
+        {nextReviewDate && (
+          <p>Next review available: {new Date(nextReviewDate).toLocaleDateString()}</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div>Progress: {progress.current} of {progress.total}</div>
+      {currentItem && (
+        <div>
+          <h2>{currentItem.text}</h2>
+          <button onClick={handleKnow}>I know this</button>
+          <button onClick={handleDontKnow}>I don't know</button>
+          <button onClick={handleMastered}>Mastered</button>
+          <button onClick={skip}>Skip</button>
+        </div>
+      )}
+      {nextReviewDate && (
+        <p>Next review available: {new Date(nextReviewDate).toLocaleDateString()}</p>
+      )}
     </div>
   );
 };

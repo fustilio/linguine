@@ -1,6 +1,6 @@
+import { themeVariants } from '../../theme';
 import { cn } from '../../utils';
 import { button } from '../common-styles';
-import { themeVariants } from '../../theme';
 
 interface PaginationProps {
   currentPage: number;

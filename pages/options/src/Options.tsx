@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { TextRewritesAdmin } from './TextRewritesAdmin';
 import { VocabularyAdmin } from './VocabularyAdmin';
 import { VocabularyAnalytics } from './VocabularyAnalytics';
+import { DatabaseReset } from './DatabaseReset';
 import { useStorage, withErrorBoundary, withSuspense, LANGUAGES } from '@extension/shared';
 import {
   languageStorage,
@@ -193,6 +194,11 @@ const Options = () => {
                         {saveStatus || 'Save Settings'}
                       </button>
                     </div>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-2 text-lg font-semibold">Database Management</h3>
+                    <DatabaseReset />
                   </div>
                 </div>
               </div>
