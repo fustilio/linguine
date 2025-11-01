@@ -27,13 +27,13 @@
 - [Chrome Built-in AI Challenge 2025](#chrome-built-in-ai-challenge-2025)
   - [Submission Highlights](#submission-highlights)
 - [Features](#features)
-  - [Vocabulary Learning Loop Features](#vocabulary-learning-loop-features)
-  - [Comprehension Learning Loop Features](#comprehension-learning-loop-features)
-  - [General Features](#general-features)
-- [Architecture](#architecture)
-- [Core Learning Loops](#core-learning-loops)
   - [Vocabulary Learning Loop](#vocabulary-learning-loop)
   - [Comprehension Learning Loop](#comprehension-learning-loop)
+  - [General](#general)
+- [Architecture](#architecture)
+- [Core Learning Loops](#core-learning-loops)
+  - [Vocabulary Learning Loop](#vocabulary-learning-loop-1)
+  - [Comprehension Learning Loop](#comprehension-learning-loop-1)
   - [How They Reinforce Each Other](#how-they-reinforce-each-other)
 - [Installation](#installation)
   - [Load in Chrome ](#load-in-chrome-)
@@ -275,11 +275,13 @@ See [Architecture Overview](docs/architecture-overview.md) for full details.
 
 ## Testing
 
-The following webpages may be used for browsing: 
-- [Thai News](https://www.thairath.co.th/news/local/2891763)
-- [Japanese News](https://globe.asahi.com/article/16016162?iref=comtop_Globe_02)
-- [French News](https://www.france24.com/fr/plan%C3%A8te/20251031-des-paysans-du-pakistan-engagent-un-bras-de-fer-avec-deux-pollueurs-allemands)
-- [English News](https://www.straitstimes.com/asia/se-asia/asean-leaders-push-for-stronger-trade-ties-with-rcep-members-and-other-partners)
+For comprehensive testing instructions including setup, feature testing, and troubleshooting, see [Testing Instructions](docs/testing-instructions.md).
+
+**Quick Setup:**
+1. Download ZIP from [GitHub release](https://github.com/fustilio/linguine/releases/tag/submission)
+2. Extract and load `dist` folder in Chrome (`chrome://extensions` → Load unpacked)
+3. Enable Chrome flags (see [Testing Instructions](docs/testing-instructions.md))
+4. Follow full testing guide for all features
 
 ## Troubleshooting
 

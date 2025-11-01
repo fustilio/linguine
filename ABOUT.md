@@ -2,119 +2,168 @@
 
 **The Problem**
 
-Language learning is fragmented. Learners switch between vocabulary apps, translation tools, and reading platforms, breaking natural learning flow. No tool unifies browsing with contextual language learning.
+When learning a new language, you need vocabulary apps, translation tools, and reading platforms—but they're all separate. You copy-paste text between apps, lose context, and break your natural learning flow. There's no single tool that lets you learn naturally while browsing real content.
 
-**The Vision**
+**The Solution**
 
-Transform everyday browsing into seamless language learning. Every webpage becomes a learning opportunity—no copy-pasting or juggling tools. Just click and learn.
+Linguine transforms any webpage into an interactive language learning experience. Learn vocabulary from real articles, understand complex texts through AI simplification, and review what you've learned—all without leaving your browser. Every webpage becomes a learning opportunity with one click.
 
-**Why It Matters**
+**Why This Matters**
 
-Traditional tools create barriers between learning and real-world language use. Linguine bridges this gap by making any webpage an interactive learning environment, enabling contextual learning—exactly how languages are naturally acquired.
+Languages are learned through context, not isolated vocabulary lists. Linguine bridges the gap between learning apps and real-world language use, enabling you to learn exactly how you encounter language in daily life—while reading news, blogs, or any webpage you visit.
 
 ## What it does
 
-Linguine transforms any webpage into a language learning tool using Chrome's Built-in AI APIs. Everything runs client-side with zero data leaving your browser.
+Linguine is a Chrome extension that transforms web browsing into language learning. It uses Chrome's Built-in AI to provide translations, text simplification, and vocabulary tracking—all running on your device with complete privacy.
 
-### Two Reinforcing Learning Loops
+### How It Works: Two Learning Loops
 
-1. **Vocabulary Learning Loop**: Browse → Discover → Add → Review → Master
-   - Discover words naturally while browsing
-   - Add to personal database with one click
-   - Review with ANKI-style spaced repetition (1-hour intervals)
-   - Track knowledge levels (1-5) toward mastery
+**Vocabulary Learning Loop** (Learn Words → Remember Words)
+1. **Browse** any webpage in your target language
+2. **Discover** unfamiliar words naturally in context
+3. **Add** words to your personal vocabulary database (one click)
+4. **Review** words using ANKI-style flashcards with spaced repetition
+5. **Master** words through consistent practice
 
-2. **Comprehension Learning Loop**: Encounter → Simplify → Understand → Return
-   - Encounter complex text while browsing
-   - Simplify with Chrome's Rewriter API
-   - Save simplified versions with source links
-   - Return to original text with better understanding
+**Example**: Reading a French news article → seeing "bonjour" in context → adding it to vocabulary → reviewing it later → mastering it through flashcards.
 
-These loops reinforce each other: vocabulary helps comprehension, simplified texts provide vocabulary context.
+**Comprehension Learning Loop** (Understand Complex Texts → Build Confidence)
+1. **Encounter** complex text while browsing
+2. **Simplify** text using AI to make it more accessible
+3. **Save** simplified versions with source links
+4. **Return** to original text with better understanding
+
+**Example**: Finding a difficult Spanish article → simplifying complex sentences → saving for later → returning to original text with confidence.
+
+**How They Work Together**: Words you learn help you understand more complex texts. Texts you simplify provide clearer context for vocabulary words. Both loops accelerate each other.
 
 ### Key Features
 
-- **📖 Reading Mode**: Word-by-word translations with progressive streaming. Hover for translations, click for TTS.
-- **✏️ Text Simplification**: Simplify complex text with Rewriter API. Track readability scores.
-- **📚 Vocabulary Tracking**: Personal database with spaced repetition. ANKI-style flashcards.
-<!-- - **🧠 AI Analytics**: Natural language queries about vocabulary progress. -->
-- **🔒 Privacy-First**: Everything client-side. Works offline. No API costs.
-- **🌍 Multi-Language**: Tested on 6 languages (English, Spanish, French, Thai, Japanese, Mandarin).
+**📖 Reading Mode**
+- Transform any webpage into an interactive learning experience
+- Word-by-word translations appear on hover
+- Color-coded vocabulary status (red=unknown, green=learned, gray=mastered)
+- Text-to-speech pronunciation
+- Progressive loading: text appears instantly, translations stream smoothly
+
+**✏️ Text Simplification**
+- Highlight any complex text → AI makes it easier to understand
+- Compare original vs. simplified versions
+- Save simplified texts to your personal library
+- Jump back to original text with one click
+
+**📚 Vocabulary Management**
+- Personal database of words you're learning
+- ANKI-style spaced repetition flashcards
+- Track progress from challenging (level 1) to mastered (level 5)
+- Automatic review scheduling (words appear when ready)
+
+**🔒 Privacy & Offline**
+- Everything runs on your device (zero data leaves your browser)
+- Works completely offline after initial setup
+- No API costs, no subscriptions, no tracking
+
+**🌍 Multi-Language Support**
+- Tested on 6 languages: English, Spanish, French, Thai, Japanese, Mandarin
+- Automatic language detection
+- Language-specific word segmentation and readability scoring
 
 ### Chrome Built-in AI APIs Used
 
-- **Prompt API (LanguageModel)**: Contextual translations, analytics, example generation, query parsing
-- **Translator API**: Fast literal translations for word annotations
-- **Rewriter API**: Text simplification for accessibility
-- **LanguageDetector API**: Automatic language detection
+- **Prompt API (LanguageModel)**: Generates contextual translations, example sentences for flashcards, and analyzes vocabulary progress
+- **Translator API**: Provides fast, literal word-by-word translations in Reading Mode
+- **Rewriter API**: Simplifies complex text to make it more accessible for learners
+- **LanguageDetector API**: Automatically detects webpage language for seamless experience
 
 ## How we built it
 
-**Architecture**: Layered system (UI → API → Background/Offscreen → SQLite)
+**Architecture**: Four-layer system that keeps data local and secure
+- **UI Layer**: React components for popup, side panel, and Reading Mode
+- **API Layer**: Type-safe interfaces with Zod validation
+- **Background Layer**: Offscreen document for database access
+- **Database Layer**: SQLite stored locally via OPFS (survives browser restarts)
 
-**Stack**: React + TypeScript, Vite, Turborepo, SQLite (OPFS), Zod validation
+**Tech Stack**: React + TypeScript, Vite, Turborepo, SQLite (OPFS), Zod validation
 
-**Key Decisions**:
-1. **Offscreen Document Pattern**: Required for OPFS access (service workers can't access OPFS directly)
-2. **Progressive Streaming**: Display text instantly, stream annotations in background
-3. **Multi-Language Segmentation**: Intl.Segmenter + Thai wordcut + fallbacks
-4. **Message Passing**: Direct database communication via offscreen document
-5. **Visual Vocabulary Indicators**: Color-coded underlines (red=unknown, orange=challenging, green=easy, gray=mastered)
+**Key Technical Decisions**
+
+1. **Offscreen Document for Database**: Chrome extensions need special handling to store data locally. We use an offscreen document to access SQLite via OPFS, ensuring your vocabulary and rewrites persist even after closing Chrome.
+
+2. **Progressive Streaming**: Reading Mode shows text immediately, then loads translations in the background. This means no waiting—you can start reading while translations appear smoothly.
+
+3. **Multi-Language Word Segmentation**: Different languages need different approaches. We use modern JavaScript for most languages, special libraries for Thai, and smart fallbacks for everything else.
+
+4. **Visual Vocabulary Feedback**: Words are color-coded based on your knowledge level. Red words you don't know, green words you've learned. This instant visual feedback accelerates learning.
+
+5. **Privacy-First Architecture**: All AI processing happens on your device using Chrome's built-in AI. No data is sent to external servers, enabling offline use and complete privacy.
 
 ## Challenges we ran into
 
-**OPFS Access**: Service workers can't access OPFS → implemented offscreen document pattern with message passing.
+**Storing Data Locally in Chrome Extensions**
+Challenge: Chrome's background scripts can't directly access local file storage. We needed a way to store vocabulary and rewrites permanently.
+Solution: Implemented offscreen document pattern—a hidden page that can access local storage and communicate with the extension.
 
-**Non-Blocking AI**: Progressive streaming needed—display content immediately, load annotations in background with batched operations.
+**Making AI Fast and Non-Blocking**
+Challenge: AI translations can be slow. We didn't want users waiting with blank screens.
+Solution: Built progressive streaming—display text instantly, load translations in the background. Users see content immediately while AI processes in parallel.
 
-**Multi-Language Segmentation**: Different word boundaries per language. Built language-specific strategies with fallbacks.
+**Handling Different Languages**
+Challenge: Thai doesn't use spaces between words. Japanese uses three writing systems. Each language needs different segmentation.
+Solution: Built language-specific strategies with smart fallbacks. Works for any language, with special handling for unique cases.
 
-**State Synchronization**: Multiple isolated contexts (popup, side panel, options, content scripts). Used Zod validation + reactive chrome.storage.
+**Keeping Everything Synchronized**
+Challenge: Extension has multiple parts (popup, side panel, content scripts) that need to stay in sync.
+Solution: Created reactive storage system with live updates. Change vocabulary in side panel, see it update everywhere instantly.
 
-**User Gestures**: Chrome AI APIs require user gestures (especially Rewriter's initial download). Designed UI with explicit user actions.
-
-**Language Detection**: Built fallback chain—LanguageDetector → character analysis → Readability hints → target language.
+**Chrome AI API Requirements**
+Challenge: Chrome's AI APIs need user interactions (clicks) to work, especially for initial model downloads.
+Solution: Designed UI so all AI operations are triggered by explicit user actions, with clear feedback about what's happening.
 
 ## Accomplishments that we're proud of
 
-✅ **Privacy-First**: Zero data leaves browser. Everything client-side.
+✅ **Complete Privacy**: Zero data leaves your browser. Everything runs client-side using Chrome's built-in AI. No tracking, no external services, no subscriptions.
 
-✅ **Offline Capable**: Works entirely offline after setup. SQLite via OPFS persists everything.
+✅ **Works Offline**: After initial setup, everything works without internet. Your vocabulary, rewrites, and reviews are all stored locally and accessible offline.
 
-✅ **Multi-Language**: Tested on 6 diverse languages with unique challenges (writing systems, segmentation, readability).
+✅ **Real Multi-Language Support**: Not just European languages—we support Thai (no word boundaries), Japanese (three writing systems), and six diverse languages total, each with unique challenges.
 
-✅ **Performance**: Progressive loading, batched AI requests, React Query caching, indexed queries.
+✅ **Fast Performance**: Text appears instantly. Translations stream smoothly. No blocking, no waiting, no frozen screens.
 
-✅ **Robust Architecture**: Type-safe (Zod), clean separation of concerns, comprehensive error handling.
+✅ **Seamless Integration**: Learn while you browse. No switching apps, no copy-pasting. Just click and learn from any webpage.
 
-✅ **UX Innovation**: ANKI-style spaced repetition (1-hour intervals), visual vocabulary indicators, seamless browsing integration.
+✅ **Proven Learning Method**: ANKI-style spaced repetition is scientifically proven for memory retention. We've implemented it with 1-hour intervals for rapid learning.
 
-✅ **Complete Chrome AI Integration**: Four APIs working seamlessly together—Prompt, Translator, Rewriter, LanguageDetector.
+✅ **Four Chrome AI APIs Working Together**: We're not just using one API—we're using Prompt API, Translator API, Rewriter API, and LanguageDetector API together seamlessly, showcasing the full potential of Chrome's built-in AI ecosystem.
 
 ## What we learned
 
-**Chrome Extension Architecture**: Service workers, offscreen documents, content script injection, message passing, lifecycle management.
+**Building Chrome Extensions is Complex**
+Multiple isolated contexts (popup, side panel, content scripts) need careful communication. Service workers have limitations. We learned to architect for Chrome's unique constraints while maintaining clean code.
 
-**Chrome AI APIs**: Always check availability, handle user gestures gracefully, implement fallbacks, design for async/streaming responses, cache and batch requests.
+**AI APIs Need Careful Handling**
+Chrome's AI APIs are powerful but have requirements: user gestures, availability checks, graceful fallbacks. We learned to design UI around these constraints while keeping the experience smooth.
 
-**Database Design**: Schema migrations, indexing strategies, connection management, transaction boundaries, cross-system queries.
+**Languages are Fascinatingly Different**
+Thai segmentation is completely different from English. Japanese readability needs character-level analysis. We learned that one-size-fits-all doesn't work—each language needs thoughtful, specific solutions.
 
-**Language Processing**: Segmentation varies by language, readability needs language-specific formulas, text normalization is crucial, character encoding matters.
+**Users Value Privacy and Speed**
+Privacy-first architecture wasn't just a technical decision—it became a core user benefit. Offline capability, instant feedback, and visual progress indicators matter more than feature lists.
 
-**User Experience**: Users need immediate feedback, visual indicators are powerful, seamless integration beats feature richness, offline capability opens new use cases, privacy-first builds trust.
-
-**Developer Experience**: Type safety, monorepo management, and clear documentation pay off in code quality and feature velocity.
+**Type Safety Pays Off**
+Using Zod for validation and TypeScript everywhere caught bugs early and made the codebase maintainable. Investing in developer experience improved code quality significantly.
 
 ## What's next for Linguine - Language Learning
 
-**Near-term**:
-- Cache vocabulary card backs (translations, examples) for instant display and offline reviews
-- Batch reapplication of text rewrites on page revisit with visual indicators
-- Expanded language support with improved segmentation
+**Coming Soon**
+- **Offline Vocabulary Reviews**: Cache translations and examples so reviews work perfectly offline
+- **Smart Rewrite Detection**: Automatically detect and reapply simplified texts when revisiting pages
+- **More Languages**: Expand support with improved segmentation for additional languages
 
-**Future**:
-- Advanced analytics: CEFR tracking over time, personalized recommendations, learning efficiency metrics
-- Community features: Share rewrite collections, collaborative vocabulary building, achievements
-- Reading Mode enhancements: Better POS tagging, enhanced tooltips, comprehension exercises
-- Performance: Optimized batching, database caching, mobile improvements
-- Accessibility: Enhanced screen reader support, keyboard navigation, high contrast mode
+**Future Vision**
+- **Learning Analytics**: Track CEFR proficiency over time, personalized recommendations based on your patterns
+- **Community Features**: Share simplified text collections, collaborative vocabulary building
+- **Enhanced Reading**: Better grammar analysis, comprehension exercises, reading speed tracking
+- **Mobile Optimization**: Improved performance and UX for mobile browsing
+- **Accessibility**: Screen reader support, keyboard-only navigation, high contrast modes
+
+Linguine is just getting started. We're building the future of contextual, privacy-first language learning—one webpage at a time.
